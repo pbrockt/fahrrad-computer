@@ -5,6 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pbrockt.fahrradcomputer.data.AppSettings
 import com.pbrockt.fahrradcomputer.sensors.FoundDevice
+import com.pbrockt.fahrradcomputer.ui.ThemeMode
+import com.pbrockt.fahrradcomputer.ui.dashboard.DashboardLayout
 import com.pbrockt.fahrradcomputer.update.ReleaseInfo
 import com.pbrockt.fahrradcomputer.update.UpdateChannel
 import com.pbrockt.fahrradcomputer.update.UpdateCheck
@@ -120,6 +122,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setUpdateChannel(value: UpdateChannel) = viewModelScope.launch { store.setUpdateChannel(value) }
     fun setAutoUpdateCheck(value: Boolean) = viewModelScope.launch { store.setAutoUpdateCheck(value) }
     fun setUpdateToken(value: String) = viewModelScope.launch { store.setUpdateToken(value) }
+    fun setThemeMode(value: ThemeMode) = viewModelScope.launch { store.setThemeMode(value) }
+
+    // --- Dashboard ---
+
+    fun editDashboard(change: (DashboardLayout) -> DashboardLayout) = viewModelScope.launch { store.editDashboard(change) }
+    fun resetDashboard() = viewModelScope.launch { store.resetDashboard() }
 
     // --- Updates ---
 

@@ -8,6 +8,9 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.pbrockt.fahrradcomputer.ui.ThemeMode
+import com.pbrockt.fahrradcomputer.ui.dashboard.DashboardLayout
+import com.pbrockt.fahrradcomputer.ui.dashboard.LayoutCodec
 import com.pbrockt.fahrradcomputer.update.UpdateChannel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -28,6 +31,8 @@ data class AppSettings(
      * gibt die API die Releases nicht heraus. Liegt nur auf diesem Geraet.
      */
     val updateToken: String = "",
+    val themeMode: ThemeMode = ThemeMode.DARK,
+    val dashboard: DashboardLayout = DashboardLayout.DEFAULT,
 ) {
     val zones: HrZones get() = HrZones(maxHr)
 }
@@ -42,6 +47,8 @@ class SettingsStore(private val context: Context) {
         val UPDATE_CHANNEL = stringPreferencesKey("update_channel")
         val AUTO_UPDATE_CHECK = booleanPreferencesKey("auto_update_check")
         val UPDATE_TOKEN = stringPreferencesKey("update_token")
+        val THEME = stringPreferencesKey("theme")
+        val DASHBOARD = stringPreferencesKey("dashboard_layout")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { p ->
@@ -55,6 +62,11 @@ class SettingsStore(private val context: Context) {
                 ?: UpdateChannel.RELEASE,
             autoUpdateCheck = p[Keys.AUTO_UPDATE_CHECK] ?: true,
             updateToken = p[Keys.UPDATE_TOKEN] ?: "",
+            themeMode = p[Keys.THEME]
+                ?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
+                ?: ThemeMode.DARK,
+            // Unlesbares oder fehlendes Layout -> Standard, statt eines leeren Bildschirms.
+            dashboard = LayoutCodec.decode(p[Keys.DASHBOARD]) ?: DashboardLayout.DEFAULT,
         )
     }
 
@@ -79,6 +91,24 @@ class SettingsStore(private val context: Context) {
     suspend fun setAutoUpdateCheck(value: Boolean) = set(Keys.AUTO_UPDATE_CHECK, value)
 
     suspend fun setUpdateToken(value: String) = set(Keys.UPDATE_TOKEN, value.trim())
+
+    suspend fun setThemeMode(value: ThemeMode) = set(Keys.THEME, value.name)
+
+    /**
+     * Wendet eine Aenderung auf das *gespeicherte* Layout an - innerhalb einer Transaktion.
+     * So gehen zwei schnelle Tipps im Editor nicht verloren, weil der zweite noch auf
+     * dem alten Stand aufgesetzt haette.
+     */
+    suspend fun editDashboard(change: (DashboardLayout) -> DashboardLayout) {
+        context.dataStore.edit { p ->
+            val current = LayoutCodec.decode(p[Keys.DASHBOARD]) ?: DashboardLayout.DEFAULT
+            p[Keys.DASHBOARD] = LayoutCodec.encode(change(current))
+        }
+    }
+
+    suspend fun resetDashboard() {
+        context.dataStore.edit { it.remove(Keys.DASHBOARD) }
+    }
 
     private suspend fun <T> set(key: Preferences.Key<T>, value: T) {
         context.dataStore.edit { it[key] = value }

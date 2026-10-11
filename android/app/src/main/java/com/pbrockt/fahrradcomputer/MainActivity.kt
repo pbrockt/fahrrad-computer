@@ -4,6 +4,7 @@ import android.Manifest
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -25,6 +26,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.pbrockt.fahrradcomputer.ui.AppColors
 import com.pbrockt.fahrradcomputer.ui.FahrradTheme
 import com.pbrockt.fahrradcomputer.ui.RidesScreen
 import com.pbrockt.fahrradcomputer.ui.SensorsScreen
@@ -47,8 +50,18 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
-            FahrradTheme {
-                AppRoot()
+            val vm: MainViewModel = viewModel()
+            val settings by vm.settings.collectAsStateWithLifecycle()
+            FahrradTheme(settings.themeMode) {
+                // Statusleisten-Symbole passend zum Modus: dunkle Symbole auf hellem Grund.
+                val dark = AppColors.isDark
+                LaunchedEffect(dark) {
+                    val transparent = android.graphics.Color.TRANSPARENT
+                    val style = if (dark) SystemBarStyle.dark(transparent)
+                    else SystemBarStyle.light(transparent, transparent)
+                    enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+                }
+                AppRoot(vm)
             }
         }
     }
@@ -76,7 +89,7 @@ private val BLUETOOTH_PERMISSIONS = if (Build.VERSION.SDK_INT >= Build.VERSION_C
 }
 
 @Composable
-private fun AppRoot(vm: MainViewModel = viewModel()) {
+private fun AppRoot(vm: MainViewModel) {
     var tab by rememberSaveable { mutableStateOf(Tab.RIDE) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()

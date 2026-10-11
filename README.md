@@ -6,11 +6,12 @@ Kalorienberechnung, Streckenaufzeichnung, Health Connect, Live-Standort und KI-T
 
 Die geplante Vorgehensweise steht in [KONZEPT.md](KONZEPT.md).
 
-## Stand: Phase 1 (0.1.0-alpha.1)
+## Stand: Phase 2 (0.2.0-alpha.1)
 
 | Bereich | Stand |
 |---|---|
-| Dashboard | Kacheln: Geschwindigkeit, Puls in Zonenfarbe (Z1–Z5), Trittfrequenz (Platzhalter), Distanz, Fahrzeit, Ø km/h, Uhrzeit, Streckenskizze. Display bleibt an. Layout ist schon als Daten aufgebaut (`DashboardLayout`), der Editor folgt in Phase 2. |
+| Dashboard | Mehrere Seiten zum Wischen (Standard: Fahrt, Puls, Übersicht). Lange auf eine Kachel drücken öffnet den Editor: Kachel antippen = Inhalt wählen oder doppelte Breite; Zeilenmenü = Höhe, Kachel hinzufügen, verschieben, löschen; Seiten anlegen, umbenennen, löschen, auf Standard zurücksetzen. Gespeichert als JSON. Puls in Zonenfarbe (Z1–Z5), Ø/max Puls in Zonenfarbe, Streckenskizze als Platzhalter für die Navi. Display bleibt an. |
+| Darstellung | Dunkel, Hell (für pralle Sonne) oder wie System. |
 | Pulsgurt | Jeder Bluetooth-Gurt mit Standard-Pulsprofil; Uhren, die den Puls senden (Garmin „HF senden“). Automatisches Wiederverbinden. |
 | Aufzeichnung | GPS im Vordergrunddienst (läuft bei aus­geschaltetem Display weiter), Start/Pause/Weiter/Stopp, Standzeiten zählen nicht als Fahrzeit, Zwischenspeichern jede Minute. |
 | Fahrten | Gespeichert als GPX mit Puls; teilen (Strava, Komoot, Trainingsauswertung) und löschen. |

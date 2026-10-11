@@ -51,6 +51,22 @@ fun SettingsScreen(vm: MainViewModel) {
             if (s.weightKg > 0) formatDecimal(s.weightKg) else "",
         ) { it.replace(',', '.').toDoubleOrNull()?.let(vm::setWeight) }
 
+        Text("Darstellung", fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (m in ThemeMode.entries) {
+                FilterChip(
+                    selected = s.themeMode == m,
+                    onClick = { vm.setThemeMode(m) },
+                    label = { Text(m.label) },
+                )
+            }
+        }
+        Text(
+            "Hell ist in praller Sonne besser ablesbar. Das Dashboard passt du direkt auf dem " +
+                "Fahrt-Bildschirm an: lange auf eine Kachel drücken.",
+            color = AppColors.Dim,
+        )
+
         Text("Updates", fontWeight = FontWeight.Bold)
         Text("Installiert: ${BuildConfig.VERSION_NAME}", color = AppColors.Dim)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

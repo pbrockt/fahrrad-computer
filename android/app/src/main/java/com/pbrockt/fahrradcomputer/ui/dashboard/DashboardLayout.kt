@@ -10,32 +10,76 @@ enum class TileType(val label: String) {
     AVG_SPEED("Ø Geschwindigkeit"),
     MAX_SPEED("Max. Geschwindigkeit"),
     AVG_HR("Ø Puls"),
+    MAX_HR("Max. Puls"),
     ALTITUDE("Höhe"),
     CLOCK("Uhrzeit"),
-    ROUTE("Strecke"),
+    ROUTE("Strecke / Navigation"),
 }
 
-/** Eine Kachel in einer Zeile; [weight] ist ihr Anteil an der Zeilenbreite. */
-data class TileSlot(val type: TileType, val weight: Float = 1f)
+/** Zeilenhoehe als Anteil am Bildschirm. */
+enum class RowHeight(val label: String, val weight: Float) {
+    SMALL("klein", 0.8f),
+    MEDIUM("mittel", 1.2f),
+    LARGE("groß", 1.6f);
 
-/** Eine Zeile des Dashboards; [height] ist ihr Anteil an der Bildschirmhoehe. */
-data class TileRow(val tiles: List<TileSlot>, val height: Float = 1f)
+    fun next(): RowHeight = entries[(ordinal + 1) % entries.size]
+}
+
+/** Eine Kachel; eine breite Kachel belegt zwei Einheiten der Zeile. */
+data class TileSlot(val type: TileType, val wide: Boolean = false) {
+    val units: Int get() = if (wide) 2 else 1
+}
+
+data class TileRow(val tiles: List<TileSlot>, val height: RowHeight = RowHeight.MEDIUM) {
+    val units: Int get() = tiles.sumOf { it.units }
+}
+
+data class DashboardPage(val name: String, val rows: List<TileRow>)
 
 /**
- * Das Dashboard als Daten statt als fester Code. In Phase 2 kommt der Editor dazu, der
- * genau diese Struktur veraendert und als JSON speichert - die Anzeige bleibt dieselbe.
+ * Das Dashboard als Daten: Seiten aus Zeilen aus Kacheln. Der Editor veraendert nur diese
+ * Struktur ([LayoutEditor]), gespeichert wird sie als JSON ([LayoutCodec]).
  */
-data class DashboardLayout(val rows: List<TileRow>) {
+data class DashboardLayout(val pages: List<DashboardPage>) {
 
     companion object {
+        /** Mehr als drei Einheiten pro Zeile werden am Handy zu klein zum Ablesen. */
+        const val MAX_ROW_UNITS = 3
+
+        private fun row(height: RowHeight, vararg tiles: TileType) =
+            TileRow(tiles.map { TileSlot(it) }, height)
+
         val DEFAULT = DashboardLayout(
             listOf(
-                TileRow(listOf(TileSlot(TileType.SPEED)), height = 1.6f),
-                TileRow(listOf(TileSlot(TileType.HEART_RATE), TileSlot(TileType.CADENCE)), height = 1.2f),
-                TileRow(listOf(TileSlot(TileType.DISTANCE), TileSlot(TileType.MOVING_TIME))),
-                TileRow(listOf(TileSlot(TileType.AVG_SPEED), TileSlot(TileType.CLOCK)), height = 0.8f),
-                // Platzhalter fuer die Navigation: bis zur Karte (Phase 6) die Streckenskizze.
-                TileRow(listOf(TileSlot(TileType.ROUTE)), height = 1.6f),
+                DashboardPage(
+                    "Fahrt",
+                    listOf(
+                        row(RowHeight.LARGE, TileType.SPEED),
+                        row(RowHeight.MEDIUM, TileType.HEART_RATE, TileType.CADENCE),
+                        row(RowHeight.MEDIUM, TileType.DISTANCE, TileType.MOVING_TIME),
+                        row(RowHeight.SMALL, TileType.AVG_SPEED, TileType.CLOCK),
+                        // Platzhalter fuer die Navigation: bis zur Karte (Phase 6) die Streckenskizze.
+                        row(RowHeight.LARGE, TileType.ROUTE),
+                    ),
+                ),
+                DashboardPage(
+                    "Puls",
+                    listOf(
+                        row(RowHeight.LARGE, TileType.HEART_RATE),
+                        row(RowHeight.MEDIUM, TileType.AVG_HR, TileType.MAX_HR),
+                        row(RowHeight.MEDIUM, TileType.SPEED, TileType.CADENCE),
+                        row(RowHeight.MEDIUM, TileType.MOVING_TIME, TileType.CLOCK),
+                    ),
+                ),
+                DashboardPage(
+                    "Übersicht",
+                    listOf(
+                        row(RowHeight.MEDIUM, TileType.DISTANCE, TileType.MOVING_TIME),
+                        row(RowHeight.MEDIUM, TileType.AVG_SPEED, TileType.MAX_SPEED),
+                        row(RowHeight.MEDIUM, TileType.AVG_HR, TileType.MAX_HR),
+                        row(RowHeight.MEDIUM, TileType.ALTITUDE, TileType.CLOCK),
+                    ),
+                ),
             )
         )
     }

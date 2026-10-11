@@ -3,14 +3,18 @@ package com.pbrockt.fahrradcomputer.ui.dashboard
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -21,52 +25,29 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.Canvas
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pbrockt.fahrradcomputer.MainViewModel
 import com.pbrockt.fahrradcomputer.recording.GpsStatus
 import com.pbrockt.fahrradcomputer.recording.RidePhase
-import com.pbrockt.fahrradcomputer.recording.RideStats
-import com.pbrockt.fahrradcomputer.recording.TrackPoint
 import com.pbrockt.fahrradcomputer.sensors.HeartRateState
 import com.pbrockt.fahrradcomputer.sensors.SensorConnection
-import com.pbrockt.fahrradcomputer.data.HrZones
 import com.pbrockt.fahrradcomputer.ui.AppColors
 import com.pbrockt.fahrradcomputer.ui.formatDecimal
 import com.pbrockt.fahrradcomputer.ui.formatDuration
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter
-import kotlin.math.cos
-import kotlin.math.min
-
-/** Alles, was eine Kachel zum Zeichnen braucht. */
-private class TileData(
-    val stats: RideStats,
-    val hr: HeartRateState,
-    val zones: HrZones,
-    val now: Long,
-    val route: List<TrackPoint>,
-    val phase: RidePhase,
-) {
-    /** Pulswert nur, solange er frisch ist - sonst zeigt die Kachel "--" statt eines alten Werts. */
-    val bpm: Int? get() = hr.bpm?.takeIf { now - hr.updatedAtMs <= 5_000 }
-}
 
 @Composable
 fun DashboardScreen(vm: MainViewModel, onStartRequested: () -> Unit) {
@@ -86,30 +67,47 @@ fun DashboardScreen(vm: MainViewModel, onStartRequested: () -> Unit) {
         onDispose { view.keepScreenOn = false }
     }
 
+    val layout = settings.dashboard
     val data = TileData(stats, hr, settings.zones, now, route, phase)
+    val pager = rememberPagerState(pageCount = { layout.pages.size })
+    var editing by rememberSaveable { mutableStateOf(false) }
     var confirmStop by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
 
     Column(Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
         StatusLine(phase, gps, hr)
-        Column(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            for (row in DashboardLayout.DEFAULT.rows) {
-                Row(
-                    Modifier.weight(row.height).fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    for (slot in row.tiles) {
-                        Tile(slot.type, data, Modifier.weight(slot.weight).fillMaxSize())
-                    }
-                }
+        PageHeader(
+            names = layout.pages.map { it.name },
+            current = pager.currentPage,
+            hint = if (editing) "Bearbeiten" else "lange drücken = anpassen",
+        )
+        HorizontalPager(
+            state = pager,
+            userScrollEnabled = !editing,
+            pageSpacing = 8.dp,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+        ) { index ->
+            val page = layout.pages.getOrNull(index) ?: return@HorizontalPager
+            if (editing) {
+                EditablePage(page, index, data, onEdit = vm::editDashboard)
+            } else {
+                PageView(page, data, onLongPress = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    editing = true
+                })
             }
         }
-        Controls(
-            phase = phase,
-            onStart = onStartRequested,
-            onPause = vm::pauseRide,
-            onResume = vm::resumeRide,
-            onStop = { confirmStop = true },
-        )
+        if (editing) {
+            EditBar(layout, pager, vm, onDone = { editing = false })
+        } else {
+            Controls(
+                phase = phase,
+                onStart = onStartRequested,
+                onPause = vm::pauseRide,
+                onResume = vm::resumeRide,
+                onStop = { confirmStop = true },
+            )
+        }
     }
 
     if (confirmStop) {
@@ -141,6 +139,66 @@ fun DashboardScreen(vm: MainViewModel, onStartRequested: () -> Unit) {
                 )
             },
             confirmButton = { TextButton(onClick = vm::dismissFinished) { Text("OK") } },
+        )
+    }
+}
+
+/** Eine Seite im Fahrbetrieb: Zeilen nach Hoehe, Kacheln nach Breite verteilt. */
+@Composable
+private fun PageView(page: DashboardPage, data: TileData, onLongPress: () -> Unit) {
+    val gestures = Modifier.pointerInput(Unit) { detectTapGestures(onLongPress = { onLongPress() }) }
+    if (page.rows.isEmpty()) {
+        Box(Modifier.fillMaxSize().then(gestures), contentAlignment = Alignment.Center) {
+            Text("Leere Seite – lange drücken, um Kacheln hinzuzufügen.", color = AppColors.Dim, textAlign = TextAlign.Center)
+        }
+        return
+    }
+    Column(
+        Modifier.fillMaxSize().then(gestures),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        for (row in page.rows) {
+            Row(
+                Modifier.weight(row.height.weight).fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                for (slot in row.tiles) {
+                    Tile(slot.type, data, Modifier.weight(slot.units.toFloat()).fillMaxSize())
+                }
+            }
+        }
+    }
+}
+
+/** Name der Seite und Punkte fuer die Seitenzahl. */
+@Composable
+private fun PageHeader(names: List<String>, current: Int, hint: String) {
+    Row(
+        Modifier.fillMaxWidth().padding(bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            names.getOrElse(current) { "" },
+            fontWeight = FontWeight.Bold,
+            fontSize = 15.sp,
+            modifier = Modifier.weight(1f),
+        )
+        if (names.size > 1) {
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                names.indices.forEach { i ->
+                    Box(
+                        Modifier.size(8.dp).clip(CircleShape)
+                            .background(if (i == current) AppColors.Text else AppColors.Line)
+                    )
+                }
+            }
+        }
+        Text(
+            hint,
+            color = AppColors.Dim,
+            fontSize = 12.sp,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f),
         )
     }
 }
@@ -180,118 +238,6 @@ private fun StatusLine(phase: RidePhase, gps: GpsStatus, hr: HeartRateState) {
             color = if (hr.connection == SensorConnection.CONNECTED) AppColors.Go else AppColors.Dim,
             fontSize = 14.sp,
         )
-    }
-}
-
-@Composable
-private fun Tile(type: TileType, d: TileData, modifier: Modifier) {
-    val s = d.stats
-    when (type) {
-        TileType.SPEED -> ValueTile(
-            "km/h", if (d.phase == RidePhase.IDLE) "--" else formatDecimal(s.speedKmh), modifier,
-        )
-        TileType.HEART_RATE -> {
-            val bpm = d.bpm
-            if (bpm == null) {
-                ValueTile("Puls", "--", modifier)
-            } else {
-                val zone = d.zones.zoneOf(bpm)
-                ValueTile(
-                    "Puls · Z$zone", bpm.toString(), modifier,
-                    background = AppColors.zone(zone), content = AppColors.OnZone,
-                )
-            }
-        }
-        // Trittfrequenz kommt mit Phase 3 (Bosch bzw. externer Sensor).
-        TileType.CADENCE -> ValueTile("U/min", "--", modifier)
-        TileType.DISTANCE -> ValueTile("km", formatDecimal(s.distanceM / 1000, 2), modifier)
-        TileType.MOVING_TIME -> ValueTile("Fahrzeit", formatDuration(s.movingTimeMs), modifier)
-        TileType.AVG_SPEED -> ValueTile("Ø km/h", formatDecimal(s.avgSpeedKmh), modifier)
-        TileType.MAX_SPEED -> ValueTile("max km/h", formatDecimal(s.maxSpeedKmh), modifier)
-        TileType.AVG_HR -> ValueTile("Ø Puls", s.avgHr?.toString() ?: "--", modifier)
-        TileType.ALTITUDE -> ValueTile("Höhe m", s.altitude?.let { "%.0f".format(it) } ?: "--", modifier)
-        TileType.CLOCK -> ValueTile("Uhrzeit", LocalTime.now().format(CLOCK), modifier)
-        TileType.ROUTE -> RouteTile(d.route, modifier)
-    }
-}
-
-private val CLOCK = DateTimeFormatter.ofPattern("HH:mm")
-
-/**
- * Wert gross, Bezeichnung klein. Die Schriftgroesse richtet sich nach dem Platz der Kachel,
- * damit derselbe Baustein im grossen und im kleinen Feld lesbar bleibt.
- */
-@Composable
-private fun ValueTile(
-    label: String,
-    value: String,
-    modifier: Modifier,
-    background: Color = AppColors.Panel,
-    content: Color = AppColors.Text,
-) {
-    BoxWithConstraints(
-        modifier.clip(RoundedCornerShape(10.dp)).background(background).padding(6.dp),
-    ) {
-        val density = LocalDensity.current
-        val byHeight = maxHeight * 0.62f
-        val byWidth = maxWidth / (value.length.coerceAtLeast(2) * 0.6f)
-        val size = with(density) { min(byHeight.toPx(), byWidth.toPx()).toSp() }
-        Text(
-            label,
-            color = content.copy(alpha = 0.75f),
-            fontSize = 13.sp,
-            modifier = Modifier.align(Alignment.TopStart),
-        )
-        Text(
-            value,
-            color = content,
-            fontSize = size,
-            lineHeight = size,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            modifier = Modifier.align(Alignment.Center).padding(top = 8.dp),
-        )
-    }
-}
-
-/** Skizze der gefahrenen Strecke - Platzhalter fuer die Navi-Karte aus Phase 6. */
-@Composable
-private fun RouteTile(route: List<TrackPoint>, modifier: Modifier) {
-    Box(modifier.clip(RoundedCornerShape(10.dp)).background(AppColors.Panel).padding(10.dp)) {
-        Text("Strecke", color = AppColors.Dim, fontSize = 13.sp, modifier = Modifier.align(Alignment.TopStart))
-        if (route.size < 2) {
-            Text(
-                "Hier erscheint deine Strecke.\nKarte und Navigation folgen.",
-                color = AppColors.Dim,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.align(Alignment.Center),
-            )
-            return@Box
-        }
-        Canvas(Modifier.fillMaxSize().padding(top = 16.dp)) {
-            // Laengengrade schrumpfen zu den Polen hin - mit cos(Breite) bleibt die Form unverzerrt.
-            val k = cos(Math.toRadians(route.first().lat))
-            val xs = route.map { it.lon * k }
-            val ys = route.map { it.lat }
-            val minX = xs.min(); val maxX = xs.max()
-            val minY = ys.min(); val maxY = ys.max()
-            val span = maxOf(maxX - minX, maxY - minY).takeIf { it > 0 } ?: return@Canvas
-            val scale = min(size.width, size.height) / span.toFloat()
-            val offX = (size.width - (maxX - minX).toFloat() * scale) / 2
-            val offY = (size.height - (maxY - minY).toFloat() * scale) / 2
-            fun pt(i: Int) = Offset(
-                offX + (xs[i] - minX).toFloat() * scale,
-                size.height - offY - (ys[i] - minY).toFloat() * scale,
-            )
-            val path = Path().apply {
-                moveTo(pt(0).x, pt(0).y)
-                for (i in 1 until route.size) lineTo(pt(i).x, pt(i).y)
-            }
-            drawPath(path, AppColors.Accent, style = Stroke(width = 5f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-            drawCircle(AppColors.Go, radius = 8f, center = pt(0))
-            drawCircle(AppColors.Text, radius = 10f, center = pt(route.lastIndex))
-        }
     }
 }
 
