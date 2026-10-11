@@ -9,6 +9,8 @@ captures/
 .cxx/
 *.apk
 *.aab
-*.keystore
 *.jks
+*.keystore
+# Fester Signaturschluessel fuer stabile Updates (siehe app/build.gradle.kts).
+!android/app/release.keystore
 .DS_Store

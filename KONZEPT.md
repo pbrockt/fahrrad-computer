@@ -154,14 +154,14 @@ Entwicklung mit Claude, Tests am Rad durch Phillipp. Aufwand in Sitzungen à 1�
 - **Alpha:** Tag `x.y.z-alpha.N` → Release mit Markierung **„Pre-release“**
   (der Workflow setzt `prerelease: true`, wenn der Tag `-alpha` enthält).
 - In der App: Einstellung **„Update-Kanal: Release / Alpha“** (Standard: Release).
-  - **Release-Kanal** fragt `/releases/latest` ab – GitHub liefert dort nie Pre-Releases,
-    Alphas werden also automatisch ignoriert.
-  - **Alpha-Kanal** fragt `/releases` ab und nimmt die höchste Version
+  - Beide Kanäle lesen die Release-Liste (`/releases`).
+  - **Release-Kanal** nimmt nur reguläre Releases – alles mit Pre-Release-Markierung oder
+    `-alpha` im Tag wird ignoriert.
+  - **Alpha-Kanal** nimmt die höchste Version, egal ob Alpha oder Release
     (Vergleich nach SemVer: `1.2.0-alpha.3` < `1.2.0`).
 - `versionCode` steigt bei jedem Build (auch bei Alphas), damit Android das Update installiert.
-- **Offen:** Das Repo ist privat – Update-Prüfung und APK-Download brauchen dann einen Token oder
-  einen öffentlichen Download-Ort (z. B. separates öffentliches Repo `fahrrad-computer-releases`).
-  Entscheidung in Phase 1.
+- Das Repo ist privat: Wie bei der Trainingsauswertung wird in den App-Einstellungen ein
+  GitHub-Token mit Leserecht hinterlegt (nur auf dem Gerät gespeichert).
 
 ---
 

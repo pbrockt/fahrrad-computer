@@ -1,0 +1,39 @@
+name: Android
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - '.github/workflows/android.yml'
+  pull_request:
+    paths:
+      - 'android/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: JDK 17 einrichten
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle einrichten
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit-Tests
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Debug-APK bauen
+        run: ./gradlew assembleDebug --stacktrace

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Einstellungen (DataStore) und aufgezeichnete Fahrten sichern. -->
+    <include domain="file" path="datastore/" />
+    <include domain="file" path="fahrten/" />
+</full-backup-content>

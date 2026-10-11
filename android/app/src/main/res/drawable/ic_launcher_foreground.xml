@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tacho-Bogen mit Nadel; 108dp-Flaeche mit Sicherheitsrand fuer adaptive Icons. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path
+        android:strokeColor="#3FA7D6"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M30,68 A26,26 0 0,1 54,40" />
+    <path
+        android:strokeColor="#E5484D"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M54,40 A26,26 0 0,1 78,68" />
+    <path
+        android:strokeColor="#EEF2F5"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M54,66 L68,48" />
+    <path
+        android:fillColor="#EEF2F5"
+        android:pathData="M54,66m-5,0a5,5 0 1,0 10,0a5,5 0 1,0 -10,0" />
+</vector>

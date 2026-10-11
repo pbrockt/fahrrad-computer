@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Update-APK fuer den Installer und aufgezeichnete Fahrten zum Teilen. -->
+    <cache-path name="updates" path="updates/" />
+    <files-path name="fahrten" path="fahrten/" />
+</paths>

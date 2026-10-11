@@ -1,0 +1,72 @@
+name: APK veröffentlichen
+
+# Zwei Kanaele, gesteuert allein ueber den Tag:
+#   1.2.0          -> regulaeres Release   (Release-Kanal)
+#   1.2.0-alpha.3  -> Pre-Release          (nur Alpha-Kanal)
+# Die App fragt im Release-Kanal nur regulaere Releases ab, Alphas sieht dort niemand.
+# Der Tag muss exakt dem versionName in android/app/build.gradle.kts entsprechen.
+
+on:
+  push:
+    tags: ['[0-9]*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Tag gegen versionName prüfen
+        id: version
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          name=$(grep -oP 'versionName = "\K[^"]+' android/app/build.gradle.kts)
+          if [ "$tag" != "$name" ]; then
+            echo "::error::Tag $tag passt nicht zu versionName $name."
+            exit 1
+          fi
+          if [[ ! "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-alpha\.[0-9]+)?$ ]]; then
+            echo "::error::Tag $tag ist weder x.y.z noch x.y.z-alpha.N."
+            exit 1
+          fi
+          if [[ "$tag" == *-alpha.* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: JDK 17 einrichten
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle einrichten
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Testen und APK bauen
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest assembleRelease --stacktrace
+
+      - name: Release anlegen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          src=$(find android/app/build/outputs/apk/release -name '*.apk' | head -1)
+          [ -n "$src" ] || { echo "::error::Kein APK gefunden."; exit 1; }
+          apk="fahrrad-computer-${GITHUB_REF_NAME}.apk"
+          cp "$src" "$apk"
+          flags=()
+          if [ "${{ steps.version.outputs.prerelease }}" = "true" ]; then
+            flags+=(--prerelease --latest=false)
+          fi
+          gh release create "${GITHUB_REF_NAME}" "$apk" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            "${flags[@]}"
