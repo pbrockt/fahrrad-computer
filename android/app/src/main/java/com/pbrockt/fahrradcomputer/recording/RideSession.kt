@@ -28,6 +28,8 @@ data class FinishedRide(val file: File?, val stats: RideStats)
 class RideSession(
     private val context: Context,
     private val scope: CoroutineScope,
+    /** Gewicht, Alter, Geschlecht zum Fahrtbeginn - fuer die Kalorien. */
+    private val body: () -> BodyProfile,
 ) {
     private val _phase = MutableStateFlow(RidePhase.IDLE)
     val phase: StateFlow<RidePhase> = _phase.asStateFlow()
@@ -53,7 +55,7 @@ class RideSession(
 
     fun start() {
         if (_phase.value != RidePhase.IDLE) return
-        tracker = RideTracker()
+        tracker = RideTracker(body())
         _stats.value = RideStats()
         _route.value = emptyList()
         _finished.value = null
@@ -122,6 +124,18 @@ class RideSession(
     fun onHeartRate(bpm: Int, timeMs: Long) {
         if (_phase.value == RidePhase.IDLE) return
         tracker.onHeartRate(bpm, timeMs)
+        _stats.value = tracker.snapshot
+    }
+
+    fun onCadence(rpm: Int, timeMs: Long) {
+        if (_phase.value == RidePhase.IDLE) return
+        tracker.onCadence(rpm, timeMs)
+        _stats.value = tracker.snapshot
+    }
+
+    fun onPower(watts: Int, timeMs: Long) {
+        if (_phase.value == RidePhase.IDLE) return
+        tracker.onPower(watts, timeMs)
         _stats.value = tracker.snapshot
     }
 

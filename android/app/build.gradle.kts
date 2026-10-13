@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -16,31 +18,40 @@ android {
         // versionCode steigt bei jedem veroeffentlichten Build, auch bei Alphas - sonst
         // verweigert Android das Update. versionName folgt SemVer: "x.y.z" ist ein
         // Release, "x.y.z-alpha.N" eine Alpha. release.yml prueft, dass der Tag passt.
-        versionCode = 2
-        versionName = "0.2.0-alpha.1"
+        versionCode = 3
+        versionName = "0.0.3"
 
         buildConfigField("String", "UPDATE_REPO", "\"pbrockt/fahrrad-computer\"")
     }
 
-    // Fester Signaturschluessel wie bei der Trainingsauswertung: haelt die Signatur ueber
-    // CI-Laeufe stabil, damit sich Updates ueber die installierte Version legen lassen.
-    // Fuer eine Play-Store-Veroeffentlichung waere ein Schluessel im Repo nicht tragbar.
+    // Fester Signaturschluessel: haelt die Signatur ueber Builds stabil, damit sich Updates
+    // ueber die installierte Version legen lassen. Schluessel und Passwort liegen NICHT im
+    // Repo: In GitHub Actions kommen sie aus den Secrets SIGNING_KEYSTORE_BASE64 und
+    // SIGNING_PASSWORD (siehe release.yml), lokal liegt die Datei unversioniert hier und
+    // das Passwort als signing.password in local.properties.
     val releaseKeystore = file("release.keystore")
+    val signingPassword: String? = System.getenv("SIGNING_PASSWORD")?.takeIf { it.isNotEmpty() }
+        ?: rootProject.file("local.properties").takeIf { it.exists() }?.let { f ->
+            Properties().apply { f.inputStream().use { load(it) } }.getProperty("signing.password")
+        }
+    val canSign = releaseKeystore.exists() && signingPassword != null
 
     signingConfigs {
         create("stabil") {
-            if (releaseKeystore.exists()) {
+            if (canSign) {
                 storeFile = releaseKeystore
-                storePassword = System.getenv("SIGNING_PASSWORD")
+                storePassword = signingPassword
                 keyAlias = "fahrradcomputer"
-                keyPassword = System.getenv("SIGNING_PASSWORD")
+                keyPassword = signingPassword
             }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = if (releaseKeystore.exists()) {
+            // Ohne Schluessel faellt der Build auf die Debug-Signatur zurueck, damit
+            // assembleRelease immer ein installierbares APK liefert.
+            signingConfig = if (canSign) {
                 signingConfigs.getByName("stabil")
             } else {
                 signingConfigs.getByName("debug")
@@ -50,7 +61,7 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
         debug {
-            if (releaseKeystore.exists()) signingConfig = signingConfigs.getByName("stabil")
+            if (canSign) signingConfig = signingConfigs.getByName("stabil")
         }
     }
 

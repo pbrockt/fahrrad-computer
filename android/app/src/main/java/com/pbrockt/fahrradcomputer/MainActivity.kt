@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.pbrockt.fahrradcomputer.sensors.SensorKind
 import com.pbrockt.fahrradcomputer.ui.AppColors
 import com.pbrockt.fahrradcomputer.ui.FahrradTheme
 import com.pbrockt.fahrradcomputer.ui.RidesScreen
@@ -104,12 +105,14 @@ private fun AppRoot(vm: MainViewModel) {
         }
     }
 
+    // Fuer welche Sensorart nach der Rechte-Abfrage gesucht werden soll.
+    var pendingScan by rememberSaveable { mutableStateOf<SensorKind?>(null) }
     val bluetoothLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { result ->
         if (result.values.all { it }) {
             vm.retrySensors()
-            vm.startScan()
+            pendingScan?.let(vm::startScan)
         } else {
             scope.launch { snackbar.showSnackbar("Ohne Bluetooth-Berechtigung lässt sich kein Gurt verbinden.") }
         }
@@ -134,7 +137,10 @@ private fun AppRoot(vm: MainViewModel) {
             when (tab) {
                 Tab.RIDE -> DashboardScreen(vm, onStartRequested = { locationLauncher.launch(LOCATION_PERMISSIONS) })
                 Tab.RIDES -> RidesScreen(vm)
-                Tab.SENSORS -> SensorsScreen(vm, onScanRequested = { bluetoothLauncher.launch(BLUETOOTH_PERMISSIONS) })
+                Tab.SENSORS -> SensorsScreen(vm, onScanRequested = { kind ->
+                    pendingScan = kind
+                    bluetoothLauncher.launch(BLUETOOTH_PERMISSIONS)
+                })
                 Tab.SETTINGS -> SettingsScreen(vm)
             }
         }

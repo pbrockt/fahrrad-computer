@@ -43,7 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pbrockt.fahrradcomputer.MainViewModel
 import com.pbrockt.fahrradcomputer.recording.GpsStatus
 import com.pbrockt.fahrradcomputer.recording.RidePhase
-import com.pbrockt.fahrradcomputer.sensors.HeartRateState
+import com.pbrockt.fahrradcomputer.sensors.SensorReading
 import com.pbrockt.fahrradcomputer.sensors.SensorConnection
 import com.pbrockt.fahrradcomputer.ui.AppColors
 import com.pbrockt.fahrradcomputer.ui.formatDecimal
@@ -57,6 +57,8 @@ fun DashboardScreen(vm: MainViewModel, onStartRequested: () -> Unit) {
     val route by vm.ride.route.collectAsStateWithLifecycle()
     val finished by vm.ride.finished.collectAsStateWithLifecycle()
     val hr by vm.hr.collectAsStateWithLifecycle()
+    val cadence by vm.cadence.collectAsStateWithLifecycle()
+    val power by vm.power.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val now by vm.now.collectAsStateWithLifecycle()
 
@@ -68,14 +70,14 @@ fun DashboardScreen(vm: MainViewModel, onStartRequested: () -> Unit) {
     }
 
     val layout = settings.dashboard
-    val data = TileData(stats, hr, settings.zones, now, route, phase)
+    val data = TileData(stats, hr, cadence, power, settings.zones, now, route, phase)
     val pager = rememberPagerState(pageCount = { layout.pages.size })
     var editing by rememberSaveable { mutableStateOf(false) }
     var confirmStop by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
 
     Column(Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
-        StatusLine(phase, gps, hr)
+        StatusLine(phase, gps, listOf(hr, cadence, power))
         PageHeader(
             names = layout.pages.map { it.name },
             current = pager.currentPage,
@@ -134,6 +136,9 @@ fun DashboardScreen(vm: MainViewModel, onStartRequested: () -> Unit) {
                         appendLine("Fahrzeit: ${formatDuration(s.movingTimeMs)}")
                         appendLine("Ø ${formatDecimal(s.avgSpeedKmh)} km/h · max ${formatDecimal(s.maxSpeedKmh)} km/h")
                         s.avgHr?.let { appendLine("Ø Puls $it · max ${s.maxHr}") }
+                        s.avgCadence?.let { appendLine("Ø Trittfrequenz $it U/min") }
+                        s.avgPower?.let { appendLine("Ø Leistung $it W · max ${s.maxPower} W") }
+                        if (s.calories > 0) appendLine("Kalorien: ${"%.0f".format(s.calories)} kcal (${s.calorieSource.label})")
                         if (f.file == null) append("Kein GPS-Signal - es wurde keine Datei gespeichert.")
                     }
                 )
@@ -204,7 +209,7 @@ private fun PageHeader(names: List<String>, current: Int, hint: String) {
 }
 
 @Composable
-private fun StatusLine(phase: RidePhase, gps: GpsStatus, hr: HeartRateState) {
+private fun StatusLine(phase: RidePhase, gps: GpsStatus, sensors: List<SensorReading>) {
     Row(
         Modifier.fillMaxWidth().padding(vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -226,18 +231,18 @@ private fun StatusLine(phase: RidePhase, gps: GpsStatus, hr: HeartRateState) {
         if (phase == RidePhase.PAUSED) {
             Text("PAUSE", color = AppColors.Zones[3], fontWeight = FontWeight.Bold, fontSize = 14.sp)
         }
-        val hrText = when (hr.connection) {
-            SensorConnection.CONNECTED -> "♥ ${hr.deviceName ?: "Gurt"}"
-            SensorConnection.CONNECTING -> "♥ verbinde …"
-            SensorConnection.NO_PERMISSION -> "♥ Bluetooth-Recht fehlt"
-            SensorConnection.BLUETOOTH_OFF -> "♥ Bluetooth aus"
-            SensorConnection.NONE -> "♥ kein Gurt"
+        // Ein Symbol je Sensorart: gruen = verbunden, gelb = verbindet, grau = keiner/Fehler.
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            sensors.zip(listOf("♥", "⟳", "⚡")).forEach { (r, symbol) ->
+                val color = when (r.connection) {
+                    SensorConnection.CONNECTED -> AppColors.Go
+                    SensorConnection.CONNECTING -> AppColors.Zones[3]
+                    SensorConnection.NO_PERMISSION, SensorConnection.BLUETOOTH_OFF -> AppColors.Stop
+                    SensorConnection.NONE -> AppColors.Line
+                }
+                Text(symbol, color = color, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
         }
-        Text(
-            hrText,
-            color = if (hr.connection == SensorConnection.CONNECTED) AppColors.Go else AppColors.Dim,
-            fontSize = 14.sp,
-        )
     }
 }
 

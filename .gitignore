@@ -10,7 +10,6 @@ captures/
 *.apk
 *.aab
 *.jks
+# Signaturschluessel nie einchecken - er kommt in CI aus den GitHub-Secrets.
 *.keystore
-# Fester Signaturschluessel fuer stabile Updates (siehe app/build.gradle.kts).
-!android/app/release.keystore
 .DS_Store

@@ -25,4 +25,13 @@ class GpxWriterTest {
         assertTrue(gpx.trimEnd().endsWith("</gpx>"))
         assertTrue(gpx.indexOf("<gpxtpx:hr>") == gpx.lastIndexOf("<gpxtpx:hr>"))
     }
+
+    @Test
+    fun writesCadenceAndPower() {
+        val out = StringWriter()
+        GpxWriter.write(out, "x", listOf(TrackPoint(0, 53.0, 7.5, null, null, 88, 210)))
+        assertTrue(out.toString().contains(
+            "<extensions><power>210</power><gpxtpx:TrackPointExtension><gpxtpx:cad>88</gpxtpx:cad></gpxtpx:TrackPointExtension></extensions>"
+        ))
+    }
 }

@@ -4,7 +4,9 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pbrockt.fahrradcomputer.data.AppSettings
+import com.pbrockt.fahrradcomputer.recording.Sex
 import com.pbrockt.fahrradcomputer.sensors.FoundDevice
+import com.pbrockt.fahrradcomputer.sensors.SensorKind
 import com.pbrockt.fahrradcomputer.ui.ThemeMode
 import com.pbrockt.fahrradcomputer.ui.dashboard.DashboardLayout
 import com.pbrockt.fahrradcomputer.update.ReleaseInfo
@@ -36,16 +38,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val fahrradApp = app as FahrradApp
     private val store = fahrradApp.settings
-    private val heartRate = fahrradApp.heartRate
+    private val sensors = fahrradApp.sensors
     val ride = fahrradApp.ride
     private val updater = UpdateChecker(app)
 
     val settings: StateFlow<AppSettings> =
         store.settings.stateIn(viewModelScope, SharingStarted.Eagerly, AppSettings())
 
-    val hr = heartRate.state
-    val scanResults = heartRate.scanResults
-    val scanning = heartRate.scanning
+    val hr = sensors.heartRate
+    val cadence = sensors.cadence
+    val power = sensors.power
+    val scanResults = sensors.scanResults
+    val scanning = sensors.scanning
 
     /** Sekundentakt fuer Uhrzeit und das Ausblenden veralteter Pulswerte. */
     val now: StateFlow<Long> = flow {
@@ -65,7 +69,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         refreshRides()
         viewModelScope.launch {
             val s = store.settings.first()
-            if (s.autoUpdateCheck && s.updateToken.isNotBlank()) checkForUpdates(manual = false)
+            // Das Repo ist oeffentlich - die Pruefung braucht keinen Token mehr.
+            if (s.autoUpdateCheck) checkForUpdates(manual = false)
         }
         viewModelScope.launch {
             // Nach dem Speichern einer Fahrt die Liste auffrischen.
@@ -102,23 +107,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // --- Sensoren ---
 
-    fun startScan() = heartRate.startScan()
-    fun stopScan() = heartRate.stopScan()
-    fun retrySensors() = heartRate.retry()
+    fun sensorReading(kind: SensorKind) = sensors.reading(kind)
+    fun startScan(kind: SensorKind) = sensors.startScan(kind)
+    fun stopScan() = sensors.stopScan()
+    fun retrySensors() = sensors.retryAll()
 
-    fun selectHrDevice(device: FoundDevice) {
-        heartRate.stopScan()
-        viewModelScope.launch { store.setHrDevice(device.address, device.name) }
+    fun selectDevice(kind: SensorKind, device: FoundDevice) {
+        sensors.stopScan()
+        viewModelScope.launch { store.setDevice(kind, device.address, device.name) }
     }
 
-    fun forgetHrDevice() {
-        viewModelScope.launch { store.setHrDevice(null, null) }
+    fun forgetDevice(kind: SensorKind) {
+        viewModelScope.launch { store.setDevice(kind, null, null) }
     }
 
     // --- Einstellungen ---
 
     fun setMaxHr(value: Int) = viewModelScope.launch { store.setMaxHr(value) }
     fun setWeight(value: Double) = viewModelScope.launch { store.setWeight(value) }
+    fun setBirthYear(value: Int) = viewModelScope.launch { store.setBirthYear(value) }
+    fun setSex(value: Sex) = viewModelScope.launch { store.setSex(value) }
     fun setUpdateChannel(value: UpdateChannel) = viewModelScope.launch { store.setUpdateChannel(value) }
     fun setAutoUpdateCheck(value: Boolean) = viewModelScope.launch { store.setAutoUpdateCheck(value) }
     fun setUpdateToken(value: String) = viewModelScope.launch { store.setUpdateToken(value) }

@@ -27,7 +27,7 @@ import com.pbrockt.fahrradcomputer.data.HrZones
 import com.pbrockt.fahrradcomputer.recording.RidePhase
 import com.pbrockt.fahrradcomputer.recording.RideStats
 import com.pbrockt.fahrradcomputer.recording.TrackPoint
-import com.pbrockt.fahrradcomputer.sensors.HeartRateState
+import com.pbrockt.fahrradcomputer.sensors.SensorReading
 import com.pbrockt.fahrradcomputer.ui.AppColors
 import com.pbrockt.fahrradcomputer.ui.formatDecimal
 import com.pbrockt.fahrradcomputer.ui.formatDuration
@@ -41,14 +41,18 @@ import kotlin.math.min
 /** Alles, was eine Kachel zum Zeichnen braucht. */
 class TileData(
     val stats: RideStats,
-    val hr: HeartRateState,
+    val hr: SensorReading,
+    val cadence: SensorReading,
+    val power: SensorReading,
     val zones: HrZones,
     val now: Long,
     val route: List<TrackPoint>,
     val phase: RidePhase,
 ) {
-    /** Pulswert nur, solange er frisch ist - sonst zeigt die Kachel "--" statt eines alten Werts. */
-    val bpm: Int? get() = hr.bpm?.takeIf { now - hr.updatedAtMs <= 5_000 }
+    // Messwerte nur, solange sie frisch sind - sonst zeigt die Kachel "--" statt eines alten Werts.
+    val bpm: Int? get() = hr.fresh(now)
+    val rpm: Int? get() = cadence.fresh(now)
+    val watts: Int? get() = power.fresh(now)
 }
 
 @Composable
@@ -70,8 +74,15 @@ fun Tile(type: TileType, d: TileData, modifier: Modifier) {
                 )
             }
         }
-        // Trittfrequenz kommt mit Phase 3 (Bosch bzw. externer Sensor).
-        TileType.CADENCE -> ValueTile("U/min", "--", modifier)
+        TileType.CADENCE -> ValueTile("U/min", d.rpm?.toString() ?: "--", modifier)
+        TileType.POWER -> ValueTile("Watt", d.watts?.toString() ?: "--", modifier)
+        TileType.CALORIES -> ValueTile(
+            "kcal · ${s.calorieSource.label}",
+            if (d.phase == RidePhase.IDLE && s.calories == 0.0) "--" else String.format(Locale.GERMANY, "%.0f", s.calories),
+            modifier,
+        )
+        TileType.AVG_CADENCE -> ValueTile("Ø U/min", s.avgCadence?.toString() ?: "--", modifier)
+        TileType.AVG_POWER -> ValueTile("Ø Watt", s.avgPower?.toString() ?: "--", modifier)
         TileType.DISTANCE -> ValueTile("km", formatDecimal(s.distanceM / 1000, 2), modifier)
         TileType.MOVING_TIME -> ValueTile("Fahrzeit", formatDuration(s.movingTimeMs), modifier)
         TileType.AVG_SPEED -> ValueTile("Ø km/h", formatDecimal(s.avgSpeedKmh), modifier)

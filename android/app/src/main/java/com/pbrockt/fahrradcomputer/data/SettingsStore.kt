@@ -8,42 +8,67 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.pbrockt.fahrradcomputer.recording.BodyProfile
+import com.pbrockt.fahrradcomputer.recording.Sex
+import com.pbrockt.fahrradcomputer.sensors.SensorKind
 import com.pbrockt.fahrradcomputer.ui.ThemeMode
 import com.pbrockt.fahrradcomputer.ui.dashboard.DashboardLayout
 import com.pbrockt.fahrradcomputer.ui.dashboard.LayoutCodec
 import com.pbrockt.fahrradcomputer.update.UpdateChannel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.time.LocalDate
 
 private val Context.dataStore by preferencesDataStore(name = "einstellungen")
 
 data class AppSettings(
     val maxHr: Int = HrZones.DEFAULT_MAX_HR,
-    /** Koerpergewicht in kg - fuer die Kalorien (Phase 3). */
+    /** Koerpergewicht in kg - fuer die Kalorien. */
     val weightKg: Double = 0.0,
-    /** MAC-Adresse und Name des gekoppelten Pulsgurts. */
-    val hrDeviceAddress: String? = null,
-    val hrDeviceName: String? = null,
+    /** 0 = nicht angegeben. Alter und Geschlecht braucht die Puls-Kalorienformel. */
+    val birthYear: Int = 0,
+    val sex: Sex? = null,
+    /** Gekoppelte Sensoren je Art. */
+    val devices: Map<SensorKind, SavedDevice> = emptyMap(),
     val updateChannel: UpdateChannel = UpdateChannel.RELEASE,
     val autoUpdateCheck: Boolean = true,
     /**
-     * GitHub-Token mit Leserecht auf das Repo. Noetig, solange es privat ist - ohne ihn
-     * gibt die API die Releases nicht heraus. Liegt nur auf diesem Geraet.
+     * GitHub-Token mit Leserecht auf das Repo. Nur noetig, falls es privat ist - dann gibt
+     * die API die Releases ohne ihn nicht heraus. Liegt nur auf diesem Geraet.
      */
     val updateToken: String = "",
     val themeMode: ThemeMode = ThemeMode.DARK,
     val dashboard: DashboardLayout = DashboardLayout.DEFAULT,
 ) {
     val zones: HrZones get() = HrZones(maxHr)
+
+    fun device(kind: SensorKind): SavedDevice? = devices[kind]
+
+    val body: BodyProfile
+        get() = BodyProfile(
+            weightKg = weightKg,
+            age = birthYear.takeIf { it > 0 }?.let { LocalDate.now().year - it },
+            sex = sex,
+        )
 }
+
+data class SavedDevice(val address: String, val name: String)
 
 class SettingsStore(private val context: Context) {
 
     private object Keys {
         val MAX_HR = intPreferencesKey("max_hr")
         val WEIGHT = doublePreferencesKey("weight_kg")
-        val HR_ADDRESS = stringPreferencesKey("hr_address")
-        val HR_NAME = stringPreferencesKey("hr_name")
+        val BIRTH_YEAR = intPreferencesKey("birth_year")
+        val SEX = stringPreferencesKey("sex")
+        // Der Pulsgurt behaelt seine alten Schluessel aus Phase 1, damit er gekoppelt bleibt.
+        fun address(kind: SensorKind) = stringPreferencesKey(prefix(kind) + "_address")
+        fun name(kind: SensorKind) = stringPreferencesKey(prefix(kind) + "_name")
+        private fun prefix(kind: SensorKind) = when (kind) {
+            SensorKind.HEART_RATE -> "hr"
+            SensorKind.CADENCE_SPEED -> "cad"
+            SensorKind.POWER -> "power"
+        }
         val UPDATE_CHANNEL = stringPreferencesKey("update_channel")
         val AUTO_UPDATE_CHECK = booleanPreferencesKey("auto_update_check")
         val UPDATE_TOKEN = stringPreferencesKey("update_token")
@@ -55,8 +80,11 @@ class SettingsStore(private val context: Context) {
         AppSettings(
             maxHr = p[Keys.MAX_HR] ?: HrZones.DEFAULT_MAX_HR,
             weightKg = p[Keys.WEIGHT] ?: 0.0,
-            hrDeviceAddress = p[Keys.HR_ADDRESS],
-            hrDeviceName = p[Keys.HR_NAME],
+            birthYear = p[Keys.BIRTH_YEAR] ?: 0,
+            sex = p[Keys.SEX]?.let { runCatching { Sex.valueOf(it) }.getOrNull() },
+            devices = SensorKind.entries.mapNotNull { kind ->
+                p[Keys.address(kind)]?.let { kind to SavedDevice(it, p[Keys.name(kind)] ?: it) }
+            }.toMap(),
             updateChannel = p[Keys.UPDATE_CHANNEL]
                 ?.let { runCatching { UpdateChannel.valueOf(it) }.getOrNull() }
                 ?: UpdateChannel.RELEASE,
@@ -74,14 +102,18 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setWeight(value: Double) = set(Keys.WEIGHT, value.coerceIn(0.0, 300.0))
 
-    suspend fun setHrDevice(address: String?, name: String?) {
+    suspend fun setBirthYear(value: Int) = set(Keys.BIRTH_YEAR, value.coerceIn(0, LocalDate.now().year))
+
+    suspend fun setSex(value: Sex) = set(Keys.SEX, value.name)
+
+    suspend fun setDevice(kind: SensorKind, address: String?, name: String?) {
         context.dataStore.edit {
             if (address == null) {
-                it.remove(Keys.HR_ADDRESS)
-                it.remove(Keys.HR_NAME)
+                it.remove(Keys.address(kind))
+                it.remove(Keys.name(kind))
             } else {
-                it[Keys.HR_ADDRESS] = address
-                it[Keys.HR_NAME] = name ?: address
+                it[Keys.address(kind)] = address
+                it[Keys.name(kind)] = name ?: address
             }
         }
     }

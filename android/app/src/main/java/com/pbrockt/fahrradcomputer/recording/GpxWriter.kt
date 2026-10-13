@@ -6,8 +6,9 @@ import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 /**
- * Schreibt eine Fahrt als GPX 1.1. Der Puls steht in der Garmin-TrackPointExtension -
- * so lesen ihn Strava, Komoot und die Trainingsauswertung.
+ * Schreibt eine Fahrt als GPX 1.1. Puls und Trittfrequenz stehen in der Garmin-
+ * TrackPointExtension, die Leistung als <power> - so lesen es Strava, Komoot und die
+ * Trainingsauswertung.
  */
 object GpxWriter {
 
@@ -28,8 +29,17 @@ object GpxWriter {
             out.write("""      <trkpt lat="${coord(p.lat)}" lon="${coord(p.lon)}">""")
             p.altitude?.let { out.write("<ele>${String.format(Locale.ROOT, "%.1f", it)}</ele>") }
             out.write("<time>${time(p.timeMs)}</time>")
-            p.heartRate?.let {
-                out.write("<extensions><gpxtpx:TrackPointExtension><gpxtpx:hr>$it</gpxtpx:hr></gpxtpx:TrackPointExtension></extensions>")
+            if (p.heartRate != null || p.cadence != null || p.power != null) {
+                out.write("<extensions>")
+                // <power> direkt unter extensions: so lesen es Strava, Golden Cheetah und Co.
+                p.power?.let { out.write("<power>$it</power>") }
+                if (p.heartRate != null || p.cadence != null) {
+                    out.write("<gpxtpx:TrackPointExtension>")
+                    p.heartRate?.let { out.write("<gpxtpx:hr>$it</gpxtpx:hr>") }
+                    p.cadence?.let { out.write("<gpxtpx:cad>$it</gpxtpx:cad>") }
+                    out.write("</gpxtpx:TrackPointExtension>")
+                }
+                out.write("</extensions>")
             }
             out.write("</trkpt>\n")
         }

@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pbrockt.fahrradcomputer.BuildConfig
 import com.pbrockt.fahrradcomputer.MainViewModel
+import com.pbrockt.fahrradcomputer.recording.Sex
 import com.pbrockt.fahrradcomputer.update.UpdateChannel
 
 @Composable
@@ -47,9 +48,22 @@ fun SettingsScreen(vm: MainViewModel) {
             color = AppColors.Dim,
         )
         NumberField(
-            "Gewicht (kg) – für die Kalorien",
+            "Gewicht (kg)",
             if (s.weightKg > 0) formatDecimal(s.weightKg) else "",
         ) { it.replace(',', '.').toDoubleOrNull()?.let(vm::setWeight) }
+        NumberField("Geburtsjahr", if (s.birthYear > 0) s.birthYear.toString() else "") { text ->
+            text.toIntOrNull()?.takeIf { it in 1900..2100 }?.let(vm::setBirthYear)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for ((sex, label) in listOf(Sex.MALE to "Mann", Sex.FEMALE to "Frau")) {
+                FilterChip(selected = s.sex == sex, onClick = { vm.setSex(sex) }, label = { Text(label) })
+            }
+        }
+        Text(
+            "Kalorien: mit Leistungsmesser bzw. Bosch-Fahrerleistung am genauesten, sonst aus dem " +
+                "Puls (braucht Gewicht, Geburtsjahr, Geschlecht), sonst grob aus der Geschwindigkeit.",
+            color = AppColors.Dim,
+        )
 
         Text("Darstellung", fontWeight = FontWeight.Bold)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -119,7 +133,7 @@ private fun TokenField(value: String, onChange: (String) -> Unit) {
     OutlinedTextField(
         value = text,
         onValueChange = { text = it; onChange(it) },
-        label = { Text("GitHub-Token (Repo ist privat)") },
+        label = { Text("GitHub-Token (nur bei privatem Repo nötig)") },
         singleLine = true,
         visualTransformation = PasswordVisualTransformation(),
         modifier = Modifier.fillMaxWidth(),

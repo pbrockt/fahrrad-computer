@@ -28,6 +28,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import com.pbrockt.fahrradcomputer.sensors.SensorReading
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -54,11 +56,14 @@ class RideService : Service() {
         startInForeground()
         startLocation()
 
-        scope.launch {
-            app.heartRate.state
-                .distinctUntilChangedBy { it.updatedAtMs }
-                .collect { hr -> hr.bpm?.let { session.onHeartRate(it, hr.updatedAtMs) } }
+        // Jeder neue Sensorwert geht an die Fahrt; doppelte Meldungen (gleicher Zeitstempel) nicht.
+        fun forward(flow: StateFlow<SensorReading>, sink: (Int, Long) -> Unit) = scope.launch {
+            flow.distinctUntilChangedBy { it.updatedAtMs }
+                .collect { r -> r.value?.let { sink(it, r.updatedAtMs) } }
         }
+        forward(app.sensors.heartRate, session::onHeartRate)
+        forward(app.sensors.cadence, session::onCadence)
+        forward(app.sensors.power, session::onPower)
         // Benachrichtigung und GPS-Status regelmaessig auffrischen.
         scope.launch {
             while (true) {
@@ -130,8 +135,9 @@ class RideService : Service() {
         val stats = session.stats.value
         val paused = session.phase.value == RidePhase.PAUSED
         val text = String.format(
-            Locale.GERMANY, "%.2f km · %s%s",
-            stats.distanceM / 1000, formatDuration(stats.movingTimeMs), if (paused) " · Pause" else "",
+            Locale.GERMANY, "%.2f km · %s · %.0f kcal%s",
+            stats.distanceM / 1000, formatDuration(stats.movingTimeMs), stats.calories,
+            if (paused) " · Pause" else "",
         )
         val open = PendingIntent.getActivity(
             this, 0,
