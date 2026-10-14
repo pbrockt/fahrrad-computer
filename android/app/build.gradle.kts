@@ -19,7 +19,7 @@ android {
         // verweigert Android das Update. versionName folgt SemVer: "x.y.z" ist ein
         // Release, "x.y.z-alpha.N" eine Alpha. release.yml prueft, dass der Tag passt.
         versionCode = 4
-        versionName = "0.0.4"
+        versionName = "0.0.4-alpha.1"
 
         buildConfigField("String", "UPDATE_REPO", "\"pbrockt/fahrrad-computer\"")
     }
