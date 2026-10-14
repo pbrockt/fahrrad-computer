@@ -29,6 +29,8 @@ import com.pbrockt.fahrradcomputer.ui.map.mapAvailable
 import com.pbrockt.fahrradcomputer.routes.Route
 import com.pbrockt.fahrradcomputer.routes.RouteProgress
 import com.pbrockt.fahrradcomputer.routes.Guidance
+import com.pbrockt.fahrradcomputer.coach.PlannedSession
+import com.pbrockt.fahrradcomputer.coach.SessionKind
 import com.pbrockt.fahrradcomputer.routes.TurnAnnouncer
 import com.pbrockt.fahrradcomputer.ui.TurnArrow
 import androidx.compose.foundation.layout.Column
@@ -57,6 +59,8 @@ class TileData(
     val activeRoute: Route? = null,
     val progress: RouteProgress? = null,
     val guidance: Guidance? = null,
+    /** Geplante Einheit fuer heute aus dem Trainingsplan. */
+    val todaySession: PlannedSession? = null,
     val offlineMaps: List<File> = emptyList(),
     val mapOnline: Boolean = false,
     /** Im Bearbeiten-Modus keine echte Karte - sie wuerde die Fingertipps abfangen. */
@@ -114,6 +118,21 @@ fun Tile(type: TileType, d: TileData, modifier: Modifier, mapId: String = "dash"
             else -> RouteTile(d.route, modifier)
         }
         TileType.TURN -> TurnTile(d, modifier)
+        TileType.TRAINING_GOAL -> {
+            val t = d.todaySession
+            when {
+                t == null -> ValueTile("Training · kein Plan", "--", modifier)
+                t.kind == SessionKind.REST -> ValueTile("Heute", "Ruhetag", modifier)
+                else -> {
+                    val leftMin = t.durationMin - (s.movingTimeMs / 60_000).toInt()
+                    ValueTile(
+                        if (leftMin > 0) "${t.title} · noch $leftMin min" else "${t.title} · geschafft ✓",
+                        "Z${t.targetZone}", modifier,
+                        background = AppColors.zone(t.targetZone), content = AppColors.OnZone,
+                    )
+                }
+            }
+        }
         TileType.ROUTE_REMAINING -> {
             val p = d.progress
             when {

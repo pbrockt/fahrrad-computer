@@ -5,6 +5,12 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pbrockt.fahrradcomputer.data.AppSettings
 import android.net.Uri
+import com.pbrockt.fahrradcomputer.coach.Coach
+import com.pbrockt.fahrradcomputer.coach.CoachPrompt
+import com.pbrockt.fahrradcomputer.coach.CoachRequest
+import com.pbrockt.fahrradcomputer.coach.StoredPlan
+import java.time.DayOfWeek
+import java.time.LocalDate
 import com.pbrockt.fahrradcomputer.health.HealthAvailability
 import com.pbrockt.fahrradcomputer.live.LiveSms
 import com.pbrockt.fahrradcomputer.live.SmsSender
@@ -195,6 +201,63 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setNavSound(value: Boolean) = viewModelScope.launch { store.setNavSound(value) }
     val guidance = ride.guidance
     val turns = ride.turns
+
+    // --- Trainingsplan ---
+
+    private val coachStore = fahrradApp.coach
+    val plan: StateFlow<StoredPlan?> = coachStore.plan
+    val hasCoachKey: StateFlow<Boolean> = coachStore.hasKey
+
+    private val _coachBusy = MutableStateFlow(false)
+    val coachBusy: StateFlow<Boolean> = _coachBusy.asStateFlow()
+
+    fun setCoachGoal(value: String) = viewModelScope.launch { store.setCoachGoal(value) }
+    fun setCoachNotes(value: String) = viewModelScope.launch { store.setCoachNotes(value) }
+    fun toggleCoachDay(day: DayOfWeek) = viewModelScope.launch {
+        val days = settings.value.coachDays
+        store.setCoachDays(if (day in days) days - day else days + day)
+    }
+
+    private fun coachRequest(): CoachRequest {
+        val s = settings.value
+        return CoachRequest(s.coachGoal, s.coachDays, s.coachNotes, s.body, s.maxHr, LocalDate.now())
+    }
+
+    /** Genau der Text, der an Claude geht - zum Anzeigen vor dem Senden. */
+    fun coachPreview(): String = CoachPrompt.user(coachRequest(), rides.value, plan.value)
+
+    fun setCoachKey(key: String) {
+        coachStore.setApiKey(key)
+        if (key.isNotBlank()) checkCoachKey()
+    }
+
+    fun checkCoachKey() {
+        val key = coachStore.apiKey() ?: run { _message.value = "Noch kein API-Key gespeichert."; return }
+        viewModelScope.launch {
+            _coachBusy.value = true
+            _message.value = Coach.checkKey(key) ?: "API-Key funktioniert."
+            _coachBusy.value = false
+        }
+    }
+
+    fun createPlan() {
+        val key = coachStore.apiKey() ?: run { _message.value = "Bitte zuerst einen API-Key eintragen."; return }
+        if (settings.value.coachDays.isEmpty()) { _message.value = "Bitte mindestens einen Trainingstag wählen."; return }
+        val request = coachRequest()
+        viewModelScope.launch {
+            _coachBusy.value = true
+            when (val r = Coach.createPlan(key, CoachPrompt.system, CoachPrompt.user(request, rides.value, plan.value))) {
+                is Coach.Result.Ok -> {
+                    coachStore.save(StoredPlan(r.plan, System.currentTimeMillis(), request.startDate.toString(), r.costUsd))
+                    _message.value = "Neuer Plan erstellt (Kosten ca. ${String.format(java.util.Locale.GERMANY, "%.2f", r.costUsd)} \$)."
+                }
+                is Coach.Result.Error -> _message.value = r.message
+            }
+            _coachBusy.value = false
+        }
+    }
+
+    fun deletePlan() = viewModelScope.launch { coachStore.clearPlan() }
 
     // --- Live-SMS ---
 

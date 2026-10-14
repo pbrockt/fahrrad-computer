@@ -45,6 +45,7 @@ import com.pbrockt.fahrradcomputer.recording.GpsStatus
 import com.pbrockt.fahrradcomputer.recording.RidePhase
 import com.pbrockt.fahrradcomputer.sensors.SensorReading
 import com.pbrockt.fahrradcomputer.sensors.SensorConnection
+import com.pbrockt.fahrradcomputer.coach.PlanMatching
 import com.pbrockt.fahrradcomputer.ui.AppColors
 import com.pbrockt.fahrradcomputer.ui.formatDecimal
 import com.pbrockt.fahrradcomputer.ui.formatDuration
@@ -65,6 +66,7 @@ fun DashboardScreen(vm: MainViewModel, onStartRequested: () -> Unit) {
     val activeRoute by vm.activeRoute.collectAsStateWithLifecycle()
     val progress by vm.routeProgress.collectAsStateWithLifecycle()
     val guidance by vm.guidance.collectAsStateWithLifecycle()
+    val plan by vm.plan.collectAsStateWithLifecycle()
     val offlineMaps by vm.offlineMaps.collectAsStateWithLifecycle()
 
     // Display anlassen, solange das Dashboard zu sehen ist.
@@ -81,6 +83,7 @@ fun DashboardScreen(vm: MainViewModel, onStartRequested: () -> Unit) {
         activeRoute = activeRoute,
         progress = progress,
         guidance = guidance,
+        todaySession = PlanMatching.today(plan?.plan, java.time.LocalDate.now()),
         offlineMaps = offlineMaps,
         mapOnline = settings.mapOnline,
     )

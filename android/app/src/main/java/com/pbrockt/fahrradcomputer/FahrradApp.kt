@@ -4,6 +4,7 @@ import android.app.Application
 import com.pbrockt.fahrradcomputer.data.AppSettings
 import com.pbrockt.fahrradcomputer.data.RideRepository
 import com.pbrockt.fahrradcomputer.data.SettingsStore
+import com.pbrockt.fahrradcomputer.coach.CoachStore
 import com.pbrockt.fahrradcomputer.health.HealthConnect
 import com.pbrockt.fahrradcomputer.maps.OfflineMaps
 import com.pbrockt.fahrradcomputer.routes.RouteStore
@@ -49,6 +50,8 @@ class FahrradApp : Application() {
         private set
     lateinit var offlineMaps: OfflineMaps
         private set
+    lateinit var coach: CoachStore
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -63,6 +66,8 @@ class FahrradApp : Application() {
         ride = RideSession(this, scope, { currentSettings.value }, rides)
         routes = RouteStore(this)
         offlineMaps = OfflineMaps(this)
+        coach = CoachStore(this)
+        scope.launch { coach.load() }
 
         scope.launch {
             routes.refresh()

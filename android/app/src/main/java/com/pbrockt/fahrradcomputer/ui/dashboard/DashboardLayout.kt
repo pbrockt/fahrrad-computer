@@ -20,6 +20,7 @@ enum class TileType(val label: String) {
     ROUTE("Karte / Navigation"),
     ROUTE_REMAINING("Rest der Route"),
     TURN("Abbiegehinweis"),
+    TRAINING_GOAL("Trainingsziel heute"),
 }
 
 /** Zeilenhoehe als Anteil am Bildschirm. */
@@ -84,7 +85,7 @@ data class DashboardLayout(val pages: List<DashboardPage>) {
                         row(RowHeight.LARGE, TileType.HEART_RATE),
                         row(RowHeight.MEDIUM, TileType.AVG_HR, TileType.MAX_HR),
                         row(RowHeight.MEDIUM, TileType.CADENCE, TileType.POWER),
-                        row(RowHeight.MEDIUM, TileType.CALORIES, TileType.MOVING_TIME),
+                        row(RowHeight.MEDIUM, TileType.TRAINING_GOAL, TileType.MOVING_TIME),
                     ),
                 ),
                 DashboardPage(

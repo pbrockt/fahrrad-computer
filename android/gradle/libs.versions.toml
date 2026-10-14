@@ -11,6 +11,7 @@ kotlinxSerialization = "1.7.1"
 healthConnect = "1.1.0-beta01"
 mapsforge = "0.25.0"
 kxml2 = "2.3.0"
+anthropic = "2.71.0"
 junit = "4.13.2"
 
 [libraries]
@@ -33,6 +34,7 @@ androidx-health-connect = { group = "androidx.health.connect", name = "connect-c
 mapsforge-map-android = { group = "org.mapsforge", name = "mapsforge-map-android", version.ref = "mapsforge" }
 mapsforge-themes = { group = "org.mapsforge", name = "mapsforge-themes", version.ref = "mapsforge" }
 kxml2 = { group = "net.sf.kxml", name = "kxml2", version.ref = "kxml2" }
+anthropic-java = { group = "com.anthropic", name = "anthropic-java", version.ref = "anthropic" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 [plugins]

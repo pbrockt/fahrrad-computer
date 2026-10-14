@@ -6,7 +6,7 @@ Kalorienberechnung, Streckenaufzeichnung, Health Connect, Live-Standort und KI-T
 
 Die geplante Vorgehensweise steht in [KONZEPT.md](KONZEPT.md).
 
-## Stand: Phase 6 mit Abbiegehinweisen (0.0.6-alpha.1)
+## Stand: Phase 7 (0.0.7-alpha.1)
 
 | Bereich | Stand |
 |---|---|
@@ -21,6 +21,7 @@ Die geplante Vorgehensweise steht in [KONZEPT.md](KONZEPT.md).
 | Live-Standort | Per SMS an eingetragene Nummern, alle 1–60 Minuten (Standard 10), optional „losgefahren“/„angekommen“. Text mit Uhrzeit, km, Geschwindigkeit, Rest der Route, Akku und Google-Maps-Link; passt in eine SMS. Test-SMS in den Einstellungen. |
 | Karte & Route | Tab „Karten“: GPX-Routen importieren (Komoot, Strava, BRouter …), Vorschau, aktivieren. Dashboard-Kachel „Karte“ mit Route, gefahrener Strecke und Position (folgt mit), Hinweis bei mehr als 50 m Abweichung; Kachel „Rest der Route“. Offline-Karten von mapsforge.org (u. a. Rheinland-Pfalz, 183 MB) per Download, Fahrrad-Kartenstil; ohne Offline-Karte optional Online-Karte von openstreetmap.org. |
 | Abbiegehinweise | Aus der Form der Route erkannt (Douglas-Peucker, Winkel ab 35°, nahe Knicke zusammengefasst): leicht/normal/scharf links/rechts, wenden. Seite „Navi“ mit großem Pfeil und Entfernung, Hinweis auch auf der Karte und in der Benachrichtigung (Sperrbildschirm). Vibration 150 m vorher und kurz davor, am Ziel; Ton optional. Ohne Straßennamen. |
+| Trainingsplan | Tab „Fahrten“ → Reiter „Training“: Ziel, Trainingstage, Hinweise; Wochenplan ab heute über die Claude-API (Claude Opus 5.5, strukturierte JSON-Ausgabe, automatisches Ausweichen bei Fehl-Ablehnungen). Gesendet werden nur Trainingswerte der letzten 6 Wochen, Alter, Gewicht, Ziel – Vorschau „Was wird gesendet?“. Eigener API-Key, im Android Keystore verschlüsselt; Anleitung und Key-Prüfung in der App. Einheiten werden mit Fahrten abgeglichen (erledigt/ausgelassen); Kachel „Trainingsziel heute“. |
 | Updates | Kanal Release ignoriert Alphas, Kanal Alpha nimmt die höchste Version. Workflow `release.yml` baut bei Tag `x.y.z` bzw. `x.y.z-alpha.N`. |
 
 Noch nicht enthalten: Bosch-Unterstützungsstufe/Akku (braucht den nRF-Connect-Scan), Straßennamen bei Abbiegehinweisen, Live-Tracker, Karte, KI – siehe Phasen im Konzept.

@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,9 +34,22 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** Die Auswertung: Summen fuer Woche und Monat, darunter alle Fahrten. Tipp = Details. */
+/** Tab "Fahrten": Auswertung der Fahrten und Trainingsplan als zwei Reiter. */
 @Composable
 fun RidesScreen(vm: MainViewModel) {
+    var training by rememberSaveable { mutableStateOf(false) }
+    Column(Modifier.fillMaxSize()) {
+        TabRow(selectedTabIndex = if (training) 1 else 0) {
+            Tab(selected = !training, onClick = { training = false }, text = { Text("Fahrten") })
+            Tab(selected = training, onClick = { training = true }, text = { Text("Training") })
+        }
+        if (training) TrainingScreen(vm) else RideList(vm)
+    }
+}
+
+/** Die Auswertung: Summen fuer Woche und Monat, darunter alle Fahrten. Tipp = Details. */
+@Composable
+private fun RideList(vm: MainViewModel) {
     val rides by vm.rides.collectAsStateWithLifecycle()
     var selected by rememberSaveable { mutableStateOf<String?>(null) }
 

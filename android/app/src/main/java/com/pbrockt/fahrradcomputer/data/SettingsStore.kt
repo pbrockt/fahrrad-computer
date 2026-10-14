@@ -17,6 +17,7 @@ import com.pbrockt.fahrradcomputer.ui.dashboard.LayoutCodec
 import com.pbrockt.fahrradcomputer.update.UpdateChannel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.time.DayOfWeek
 import java.time.LocalDate
 
 private val Context.dataStore by preferencesDataStore(name = "einstellungen")
@@ -60,6 +61,10 @@ data class AppSettings(
     /** Abbiegehinweise per Vibration bzw. Ton ankuendigen. */
     val navVibrate: Boolean = true,
     val navSound: Boolean = false,
+    /** Trainingsplan: Ziel, Wochentage, freie Hinweise (z. B. Beschwerden). */
+    val coachGoal: String = "",
+    val coachDays: Set<DayOfWeek> = setOf(DayOfWeek.TUESDAY, DayOfWeek.THURSDAY, DayOfWeek.SATURDAY),
+    val coachNotes: String = "",
     val dashboard: DashboardLayout = DashboardLayout.DEFAULT,
 ) {
     val zones: HrZones get() = HrZones(maxHr)
@@ -107,6 +112,9 @@ class SettingsStore(private val context: Context) {
         val MAP_ONLINE = booleanPreferencesKey("map_online")
         val NAV_VIBRATE = booleanPreferencesKey("nav_vibrate")
         val NAV_SOUND = booleanPreferencesKey("nav_sound")
+        val COACH_GOAL = stringPreferencesKey("coach_goal")
+        val COACH_DAYS = stringPreferencesKey("coach_days")
+        val COACH_NOTES = stringPreferencesKey("coach_notes")
         val DASHBOARD = stringPreferencesKey("dashboard_layout")
     }
 
@@ -136,6 +144,11 @@ class SettingsStore(private val context: Context) {
             mapOnline = p[Keys.MAP_ONLINE] ?: true,
             navVibrate = p[Keys.NAV_VIBRATE] ?: true,
             navSound = p[Keys.NAV_SOUND] ?: false,
+            coachGoal = p[Keys.COACH_GOAL] ?: "",
+            coachDays = p[Keys.COACH_DAYS]
+                ?.split(',')?.mapNotNull { n -> runCatching { DayOfWeek.valueOf(n) }.getOrNull() }?.toSet()
+                ?: AppSettings().coachDays,
+            coachNotes = p[Keys.COACH_NOTES] ?: "",
             themeMode = p[Keys.THEME]
                 ?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
                 ?: ThemeMode.DARK,
@@ -185,6 +198,9 @@ class SettingsStore(private val context: Context) {
     suspend fun setMapOnline(value: Boolean) = set(Keys.MAP_ONLINE, value)
     suspend fun setNavVibrate(value: Boolean) = set(Keys.NAV_VIBRATE, value)
     suspend fun setNavSound(value: Boolean) = set(Keys.NAV_SOUND, value)
+    suspend fun setCoachGoal(value: String) = set(Keys.COACH_GOAL, value.take(300))
+    suspend fun setCoachNotes(value: String) = set(Keys.COACH_NOTES, value.take(500))
+    suspend fun setCoachDays(value: Set<DayOfWeek>) = set(Keys.COACH_DAYS, value.joinToString(",") { it.name })
 
     suspend fun setActiveRoute(id: String?) {
         context.dataStore.edit { if (id == null) it.remove(Keys.ACTIVE_ROUTE) else it[Keys.ACTIVE_ROUTE] = id }
