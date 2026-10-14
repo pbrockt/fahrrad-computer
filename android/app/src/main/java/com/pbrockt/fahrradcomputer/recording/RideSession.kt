@@ -1,6 +1,8 @@
 package com.pbrockt.fahrradcomputer.recording
 
 import android.content.Context
+import com.pbrockt.fahrradcomputer.data.AppSettings
+import com.pbrockt.fahrradcomputer.data.RideRepository
 import android.content.Intent
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
@@ -18,8 +20,11 @@ enum class RidePhase { IDLE, RECORDING, PAUSED }
 
 enum class GpsStatus { OFF, SEARCHING, OK }
 
-/** Ergebnis einer beendeten Fahrt fuer die Zusammenfassung. */
-data class FinishedRide(val file: File?, val stats: RideStats)
+/**
+ * Ergebnis einer beendeten Fahrt fuer die Zusammenfassung. [healthNote] sagt, ob die Fahrt
+ * an Health Connect ging (oder warum nicht); null = nicht versucht.
+ */
+data class FinishedRide(val file: File?, val stats: RideStats, val healthNote: String? = null)
 
 /**
  * Die laufende Fahrt. Lebt in der Application, damit Dashboard und [RideService] auf
@@ -28,8 +33,9 @@ data class FinishedRide(val file: File?, val stats: RideStats)
 class RideSession(
     private val context: Context,
     private val scope: CoroutineScope,
-    /** Gewicht, Alter, Geschlecht zum Fahrtbeginn - fuer die Kalorien. */
-    private val body: () -> BodyProfile,
+    /** Aktuelle Einstellungen: Koerperdaten fuer die Kalorien, Pulszonen fuer die Auswertung. */
+    private val settings: () -> AppSettings,
+    private val repository: RideRepository,
 ) {
     private val _phase = MutableStateFlow(RidePhase.IDLE)
     val phase: StateFlow<RidePhase> = _phase.asStateFlow()
@@ -55,7 +61,7 @@ class RideSession(
 
     fun start() {
         if (_phase.value != RidePhase.IDLE) return
-        tracker = RideTracker(body())
+        tracker = RideTracker(settings().body)
         _stats.value = RideStats()
         _route.value = emptyList()
         _finished.value = null
@@ -88,13 +94,14 @@ class RideSession(
         val target = file
         scope.launch {
             // Ohne einen einzigen GPS-Punkt gibt es nichts zu speichern.
-            val saved = if (points.isEmpty()) {
-                target?.delete()
-                null
-            } else {
-                target?.also { save(it, points) }
-            }
-            _finished.value = FinishedRide(saved, stats)
+            val saved = if (points.isEmpty()) null else target?.also { save(it, points) }
+            target?.let { partFile(it).delete() }
+            // Die Kennzahlen gleich mit ablegen - die Fahrtenliste liest nur diese.
+            val note = if (saved != null && points.size >= 2) {
+                val summary = RideSummaries.build(saved.nameWithoutExtension, points, stats, settings().zones)
+                repository.onRideFinished(summary, points)
+            } else null
+            _finished.value = FinishedRide(saved, stats, note)
         }
     }
 
@@ -117,7 +124,7 @@ class RideSession(
         if (sample.timeMs - lastSaveMs >= AUTOSAVE_MS) {
             lastSaveMs = sample.timeMs
             val snapshot = points.toList()
-            file?.let { f -> scope.launch { save(f, snapshot) } }
+            file?.let { f -> scope.launch { save(partFile(f), snapshot) } }
         }
     }
 
@@ -138,6 +145,13 @@ class RideSession(
         tracker.onPower(watts, timeMs)
         _stats.value = tracker.snapshot
     }
+
+    /**
+     * Waehrend der Fahrt wird hierhin zwischengespeichert, nicht in die endgueltige Datei -
+     * sonst stuende eine halbe Fahrt in der Fahrtenliste. Nach einem Absturz rettet
+     * [RideRepository.recoverInterrupted] sie beim naechsten Start.
+     */
+    private fun partFile(f: File) = File(f.parentFile, f.name + RideRepository.PART_SUFFIX)
 
     private suspend fun save(target: File, points: List<TrackPoint>) = withContext(Dispatchers.IO) {
         // Erst in eine Temp-Datei, dann umbenennen - so liegt nie eine halbe GPX-Datei da.

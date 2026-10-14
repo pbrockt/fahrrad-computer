@@ -38,6 +38,10 @@ data class AppSettings(
      */
     val updateToken: String = "",
     val themeMode: ThemeMode = ThemeMode.DARK,
+    /** Fahrten nach dem Stopp automatisch an Health Connect senden. */
+    val healthAutoSync: Boolean = true,
+    /** Beim Start das neueste Gewicht aus Health Connect uebernehmen. */
+    val healthWeightSync: Boolean = true,
     val dashboard: DashboardLayout = DashboardLayout.DEFAULT,
 ) {
     val zones: HrZones get() = HrZones(maxHr)
@@ -73,6 +77,8 @@ class SettingsStore(private val context: Context) {
         val AUTO_UPDATE_CHECK = booleanPreferencesKey("auto_update_check")
         val UPDATE_TOKEN = stringPreferencesKey("update_token")
         val THEME = stringPreferencesKey("theme")
+        val HEALTH_AUTO_SYNC = booleanPreferencesKey("health_auto_sync")
+        val HEALTH_WEIGHT_SYNC = booleanPreferencesKey("health_weight_sync")
         val DASHBOARD = stringPreferencesKey("dashboard_layout")
     }
 
@@ -90,6 +96,8 @@ class SettingsStore(private val context: Context) {
                 ?: UpdateChannel.RELEASE,
             autoUpdateCheck = p[Keys.AUTO_UPDATE_CHECK] ?: true,
             updateToken = p[Keys.UPDATE_TOKEN] ?: "",
+            healthAutoSync = p[Keys.HEALTH_AUTO_SYNC] ?: true,
+            healthWeightSync = p[Keys.HEALTH_WEIGHT_SYNC] ?: true,
             themeMode = p[Keys.THEME]
                 ?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
                 ?: ThemeMode.DARK,
@@ -125,6 +133,10 @@ class SettingsStore(private val context: Context) {
     suspend fun setUpdateToken(value: String) = set(Keys.UPDATE_TOKEN, value.trim())
 
     suspend fun setThemeMode(value: ThemeMode) = set(Keys.THEME, value.name)
+
+    suspend fun setHealthAutoSync(value: Boolean) = set(Keys.HEALTH_AUTO_SYNC, value)
+
+    suspend fun setHealthWeightSync(value: Boolean) = set(Keys.HEALTH_WEIGHT_SYNC, value)
 
     /**
      * Wendet eine Aenderung auf das *gespeicherte* Layout an - innerhalb einer Transaktion.

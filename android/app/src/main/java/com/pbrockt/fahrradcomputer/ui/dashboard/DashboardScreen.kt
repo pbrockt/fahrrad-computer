@@ -140,6 +140,7 @@ fun DashboardScreen(vm: MainViewModel, onStartRequested: () -> Unit) {
                         s.avgPower?.let { appendLine("Ø Leistung $it W · max ${s.maxPower} W") }
                         if (s.calories > 0) appendLine("Kalorien: ${"%.0f".format(s.calories)} kcal (${s.calorieSource.label})")
                         if (f.file == null) append("Kein GPS-Signal - es wurde keine Datei gespeichert.")
+                        f.healthNote?.let { append("\n$it") }
                     }
                 )
             },

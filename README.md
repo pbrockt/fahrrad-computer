@@ -6,7 +6,7 @@ Kalorienberechnung, Streckenaufzeichnung, Health Connect, Live-Standort und KI-T
 
 Die geplante Vorgehensweise steht in [KONZEPT.md](KONZEPT.md).
 
-## Stand: Phase 3 (0.0.3)
+## Stand: Phase 4 (0.0.4)
 
 | Bereich | Stand |
 |---|---|
@@ -15,11 +15,12 @@ Die geplante Vorgehensweise steht in [KONZEPT.md](KONZEPT.md).
 | Sensoren | Bluetooth-Standardprofile: Puls (Brustgurt, Uhren mit „HF senden“), Trittfrequenz/Speed (CSC), Leistung (Cycling Power). Liefert der Leistungsmesser Kurbeldaten, kommt die Trittfrequenz daraus. Bosch Smart System erscheint, sofern es diese Profile sendet (noch nicht am Rad geprüft). Automatisches Wiederverbinden. |
 | Kalorien | Aus Fahrerleistung (kcal ≈ kJ), sonst Puls (Keytel: Gewicht, Alter, Geschlecht), sonst MET-Schätzung nach Geschwindigkeit (E-Bike). Die Kachel zeigt die Quelle. |
 | Aufzeichnung | GPS im Vordergrunddienst (läuft bei aus­geschaltetem Display weiter), Start/Pause/Weiter/Stopp, Standzeiten zählen nicht als Fahrzeit, Zwischenspeichern jede Minute. |
-| Fahrten | Gespeichert als GPX mit Puls, Trittfrequenz und Leistung; teilen (Strava, Komoot, Trainingsauswertung) und löschen. |
+| Fahrten | Gespeichert als GPX (Strecke mit Puls, Trittfrequenz, Leistung) plus JSON mit den Kennzahlen. Liste mit Summen für Woche und Monat; Detailansicht mit Kennzahlen, Streckenskizze, Zeit in Pulszonen und Verläufen (Geschwindigkeit, Puls in Zonenfarben, Trittfrequenz, Leistung, Höhe). Teilen, löschen. Abgebrochene Aufzeichnungen werden beim nächsten Start gerettet. |
+| Health Connect | Fahrten als Training „Radfahren“ mit Strecke, Puls, Geschwindigkeit, Trittfrequenz, Leistung, Distanz, Höhenmetern und Kalorien – automatisch nach dem Stopp oder per Knopf. Gewicht wird von dort übernommen. Feste IDs: erneutes Senden überschreibt statt zu verdoppeln. |
 | Einstellungen | Max. Herzfrequenz (Zonen), Gewicht, Geburtsjahr, Geschlecht, Update-Kanal Release/Alpha, optional GitHub-Token. |
 | Updates | Kanal Release ignoriert Alphas, Kanal Alpha nimmt die höchste Version. Workflow `release.yml` baut bei Tag `x.y.z` bzw. `x.y.z-alpha.N`. |
 
-Noch nicht enthalten: Bosch-Unterstützungsstufe/Akku (braucht den nRF-Connect-Scan), Health Connect, Live-Tracker, Karte, KI – siehe Phasen im Konzept.
+Noch nicht enthalten: Bosch-Unterstützungsstufe/Akku (braucht den nRF-Connect-Scan), Live-Tracker, Karte, KI – siehe Phasen im Konzept.
 
 ## Bauen
 

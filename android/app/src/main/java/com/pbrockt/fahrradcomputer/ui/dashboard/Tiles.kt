@@ -1,6 +1,5 @@
 package com.pbrockt.fahrradcomputer.ui.dashboard
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -12,12 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -29,13 +23,13 @@ import com.pbrockt.fahrradcomputer.recording.RideStats
 import com.pbrockt.fahrradcomputer.recording.TrackPoint
 import com.pbrockt.fahrradcomputer.sensors.SensorReading
 import com.pbrockt.fahrradcomputer.ui.AppColors
+import com.pbrockt.fahrradcomputer.ui.RouteSketch
 import com.pbrockt.fahrradcomputer.ui.formatDecimal
 import com.pbrockt.fahrradcomputer.ui.formatDuration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlin.math.cos
 import kotlin.math.min
 
 /** Alles, was eine Kachel zum Zeichnen braucht. */
@@ -155,10 +149,6 @@ fun ValueTile(
 /** Skizze der gefahrenen Strecke - Platzhalter fuer die Navi-Karte aus Phase 6. */
 @Composable
 private fun RouteTile(route: List<TrackPoint>, modifier: Modifier) {
-    // Farben vorher holen: im Canvas-Block ist kein Composable-Zugriff moeglich.
-    val line = AppColors.Accent
-    val start = AppColors.Go
-    val here = AppColors.Text
     Box(modifier.clip(RoundedCornerShape(10.dp)).background(AppColors.Panel).padding(10.dp)) {
         Text("Strecke", color = AppColors.Dim, fontSize = 13.sp, modifier = Modifier.align(Alignment.TopStart))
         if (route.size < 2) {
@@ -168,30 +158,8 @@ private fun RouteTile(route: List<TrackPoint>, modifier: Modifier) {
                 textAlign = TextAlign.Center,
                 modifier = Modifier.align(Alignment.Center),
             )
-            return@Box
-        }
-        Canvas(Modifier.fillMaxSize().padding(top = 16.dp)) {
-            // Laengengrade schrumpfen zu den Polen hin - mit cos(Breite) bleibt die Form unverzerrt.
-            val k = cos(Math.toRadians(route.first().lat))
-            val xs = route.map { it.lon * k }
-            val ys = route.map { it.lat }
-            val minX = xs.min(); val maxX = xs.max()
-            val minY = ys.min(); val maxY = ys.max()
-            val span = maxOf(maxX - minX, maxY - minY).takeIf { it > 0 } ?: return@Canvas
-            val scale = min(size.width, size.height) / span.toFloat()
-            val offX = (size.width - (maxX - minX).toFloat() * scale) / 2
-            val offY = (size.height - (maxY - minY).toFloat() * scale) / 2
-            fun pt(i: Int) = Offset(
-                offX + (xs[i] - minX).toFloat() * scale,
-                size.height - offY - (ys[i] - minY).toFloat() * scale,
-            )
-            val path = Path().apply {
-                moveTo(pt(0).x, pt(0).y)
-                for (i in 1 until route.size) lineTo(pt(i).x, pt(i).y)
-            }
-            drawPath(path, line, style = Stroke(width = 5f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-            drawCircle(start, radius = 8f, center = pt(0))
-            drawCircle(here, radius = 10f, center = pt(route.lastIndex))
+        } else {
+            RouteSketch(route, Modifier.fillMaxSize().padding(top = 16.dp))
         }
     }
 }

@@ -10,6 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -22,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -29,12 +31,15 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pbrockt.fahrradcomputer.BuildConfig
 import com.pbrockt.fahrradcomputer.MainViewModel
+import com.pbrockt.fahrradcomputer.health.HealthAvailability
 import com.pbrockt.fahrradcomputer.recording.Sex
 import com.pbrockt.fahrradcomputer.update.UpdateChannel
 
 @Composable
-fun SettingsScreen(vm: MainViewModel) {
+fun SettingsScreen(vm: MainViewModel, onConnectHealth: () -> Unit) {
     val s by vm.settings.collectAsStateWithLifecycle()
+    val health by vm.healthState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -80,6 +85,48 @@ fun SettingsScreen(vm: MainViewModel) {
                 "Fahrt-Bildschirm an: lange auf eine Kachel drücken.",
             color = AppColors.Dim,
         )
+
+        Text("Health Connect", fontWeight = FontWeight.Bold)
+        when (health.availability) {
+            HealthAvailability.AVAILABLE -> {
+                val n = health.granted.size
+                Text(
+                    if (n == 0) "Nicht verbunden. Fahrten werden dann nur in dieser App gespeichert."
+                    else "Verbunden ($n von ${vm.healthPermissions.size} Datenarten erlaubt).",
+                    color = if (n == 0) AppColors.Dim else AppColors.Go,
+                )
+                Button(onClick = onConnectHealth, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (n == 0) "Mit Health Connect verbinden" else "Berechtigungen ändern")
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Fahrten automatisch übertragen", Modifier.weight(1f))
+                    Switch(checked = s.healthAutoSync, onCheckedChange = vm::setHealthAutoSync)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Gewicht beim Start übernehmen", Modifier.weight(1f))
+                    Switch(checked = s.healthWeightSync, onCheckedChange = vm::setHealthWeightSync)
+                }
+                OutlinedButton(onClick = vm::importWeightNow, enabled = health.connected, modifier = Modifier.fillMaxWidth()) {
+                    Text("Gewicht jetzt übernehmen")
+                }
+                Text(
+                    "Übertragen werden je Fahrt: Trainingseinheit Radfahren mit Strecke, Puls, " +
+                        "Geschwindigkeit, Trittfrequenz, Leistung, Distanz, Höhenmeter und Kalorien. " +
+                        "Gelesen wird nur das Gewicht. Nichts davon verlässt das Handy.",
+                    color = AppColors.Dim,
+                )
+            }
+            else -> {
+                Text(
+                    if (health.availability == HealthAvailability.NEEDS_UPDATE) "Health Connect muss aktualisiert werden."
+                    else "Health Connect ist auf diesem Handy nicht installiert.",
+                    color = AppColors.Dim,
+                )
+                OutlinedButton(onClick = { openHealthConnectInStore(context) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Im Play Store öffnen")
+                }
+            }
+        }
 
         Text("Updates", fontWeight = FontWeight.Bold)
         Text("Installiert: ${BuildConfig.VERSION_NAME}", color = AppColors.Dim)
@@ -138,4 +185,12 @@ private fun TokenField(value: String, onChange: (String) -> Unit) {
         visualTransformation = PasswordVisualTransformation(),
         modifier = Modifier.fillMaxWidth(),
     )
+}
+
+private fun openHealthConnectInStore(context: android.content.Context) {
+    val intent = android.content.Intent(
+        android.content.Intent.ACTION_VIEW,
+        android.net.Uri.parse("market://details?id=com.google.android.apps.healthdata"),
+    ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { context.startActivity(intent) }
 }

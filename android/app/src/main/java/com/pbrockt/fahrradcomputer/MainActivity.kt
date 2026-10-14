@@ -35,6 +35,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pbrockt.fahrradcomputer.sensors.SensorKind
@@ -118,6 +120,20 @@ private fun AppRoot(vm: MainViewModel) {
         }
     }
 
+    val healthLauncher = rememberLauncherForActivityResult(vm.healthContract) { vm.onHealthPermissionsResult() }
+
+    // Berechtigungen koennen auch in der Health-Connect-App geaendert werden - beim
+    // Zurueckkommen neu nachsehen.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.refreshHealth() }
+
+    val message by vm.message.collectAsStateWithLifecycle()
+    LaunchedEffect(message) {
+        message?.let {
+            vm.consumeMessage()
+            snackbar.showSnackbar(it)
+        }
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
@@ -141,7 +157,7 @@ private fun AppRoot(vm: MainViewModel) {
                     pendingScan = kind
                     bluetoothLauncher.launch(BLUETOOTH_PERMISSIONS)
                 })
-                Tab.SETTINGS -> SettingsScreen(vm)
+                Tab.SETTINGS -> SettingsScreen(vm, onConnectHealth = { healthLauncher.launch(vm.healthPermissions) })
             }
         }
     }

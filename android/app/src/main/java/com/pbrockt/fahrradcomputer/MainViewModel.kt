@@ -4,7 +4,11 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pbrockt.fahrradcomputer.data.AppSettings
+import com.pbrockt.fahrradcomputer.health.HealthAvailability
+import com.pbrockt.fahrradcomputer.recording.RideSummary
 import com.pbrockt.fahrradcomputer.recording.Sex
+import com.pbrockt.fahrradcomputer.recording.TrackPoint
+import com.pbrockt.fahrradcomputer.ui.formatDecimal
 import com.pbrockt.fahrradcomputer.sensors.FoundDevice
 import com.pbrockt.fahrradcomputer.sensors.SensorKind
 import com.pbrockt.fahrradcomputer.ui.ThemeMode
@@ -25,6 +29,10 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+
+data class HealthState(val availability: HealthAvailability, val granted: Set<String>) {
+    val connected: Boolean get() = granted.isNotEmpty()
+}
 
 /** Zustand der Update-Pruefung fuer die Oberflaeche. */
 sealed interface UpdateUi {
@@ -59,22 +67,30 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), System.currentTimeMillis())
 
-    private val _rides = MutableStateFlow<List<File>>(emptyList())
-    val rides: StateFlow<List<File>> = _rides.asStateFlow()
+    private val repository = fahrradApp.rides
+    private val health = fahrradApp.health
+
+    /** Alle Fahrten, neueste zuerst. */
+    val rides: StateFlow<List<RideSummary>> = repository.rides
+
+    private val _healthState = MutableStateFlow(HealthState(health.availability, emptySet()))
+    val healthState: StateFlow<HealthState> = _healthState.asStateFlow()
+    val healthPermissions: Set<String> get() = health.permissions
+    val healthContract get() = health.requestContract
+
+    /** Kurze Rueckmeldung fuer die Snackbar (Health Connect, Gewicht ...). */
+    private val _message = MutableStateFlow<String?>(null)
+    val message: StateFlow<String?> = _message.asStateFlow()
 
     private val _update = MutableStateFlow<UpdateUi?>(null)
     val update: StateFlow<UpdateUi?> = _update.asStateFlow()
 
     init {
-        refreshRides()
+        refreshHealth()
         viewModelScope.launch {
             val s = store.settings.first()
             // Das Repo ist oeffentlich - die Pruefung braucht keinen Token mehr.
             if (s.autoUpdateCheck) checkForUpdates(manual = false)
-        }
-        viewModelScope.launch {
-            // Nach dem Speichern einer Fahrt die Liste auffrischen.
-            ride.finished.collect { if (it != null) refreshRides() }
         }
     }
 
@@ -88,22 +104,47 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // --- Fahrten ---
 
-    fun refreshRides() {
+    fun gpxFile(id: String): File = repository.gpxFile(id)
+
+    suspend fun loadTrack(id: String): List<TrackPoint> = repository.readTrack(id)
+
+    fun deleteRide(id: String) {
+        viewModelScope.launch { repository.delete(id) }
+    }
+
+    fun syncRide(id: String) {
         viewModelScope.launch {
-            _rides.value = withContext(Dispatchers.IO) {
-                ride.ridesDir.listFiles { f -> f.extension == "gpx" }
-                    ?.sortedByDescending { it.name }
-                    .orEmpty()
-            }
+            _message.value = repository.sync(id) ?: "In Health Connect gespeichert."
         }
     }
 
-    fun deleteRide(file: File) {
+    fun consumeMessage() {
+        _message.value = null
+    }
+
+    // --- Health Connect ---
+
+    fun refreshHealth() {
         viewModelScope.launch {
-            withContext(Dispatchers.IO) { file.delete() }
-            refreshRides()
+            _healthState.value = HealthState(health.availability, health.granted())
         }
     }
+
+    fun onHealthPermissionsResult() {
+        refreshHealth()
+        viewModelScope.launch { fahrradApp.importWeight() }
+    }
+
+    fun importWeightNow() {
+        viewModelScope.launch {
+            val kg = fahrradApp.importWeight(force = true)
+            _message.value = kg?.let { "Gewicht übernommen: ${formatDecimal(it)} kg" }
+                ?: "Kein Gewicht in Health Connect gefunden (oder keine Leseberechtigung)."
+        }
+    }
+
+    fun setHealthAutoSync(value: Boolean) = viewModelScope.launch { store.setHealthAutoSync(value) }
+    fun setHealthWeightSync(value: Boolean) = viewModelScope.launch { store.setHealthWeightSync(value) }
 
     // --- Sensoren ---
 
