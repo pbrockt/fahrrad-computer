@@ -44,6 +44,7 @@ import com.pbrockt.fahrradcomputer.maps.MapRegion
 import com.pbrockt.fahrradcomputer.maps.MapRegions
 import com.pbrockt.fahrradcomputer.maps.MapState
 import com.pbrockt.fahrradcomputer.routes.Route
+import com.pbrockt.fahrradcomputer.routes.TurnDetector
 import com.pbrockt.fahrradcomputer.ui.map.BikeMap
 import com.pbrockt.fahrradcomputer.ui.map.mapAvailable
 import kotlinx.coroutines.delay
@@ -114,6 +115,22 @@ fun MapsScreen(vm: MainViewModel) {
                 }
             }
         }
+
+        Text("Abbiegehinweise", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Vibrieren", Modifier.weight(1f))
+            Switch(checked = settings.navVibrate, onCheckedChange = vm::setNavVibrate)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Ton", Modifier.weight(1f))
+            Switch(checked = settings.navSound, onCheckedChange = vm::setNavSound)
+        }
+        Text(
+            "Die App erkennt Abbiegungen aus der Form der Route und meldet sich 150 m vorher (einmal) " +
+                "und kurz davor (zweimal), am Ziel dreimal. Die Seite „Navi“ im Fahrt-Bildschirm zeigt " +
+                "Pfeil und Entfernung. Straßennamen kennt die App dabei nicht.",
+            color = AppColors.Dim, fontSize = 13.sp,
+        )
 
         Text("Offline-Karten", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
         Text(
@@ -205,7 +222,8 @@ private fun RoutePreview(vm: MainViewModel, route: Route, active: Boolean, onBac
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück") }
             Column {
                 Text(route.name, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                Text("${formatDecimal(route.lengthM / 1000)} km", color = AppColors.Dim, fontSize = 13.sp)
+                val turnCount = remember(route) { TurnDetector.detect(route).size }
+                Text("${formatDecimal(route.lengthM / 1000)} km · $turnCount Abbiegungen erkannt", color = AppColors.Dim, fontSize = 13.sp)
             }
         }
         val mapModifier = Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(10.dp))

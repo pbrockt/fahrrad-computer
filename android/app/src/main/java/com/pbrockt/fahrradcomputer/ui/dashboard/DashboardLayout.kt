@@ -19,13 +19,15 @@ enum class TileType(val label: String) {
     CLOCK("Uhrzeit"),
     ROUTE("Karte / Navigation"),
     ROUTE_REMAINING("Rest der Route"),
+    TURN("Abbiegehinweis"),
 }
 
 /** Zeilenhoehe als Anteil am Bildschirm. */
 enum class RowHeight(val label: String, val weight: Float) {
     SMALL("klein", 0.8f),
     MEDIUM("mittel", 1.2f),
-    LARGE("groß", 1.6f);
+    LARGE("groß", 1.6f),
+    XLARGE("sehr groß", 2.6f);
 
     fun next(): RowHeight = entries[(ordinal + 1) % entries.size]
 }
@@ -65,6 +67,15 @@ data class DashboardLayout(val pages: List<DashboardPage>) {
                         row(RowHeight.SMALL, TileType.AVG_SPEED, TileType.CALORIES, TileType.CLOCK),
                         // Platzhalter fuer die Navigation: bis zur Karte (Phase 6) die Streckenskizze.
                         row(RowHeight.LARGE, TileType.ROUTE),
+                    ),
+                ),
+                // Fuer Fahrten mit Route: Abbiegehinweis gross, darunter die Karte.
+                DashboardPage(
+                    "Navi",
+                    listOf(
+                        row(RowHeight.LARGE, TileType.TURN),
+                        row(RowHeight.XLARGE, TileType.ROUTE),
+                        row(RowHeight.SMALL, TileType.SPEED, TileType.ROUTE_REMAINING, TileType.CLOCK),
                     ),
                 ),
                 DashboardPage(

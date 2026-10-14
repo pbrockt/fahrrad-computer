@@ -6,6 +6,10 @@ import com.pbrockt.fahrradcomputer.data.RideRepository
 import com.pbrockt.fahrradcomputer.routes.Route
 import com.pbrockt.fahrradcomputer.routes.RouteProgress
 import com.pbrockt.fahrradcomputer.routes.RouteTracker
+import com.pbrockt.fahrradcomputer.routes.Guidance
+import com.pbrockt.fahrradcomputer.routes.Navigator
+import com.pbrockt.fahrradcomputer.routes.Turn
+import com.pbrockt.fahrradcomputer.routes.TurnDetector
 import android.content.Intent
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
@@ -67,11 +71,20 @@ class RideSession(
     val progress: StateFlow<RouteProgress?> = _progress.asStateFlow()
     private var routeTracker: RouteTracker? = null
 
+    /** Abbiegungen der aktiven Route, einmal beim Setzen der Route berechnet. */
+    private val _turns = MutableStateFlow<List<Turn>>(emptyList())
+    val turns: StateFlow<List<Turn>> = _turns.asStateFlow()
+    private val _guidance = MutableStateFlow<Guidance?>(null)
+    /** Naechste Abbiegung bzw. das Ziel; null ohne Route oder ohne Position. */
+    val guidance: StateFlow<Guidance?> = _guidance.asStateFlow()
+
     fun setRoute(route: Route?) {
         if (route?.id == _activeRoute.value?.id && route?.points == _activeRoute.value?.points) return
         _activeRoute.value = route
         routeTracker = route?.let(::RouteTracker)
+        _turns.value = route?.let(TurnDetector::detect).orEmpty()
         _progress.value = null
+        _guidance.value = null
     }
 
     private var tracker = RideTracker()
@@ -90,6 +103,7 @@ class RideSession(
         // Frisch zuordnen - sonst sucht der Tracker dort weiter, wo die letzte Fahrt endete.
         routeTracker = _activeRoute.value?.let(::RouteTracker)
         _progress.value = null
+        _guidance.value = null
         file = File(ridesDir, "${LocalDateTime.now().format(FILE_NAME)}.gpx")
         lastSaveMs = System.currentTimeMillis()
         _phase.value = RidePhase.RECORDING
@@ -146,7 +160,11 @@ class RideSession(
         val last = points.lastOrNull()
         if (last != null && last !== _lastPoint.value) {
             _lastPoint.value = last
-            routeTracker?.let { _progress.value = it.update(last.lat, last.lon) }
+            routeTracker?.let { tracker ->
+                val p = tracker.update(last.lat, last.lon)
+                _progress.value = p
+                _activeRoute.value?.let { r -> _guidance.value = Navigator.next(_turns.value, p.doneM, r.lengthM) }
+            }
         }
         if (points.size % ROUTE_EVERY == 1) _route.value = points.filterIndexed { i, _ -> i % ROUTE_EVERY == 0 }
 

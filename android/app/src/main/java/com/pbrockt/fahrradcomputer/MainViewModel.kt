@@ -191,6 +191,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteMap(region: MapRegion) = maps.delete(region)
     fun setMapsWifiOnly(value: Boolean) = viewModelScope.launch { store.setMapsWifiOnly(value) }
     fun setMapOnline(value: Boolean) = viewModelScope.launch { store.setMapOnline(value) }
+    fun setNavVibrate(value: Boolean) = viewModelScope.launch { store.setNavVibrate(value) }
+    fun setNavSound(value: Boolean) = viewModelScope.launch { store.setNavSound(value) }
+    val guidance = ride.guidance
+    val turns = ride.turns
 
     // --- Live-SMS ---
 

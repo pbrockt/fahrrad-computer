@@ -74,7 +74,8 @@ class LayoutEditorTest {
     @Test
     fun cycleHeightWrapsAround() {
         val l = LayoutEditor.cycleHeight(layout, 0, 0)
-        assertEquals(RowHeight.SMALL, row(l, 0).height)
+        assertEquals(RowHeight.XLARGE, row(l, 0).height)
+        assertEquals(RowHeight.SMALL, row(LayoutEditor.cycleHeight(l, 0, 0), 0).height)
     }
 
     @Test

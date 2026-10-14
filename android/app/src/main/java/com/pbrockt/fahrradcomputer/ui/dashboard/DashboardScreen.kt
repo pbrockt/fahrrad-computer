@@ -64,6 +64,7 @@ fun DashboardScreen(vm: MainViewModel, onStartRequested: () -> Unit) {
     val lastPoint by vm.lastPoint.collectAsStateWithLifecycle()
     val activeRoute by vm.activeRoute.collectAsStateWithLifecycle()
     val progress by vm.routeProgress.collectAsStateWithLifecycle()
+    val guidance by vm.guidance.collectAsStateWithLifecycle()
     val offlineMaps by vm.offlineMaps.collectAsStateWithLifecycle()
 
     // Display anlassen, solange das Dashboard zu sehen ist.
@@ -79,6 +80,7 @@ fun DashboardScreen(vm: MainViewModel, onStartRequested: () -> Unit) {
         lastPoint = lastPoint,
         activeRoute = activeRoute,
         progress = progress,
+        guidance = guidance,
         offlineMaps = offlineMaps,
         mapOnline = settings.mapOnline,
     )

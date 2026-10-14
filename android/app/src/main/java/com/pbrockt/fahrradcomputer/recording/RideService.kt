@@ -29,6 +29,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import com.pbrockt.fahrradcomputer.live.LiveSms
+import com.pbrockt.fahrradcomputer.routes.TurnAnnouncer
 import com.pbrockt.fahrradcomputer.live.SmsSender
 import com.pbrockt.fahrradcomputer.sensors.SensorReading
 import kotlinx.coroutines.flow.StateFlow
@@ -50,6 +51,8 @@ class RideService : Service() {
     private lateinit var session: RideSession
     private lateinit var app: FahrradApp
     private lateinit var sms: SmsSender
+    private lateinit var signals: TurnSignals
+    private val announcer = TurnAnnouncer()
     /** Nur wer "losgefahren" bekommen hat, bekommt auch "angekommen". */
     private var startSmsSent = false
     private var locationManager: LocationManager? = null
@@ -62,6 +65,7 @@ class RideService : Service() {
         app = application as FahrradApp
         session = app.ride
         sms = SmsSender(this)
+        signals = TurnSignals(this)
         createChannel()
         startInForeground()
         startLocation()
@@ -75,6 +79,16 @@ class RideService : Service() {
         forward(app.sensors.cadence, session::onCadence)
         forward(app.sensors.power, session::onPower)
         scope.launch { liveSmsLoop() }
+        // Abbiegehinweise ankuendigen - nicht, solange man abseits der Route ist.
+        scope.launch {
+            session.guidance.filterNotNull().collect { g ->
+                if (session.progress.value?.offRoute == true || session.phase.value != RidePhase.RECORDING) return@collect
+                val alert = announcer.check(g) ?: return@collect
+                val s = app.currentSettings.value
+                signals.signal(alert, s.navVibrate, s.navSound)
+                notificationManager().notify(NOTIFICATION_ID, buildNotification())
+            }
+        }
         // Benachrichtigung und GPS-Status regelmaessig auffrischen.
         scope.launch {
             while (true) {
@@ -100,6 +114,7 @@ class RideService : Service() {
             )
         }
         locationManager?.removeUpdates(locationListener)
+        signals.release()
         scope.cancel()
         super.onDestroy()
     }
@@ -198,7 +213,7 @@ class RideService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("Fahrt läuft")
+            .setContentTitle(navigationTitle() ?: "Fahrt läuft")
             .setContentText(text)
             .setContentIntent(open)
             .setOngoing(true)
@@ -206,6 +221,13 @@ class RideService : Service() {
             .setSilent(true)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .build()
+    }
+
+    /** Auf dem Sperrbildschirm die naechste Abbiegung zeigen statt nur "Fahrt laeuft". */
+    private fun navigationTitle(): String? {
+        if (session.activeRoute.value == null) return null
+        if (session.progress.value?.offRoute == true) return "Abseits der Route"
+        return session.guidance.value?.text
     }
 
     private fun createChannel() {

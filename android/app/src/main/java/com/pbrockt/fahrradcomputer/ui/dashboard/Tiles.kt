@@ -28,6 +28,12 @@ import com.pbrockt.fahrradcomputer.ui.map.BikeMap
 import com.pbrockt.fahrradcomputer.ui.map.mapAvailable
 import com.pbrockt.fahrradcomputer.routes.Route
 import com.pbrockt.fahrradcomputer.routes.RouteProgress
+import com.pbrockt.fahrradcomputer.routes.Guidance
+import com.pbrockt.fahrradcomputer.routes.TurnAnnouncer
+import com.pbrockt.fahrradcomputer.ui.TurnArrow
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import java.io.File
 import com.pbrockt.fahrradcomputer.ui.formatDecimal
 import com.pbrockt.fahrradcomputer.ui.formatDuration
@@ -50,6 +56,7 @@ class TileData(
     val lastPoint: TrackPoint? = null,
     val activeRoute: Route? = null,
     val progress: RouteProgress? = null,
+    val guidance: Guidance? = null,
     val offlineMaps: List<File> = emptyList(),
     val mapOnline: Boolean = false,
     /** Im Bearbeiten-Modus keine echte Karte - sie wuerde die Fingertipps abfangen. */
@@ -106,6 +113,7 @@ fun Tile(type: TileType, d: TileData, modifier: Modifier, mapId: String = "dash"
             mapAvailable(d.offlineMaps, d.mapOnline) -> MapTile(d, modifier, mapId)
             else -> RouteTile(d.route, modifier)
         }
+        TileType.TURN -> TurnTile(d, modifier)
         TileType.ROUTE_REMAINING -> {
             val p = d.progress
             when {
@@ -191,8 +199,11 @@ private fun MapTile(d: TileData, modifier: Modifier, mapId: String) {
         val p = d.progress
         if (p != null) {
             Text(
-                if (p.offRoute) "Abseits der Route: ${String.format(Locale.GERMANY, "%.0f", p.offRouteM)} m"
-                else "noch ${formatDecimal(p.remainingM / 1000)} km",
+                when {
+                    p.offRoute -> "Abseits der Route: ${String.format(Locale.GERMANY, "%.0f", p.offRouteM)} m"
+                    d.guidance != null -> d.guidance.text
+                    else -> "noch ${formatDecimal(p.remainingM / 1000)} km"
+                },
                 color = AppColors.OnZone,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp,
@@ -201,6 +212,46 @@ private fun MapTile(d: TileData, modifier: Modifier, mapId: String) {
                     .background(if (p.offRoute) AppColors.Stop else AppColors.Go)
                     .padding(horizontal = 8.dp, vertical = 3.dp),
             )
+        }
+    }
+}
+
+/**
+ * Naechste Abbiegung: Pfeil links, Entfernung gross rechts. Kurz vor der Abbiegung
+ * (unter 30 m) wird die Kachel hell - so faellt es auch aus dem Augenwinkel auf.
+ */
+@Composable
+private fun TurnTile(d: TileData, modifier: Modifier) {
+    val g = d.guidance
+    val p = d.progress
+    when {
+        d.activeRoute == null -> ValueTile("Abbiegen · keine Route", "--", modifier)
+        p?.offRoute == true -> ValueTile(
+            "abseits der Route", "${String.format(Locale.GERMANY, "%.0f", p.offRouteM)} m", modifier,
+            background = AppColors.Stop, content = AppColors.OnZone,
+        )
+        g == null -> ValueTile("Abbiegen · warte auf GPS", "--", modifier)
+        else -> {
+            val now = g.distanceM <= TurnAnnouncer.NOW_M
+            val bg = if (now) AppColors.Go else AppColors.Panel
+            val fg = if (now) AppColors.OnZone else AppColors.Text
+            BoxWithConstraints(modifier.clip(RoundedCornerShape(10.dp)).background(bg).padding(6.dp)) {
+                val density = LocalDensity.current
+                val value = Guidance.formatMeters(g.distanceM)
+                val size = with(density) {
+                    min((maxHeight * 0.45f).toPx(), (maxWidth * 0.6f / (value.length * 0.6f)).toPx()).toSp()
+                }
+                Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+                    TurnArrow(g.turn?.angle, fg, Modifier.weight(1f).fillMaxHeight())
+                    Column(Modifier.weight(1.5f)) {
+                        Text(value, color = fg, fontSize = size, lineHeight = size, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text(
+                            if (now && g.turn != null) "jetzt ${g.turn.kind.label}" else g.turn?.kind?.label ?: "Ziel",
+                            color = fg.copy(alpha = 0.8f), fontSize = 16.sp, maxLines = 1,
+                        )
+                    }
+                }
+            }
         }
     }
 }

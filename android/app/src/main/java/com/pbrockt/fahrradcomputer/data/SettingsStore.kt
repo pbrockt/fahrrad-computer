@@ -57,6 +57,9 @@ data class AppSettings(
     val mapsWifiOnly: Boolean = true,
     /** Ohne Offline-Karte die Kartenbilder von openstreetmap.org laden. */
     val mapOnline: Boolean = true,
+    /** Abbiegehinweise per Vibration bzw. Ton ankuendigen. */
+    val navVibrate: Boolean = true,
+    val navSound: Boolean = false,
     val dashboard: DashboardLayout = DashboardLayout.DEFAULT,
 ) {
     val zones: HrZones get() = HrZones(maxHr)
@@ -102,6 +105,8 @@ class SettingsStore(private val context: Context) {
         val ACTIVE_ROUTE = stringPreferencesKey("active_route")
         val MAPS_WIFI_ONLY = booleanPreferencesKey("maps_wifi_only")
         val MAP_ONLINE = booleanPreferencesKey("map_online")
+        val NAV_VIBRATE = booleanPreferencesKey("nav_vibrate")
+        val NAV_SOUND = booleanPreferencesKey("nav_sound")
         val DASHBOARD = stringPreferencesKey("dashboard_layout")
     }
 
@@ -129,6 +134,8 @@ class SettingsStore(private val context: Context) {
             activeRouteId = p[Keys.ACTIVE_ROUTE],
             mapsWifiOnly = p[Keys.MAPS_WIFI_ONLY] ?: true,
             mapOnline = p[Keys.MAP_ONLINE] ?: true,
+            navVibrate = p[Keys.NAV_VIBRATE] ?: true,
+            navSound = p[Keys.NAV_SOUND] ?: false,
             themeMode = p[Keys.THEME]
                 ?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
                 ?: ThemeMode.DARK,
@@ -176,6 +183,8 @@ class SettingsStore(private val context: Context) {
     suspend fun setRiderName(value: String) = set(Keys.RIDER_NAME, value.trim().take(30))
     suspend fun setMapsWifiOnly(value: Boolean) = set(Keys.MAPS_WIFI_ONLY, value)
     suspend fun setMapOnline(value: Boolean) = set(Keys.MAP_ONLINE, value)
+    suspend fun setNavVibrate(value: Boolean) = set(Keys.NAV_VIBRATE, value)
+    suspend fun setNavSound(value: Boolean) = set(Keys.NAV_SOUND, value)
 
     suspend fun setActiveRoute(id: String?) {
         context.dataStore.edit { if (id == null) it.remove(Keys.ACTIVE_ROUTE) else it[Keys.ACTIVE_ROUTE] = id }
