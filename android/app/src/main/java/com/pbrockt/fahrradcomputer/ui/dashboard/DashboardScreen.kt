@@ -61,6 +61,10 @@ fun DashboardScreen(vm: MainViewModel, onStartRequested: () -> Unit) {
     val power by vm.power.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val now by vm.now.collectAsStateWithLifecycle()
+    val lastPoint by vm.lastPoint.collectAsStateWithLifecycle()
+    val activeRoute by vm.activeRoute.collectAsStateWithLifecycle()
+    val progress by vm.routeProgress.collectAsStateWithLifecycle()
+    val offlineMaps by vm.offlineMaps.collectAsStateWithLifecycle()
 
     // Display anlassen, solange das Dashboard zu sehen ist.
     val view = LocalView.current
@@ -70,7 +74,14 @@ fun DashboardScreen(vm: MainViewModel, onStartRequested: () -> Unit) {
     }
 
     val layout = settings.dashboard
-    val data = TileData(stats, hr, cadence, power, settings.zones, now, route, phase)
+    val data = TileData(
+        stats, hr, cadence, power, settings.zones, now, route, phase,
+        lastPoint = lastPoint,
+        activeRoute = activeRoute,
+        progress = progress,
+        offlineMaps = offlineMaps,
+        mapOnline = settings.mapOnline,
+    )
     val pager = rememberPagerState(pageCount = { layout.pages.size })
     var editing by rememberSaveable { mutableStateOf(false) }
     var confirmStop by remember { mutableStateOf(false) }
@@ -91,9 +102,11 @@ fun DashboardScreen(vm: MainViewModel, onStartRequested: () -> Unit) {
         ) { index ->
             val page = layout.pages.getOrNull(index) ?: return@HorizontalPager
             if (editing) {
-                EditablePage(page, index, data, onEdit = vm::editDashboard)
+                EditablePage(page, index, TileData(
+                    stats, hr, cadence, power, settings.zones, now, route, phase, interactive = false,
+                ), onEdit = vm::editDashboard)
             } else {
-                PageView(page, data, onLongPress = {
+                PageView(page, data, mapId = "dash-$index", onLongPress = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     editing = true
                 })
@@ -151,7 +164,7 @@ fun DashboardScreen(vm: MainViewModel, onStartRequested: () -> Unit) {
 
 /** Eine Seite im Fahrbetrieb: Zeilen nach Hoehe, Kacheln nach Breite verteilt. */
 @Composable
-private fun PageView(page: DashboardPage, data: TileData, onLongPress: () -> Unit) {
+private fun PageView(page: DashboardPage, data: TileData, mapId: String, onLongPress: () -> Unit) {
     val gestures = Modifier.pointerInput(Unit) { detectTapGestures(onLongPress = { onLongPress() }) }
     if (page.rows.isEmpty()) {
         Box(Modifier.fillMaxSize().then(gestures), contentAlignment = Alignment.Center) {
@@ -169,7 +182,7 @@ private fun PageView(page: DashboardPage, data: TileData, onLongPress: () -> Uni
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 for (slot in row.tiles) {
-                    Tile(slot.type, data, Modifier.weight(slot.units.toFloat()).fillMaxSize())
+                    Tile(slot.type, data, Modifier.weight(slot.units.toFloat()).fillMaxSize(), mapId)
                 }
             }
         }

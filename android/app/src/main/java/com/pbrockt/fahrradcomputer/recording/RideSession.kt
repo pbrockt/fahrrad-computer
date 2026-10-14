@@ -3,6 +3,9 @@ package com.pbrockt.fahrradcomputer.recording
 import android.content.Context
 import com.pbrockt.fahrradcomputer.data.AppSettings
 import com.pbrockt.fahrradcomputer.data.RideRepository
+import com.pbrockt.fahrradcomputer.routes.Route
+import com.pbrockt.fahrradcomputer.routes.RouteProgress
+import com.pbrockt.fahrradcomputer.routes.RouteTracker
 import android.content.Intent
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
@@ -53,6 +56,24 @@ class RideSession(
     private val _finished = MutableStateFlow<FinishedRide?>(null)
     val finished: StateFlow<FinishedRide?> = _finished.asStateFlow()
 
+    /** Letzter angenommener GPS-Punkt - fuer Kartenposition und Live-SMS. */
+    private val _lastPoint = MutableStateFlow<TrackPoint?>(null)
+    val lastPoint: StateFlow<TrackPoint?> = _lastPoint.asStateFlow()
+
+    /** Die Route, die nachgefahren wird, und wo man auf ihr steht. */
+    private val _activeRoute = MutableStateFlow<Route?>(null)
+    val activeRoute: StateFlow<Route?> = _activeRoute.asStateFlow()
+    private val _progress = MutableStateFlow<RouteProgress?>(null)
+    val progress: StateFlow<RouteProgress?> = _progress.asStateFlow()
+    private var routeTracker: RouteTracker? = null
+
+    fun setRoute(route: Route?) {
+        if (route?.id == _activeRoute.value?.id && route?.points == _activeRoute.value?.points) return
+        _activeRoute.value = route
+        routeTracker = route?.let(::RouteTracker)
+        _progress.value = null
+    }
+
     private var tracker = RideTracker()
     private var file: File? = null
     private var lastSaveMs = 0L
@@ -65,6 +86,10 @@ class RideSession(
         _stats.value = RideStats()
         _route.value = emptyList()
         _finished.value = null
+        _lastPoint.value = null
+        // Frisch zuordnen - sonst sucht der Tracker dort weiter, wo die letzte Fahrt endete.
+        routeTracker = _activeRoute.value?.let(::RouteTracker)
+        _progress.value = null
         file = File(ridesDir, "${LocalDateTime.now().format(FILE_NAME)}.gpx")
         lastSaveMs = System.currentTimeMillis()
         _phase.value = RidePhase.RECORDING
@@ -118,6 +143,11 @@ class RideSession(
         tracker.onLocation(sample)
         _stats.value = tracker.snapshot
         val points = tracker.trackPoints
+        val last = points.lastOrNull()
+        if (last != null && last !== _lastPoint.value) {
+            _lastPoint.value = last
+            routeTracker?.let { _progress.value = it.update(last.lat, last.lon) }
+        }
         if (points.size % ROUTE_EVERY == 1) _route.value = points.filterIndexed { i, _ -> i % ROUTE_EVERY == 0 }
 
         // Zwischenspeichern, damit bei einem Absturz nicht die ganze Fahrt verloren ist.

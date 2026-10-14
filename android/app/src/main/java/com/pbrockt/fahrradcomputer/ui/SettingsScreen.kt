@@ -32,11 +32,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pbrockt.fahrradcomputer.BuildConfig
 import com.pbrockt.fahrradcomputer.MainViewModel
 import com.pbrockt.fahrradcomputer.health.HealthAvailability
+import com.pbrockt.fahrradcomputer.live.LiveSms
+import androidx.compose.material3.Slider
+import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import com.pbrockt.fahrradcomputer.recording.Sex
 import com.pbrockt.fahrradcomputer.update.UpdateChannel
 
 @Composable
-fun SettingsScreen(vm: MainViewModel, onConnectHealth: () -> Unit) {
+fun SettingsScreen(vm: MainViewModel, onConnectHealth: () -> Unit, onEnableSms: () -> Unit) {
     val s by vm.settings.collectAsStateWithLifecycle()
     val health by vm.healthState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -85,6 +89,41 @@ fun SettingsScreen(vm: MainViewModel, onConnectHealth: () -> Unit) {
                 "Fahrt-Bildschirm an: lange auf eine Kachel drücken.",
             color = AppColors.Dim,
         )
+
+        Text("Live-Standort per SMS", fontWeight = FontWeight.Bold)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Während der Fahrt Standort senden", Modifier.weight(1f))
+            Switch(
+                checked = s.liveSmsEnabled,
+                // Einschalten fragt zuerst nach der SMS-Berechtigung.
+                onCheckedChange = { on -> if (on) onEnableSms() else vm.setLiveSmsEnabled(false) },
+            )
+        }
+        if (s.liveSmsEnabled) {
+            TextSetting("Empfänger (Nummern, mit Komma getrennt)", s.liveSmsNumbers, KeyboardType.Phone, vm::setLiveSmsNumbers)
+            val numbers = LiveSms.parseNumbers(s.liveSmsNumbers)
+            Text(
+                if (numbers.isEmpty()) "Noch keine gültige Nummer." else "${numbers.size} Empfänger: ${numbers.joinToString()}",
+                color = if (numbers.isEmpty()) AppColors.Stop else AppColors.Dim, fontSize = 13.sp,
+            )
+            TextSetting("Dein Name in der SMS", s.riderName, KeyboardType.Text, vm::setRiderName)
+            Text("Abstand: alle ${s.liveSmsIntervalMin} Minuten")
+            Slider(
+                value = s.liveSmsIntervalMin.toFloat(),
+                onValueChange = { vm.setLiveSmsInterval(it.roundToInt()) },
+                valueRange = 1f..60f,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("„Losgefahren“ und „angekommen“ melden", Modifier.weight(1f))
+                Switch(checked = s.liveSmsStartStop, onCheckedChange = vm::setLiveSmsStartStop)
+            }
+            OutlinedButton(onClick = vm::sendTestSms, modifier = Modifier.fillMaxWidth()) { Text("Test-SMS senden") }
+            Text(
+                "Jede SMS kostet nach deinem Tarif. Beispiel: 2 Stunden mit 10-Minuten-Abstand = 14 SMS pro Empfänger. " +
+                    "Inhalt: Uhrzeit, km, Geschwindigkeit, Rest der Route, Akku und ein Kartenlink.",
+                color = AppColors.Dim, fontSize = 13.sp,
+            )
+        }
 
         Text("Health Connect", fontWeight = FontWeight.Bold)
         when (health.availability) {
@@ -169,6 +208,20 @@ private fun NumberField(label: String, value: String, onValid: (String) -> Unit)
         label = { Text(label) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+/** Textfeld, das lokal tippt und jeden Stand speichert (wie [NumberField]). */
+@Composable
+private fun TextSetting(label: String, value: String, keyboard: KeyboardType, onChange: (String) -> Unit) {
+    var text by remember { mutableStateOf(value) }
+    LaunchedEffect(value) { if (text.isEmpty()) text = value }
+    OutlinedTextField(
+        value = text,
+        onValueChange = { text = it; onChange(it) },
+        label = { Text(label) },
+        keyboardOptions = KeyboardOptions(keyboardType = keyboard),
         modifier = Modifier.fillMaxWidth(),
     )
 }

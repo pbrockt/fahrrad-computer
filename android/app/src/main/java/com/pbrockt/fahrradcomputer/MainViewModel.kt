@@ -4,7 +4,13 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pbrockt.fahrradcomputer.data.AppSettings
+import android.net.Uri
 import com.pbrockt.fahrradcomputer.health.HealthAvailability
+import com.pbrockt.fahrradcomputer.live.LiveSms
+import com.pbrockt.fahrradcomputer.live.SmsSender
+import com.pbrockt.fahrradcomputer.maps.MapRegion
+import com.pbrockt.fahrradcomputer.maps.MapState
+import com.pbrockt.fahrradcomputer.routes.Route
 import com.pbrockt.fahrradcomputer.recording.RideSummary
 import com.pbrockt.fahrradcomputer.recording.Sex
 import com.pbrockt.fahrradcomputer.recording.TrackPoint
@@ -78,6 +84,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val healthPermissions: Set<String> get() = health.permissions
     val healthContract get() = health.requestContract
 
+    private val routeStore = fahrradApp.routes
+    private val maps = fahrradApp.offlineMaps
+    private val sms = SmsSender(app)
+
+    val routes: StateFlow<List<Route>> = routeStore.routes
+    val activeRoute = ride.activeRoute
+    val routeProgress = ride.progress
+    val lastPoint = ride.lastPoint
+    val offlineMaps: StateFlow<List<File>> = maps.installed
+    val mapStates: StateFlow<Map<String, MapState>> = maps.states
+
     /** Kurze Rueckmeldung fuer die Snackbar (Health Connect, Gewicht ...). */
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
@@ -140,6 +157,59 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val kg = fahrradApp.importWeight(force = true)
             _message.value = kg?.let { "Gewicht übernommen: ${formatDecimal(it)} kg" }
                 ?: "Kein Gewicht in Health Connect gefunden (oder keine Leseberechtigung)."
+        }
+    }
+
+    // --- Routen & Karten ---
+
+    fun importRoute(uri: Uri) {
+        viewModelScope.launch {
+            routeStore.import(uri)
+                .onSuccess { r ->
+                    store.setActiveRoute(r.id)
+                    _message.value = "Route „${r.name}“ importiert (${formatDecimal(r.lengthM / 1000)} km) und aktiviert."
+                }
+                .onFailure { _message.value = it.message ?: "Import fehlgeschlagen." }
+        }
+    }
+
+    fun activateRoute(id: String?) = viewModelScope.launch { store.setActiveRoute(id) }
+
+    fun deleteRoute(id: String) {
+        viewModelScope.launch {
+            if (settings.value.activeRouteId == id) store.setActiveRoute(null)
+            routeStore.delete(id)
+        }
+    }
+
+    fun refreshMaps() = viewModelScope.launch { maps.refresh() }
+    fun downloadMap(region: MapRegion) {
+        maps.start(region, settings.value.mapsWifiOnly)
+        if (settings.value.mapsWifiOnly) _message.value = "Download startet, sobald WLAN verbunden ist."
+    }
+    fun cancelMap(region: MapRegion) = maps.cancel(region)
+    fun deleteMap(region: MapRegion) = maps.delete(region)
+    fun setMapsWifiOnly(value: Boolean) = viewModelScope.launch { store.setMapsWifiOnly(value) }
+    fun setMapOnline(value: Boolean) = viewModelScope.launch { store.setMapOnline(value) }
+
+    // --- Live-SMS ---
+
+    fun setLiveSmsEnabled(value: Boolean) = viewModelScope.launch { store.setLiveSmsEnabled(value) }
+    fun setLiveSmsNumbers(value: String) = viewModelScope.launch { store.setLiveSmsNumbers(value) }
+    fun setLiveSmsInterval(value: Int) = viewModelScope.launch { store.setLiveSmsInterval(value) }
+    fun setLiveSmsStartStop(value: Boolean) = viewModelScope.launch { store.setLiveSmsStartStop(value) }
+    fun setRiderName(value: String) = viewModelScope.launch { store.setRiderName(value) }
+
+    fun sendTestSms() {
+        val s = settings.value
+        val numbers = LiveSms.parseNumbers(s.liveSmsNumbers)
+        _message.value = when {
+            numbers.isEmpty() -> "Bitte zuerst mindestens eine Telefonnummer eintragen."
+            !sms.canSend() -> "SMS-Berechtigung fehlt oder das Handy kann keine SMS senden."
+            else -> {
+                val sent = sms.send(numbers, "${s.riderName.ifBlank { "Fahrrad-Computer" }}: Test der Live-SMS. So sieht ein Standort aus: ${LiveSms.mapsLink(50.35, 7.6)}")
+                "Test-SMS an $sent von ${numbers.size} Nummer(n) übergeben."
+            }
         }
     }
 

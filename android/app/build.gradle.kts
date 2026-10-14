@@ -18,8 +18,8 @@ android {
         // versionCode steigt bei jedem veroeffentlichten Build, auch bei Alphas - sonst
         // verweigert Android das Update. versionName folgt SemVer: "x.y.z" ist ein
         // Release, "x.y.z-alpha.N" eine Alpha. release.yml prueft, dass der Tag passt.
-        versionCode = 4
-        versionName = "0.0.4-alpha.1"
+        versionCode = 5
+        versionName = "0.0.5-alpha.1"
 
         buildConfigField("String", "UPDATE_REPO", "\"pbrockt/fahrrad-computer\"")
     }
@@ -102,8 +102,12 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.health.connect)
+    implementation(libs.mapsforge.map.android)
+    implementation(libs.mapsforge.themes)
 
     debugImplementation(libs.androidx.ui.tooling)
 
     testImplementation(libs.junit)
+    // XmlPullParser fuer die JVM-Tests - auf dem Handy liefert Android ihn mit.
+    testImplementation(libs.kxml2)
 }

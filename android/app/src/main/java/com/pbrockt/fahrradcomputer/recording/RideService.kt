@@ -28,9 +28,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import com.pbrockt.fahrradcomputer.live.LiveSms
+import com.pbrockt.fahrradcomputer.live.SmsSender
 import com.pbrockt.fahrradcomputer.sensors.SensorReading
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -43,6 +48,10 @@ class RideService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private lateinit var session: RideSession
+    private lateinit var app: FahrradApp
+    private lateinit var sms: SmsSender
+    /** Nur wer "losgefahren" bekommen hat, bekommt auch "angekommen". */
+    private var startSmsSent = false
     private var locationManager: LocationManager? = null
     private var lastFixMs = 0L
 
@@ -50,8 +59,9 @@ class RideService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        val app = application as FahrradApp
+        app = application as FahrradApp
         session = app.ride
+        sms = SmsSender(this)
         createChannel()
         startInForeground()
         startLocation()
@@ -64,6 +74,7 @@ class RideService : Service() {
         forward(app.sensors.heartRate, session::onHeartRate)
         forward(app.sensors.cadence, session::onCadence)
         forward(app.sensors.power, session::onPower)
+        scope.launch { liveSmsLoop() }
         // Benachrichtigung und GPS-Status regelmaessig auffrischen.
         scope.launch {
             while (true) {
@@ -78,9 +89,50 @@ class RideService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_NOT_STICKY
 
     override fun onDestroy() {
+        // Nur bei einem echten Stopp - wird der Dienst vom System beendet, laeuft die Fahrt
+        // noch (Phase != IDLE) und "angekommen" waere falsch.
+        if (startSmsSent && session.phase.value == RidePhase.IDLE) {
+            val s = app.currentSettings.value
+            val p = session.lastPoint.value
+            sms.send(
+                LiveSms.parseNumbers(s.liveSmsNumbers),
+                LiveSms.stop(s.riderName, System.currentTimeMillis(), session.stats.value, p?.lat, p?.lon),
+            )
+        }
         locationManager?.removeUpdates(locationListener)
         scope.cancel()
         super.onDestroy()
+    }
+
+    /**
+     * Live-Standort per SMS: auf Wunsch "losgefahren", dann im eingestellten Abstand der
+     * Standort. Einstellungen werden bei jeder Runde neu gelesen - Aenderungen wirken sofort.
+     */
+    private suspend fun liveSmsLoop() {
+        val s = app.currentSettings.value
+        if (!s.liveSmsEnabled || LiveSms.parseNumbers(s.liveSmsNumbers).isEmpty() || !sms.canSend()) return
+        if (s.liveSmsStartStop) {
+            // Kurz auf den ersten GPS-Punkt warten, damit schon die erste SMS einen Standort hat.
+            val p = withTimeoutOrNull(START_FIX_WAIT_MS) { session.lastPoint.filterNotNull().first() }
+            sms.send(
+                LiveSms.parseNumbers(s.liveSmsNumbers),
+                LiveSms.start(s.riderName, System.currentTimeMillis(), p?.lat, p?.lon, s.liveSmsIntervalMin),
+            )
+            startSmsSent = true
+        }
+        while (true) {
+            delay(app.currentSettings.value.liveSmsIntervalMin * 60_000L)
+            val cur = app.currentSettings.value
+            val p = session.lastPoint.value
+            if (!cur.liveSmsEnabled || p == null) continue
+            sms.send(
+                LiveSms.parseNumbers(cur.liveSmsNumbers),
+                LiveSms.position(
+                    cur.riderName, System.currentTimeMillis(), session.stats.value, p.lat, p.lon,
+                    sms.batteryPercent(), session.progress.value?.remainingM,
+                ),
+            )
+        }
     }
 
     // Die Typ-Konstanten gibt es erst ab Android 10; ServiceCompat ignoriert sie darunter.
@@ -171,5 +223,6 @@ class RideService : Service() {
         private const val CHANNEL_ID = "fahrt"
         private const val NOTIFICATION_ID = 1
         private const val GPS_STALE_MS = 10_000L
+        private const val START_FIX_WAIT_MS = 120_000L
     }
 }

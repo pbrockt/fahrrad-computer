@@ -42,6 +42,21 @@ data class AppSettings(
     val healthAutoSync: Boolean = true,
     /** Beim Start das neueste Gewicht aus Health Connect uebernehmen. */
     val healthWeightSync: Boolean = true,
+    /** Live-Standort per SMS waehrend der Fahrt. */
+    val liveSmsEnabled: Boolean = false,
+    /** Empfaenger als Freitext; gelesen ueber [com.pbrockt.fahrradcomputer.live.LiveSms.parseNumbers]. */
+    val liveSmsNumbers: String = "",
+    val liveSmsIntervalMin: Int = 10,
+    /** Zusaetzlich "losgefahren" und "angekommen" melden. */
+    val liveSmsStartStop: Boolean = true,
+    /** Name am Anfang jeder SMS, damit der Empfaenger weiss, von wem sie ist. */
+    val riderName: String = "",
+    /** Id der Route, die gerade nachgefahren wird; null = keine. */
+    val activeRouteId: String? = null,
+    /** Offline-Karten nur im WLAN laden - sie sind mehrere hundert MB gross. */
+    val mapsWifiOnly: Boolean = true,
+    /** Ohne Offline-Karte die Kartenbilder von openstreetmap.org laden. */
+    val mapOnline: Boolean = true,
     val dashboard: DashboardLayout = DashboardLayout.DEFAULT,
 ) {
     val zones: HrZones get() = HrZones(maxHr)
@@ -79,6 +94,14 @@ class SettingsStore(private val context: Context) {
         val THEME = stringPreferencesKey("theme")
         val HEALTH_AUTO_SYNC = booleanPreferencesKey("health_auto_sync")
         val HEALTH_WEIGHT_SYNC = booleanPreferencesKey("health_weight_sync")
+        val LIVE_SMS = booleanPreferencesKey("live_sms")
+        val LIVE_SMS_NUMBERS = stringPreferencesKey("live_sms_numbers")
+        val LIVE_SMS_INTERVAL = intPreferencesKey("live_sms_interval")
+        val LIVE_SMS_START_STOP = booleanPreferencesKey("live_sms_start_stop")
+        val RIDER_NAME = stringPreferencesKey("rider_name")
+        val ACTIVE_ROUTE = stringPreferencesKey("active_route")
+        val MAPS_WIFI_ONLY = booleanPreferencesKey("maps_wifi_only")
+        val MAP_ONLINE = booleanPreferencesKey("map_online")
         val DASHBOARD = stringPreferencesKey("dashboard_layout")
     }
 
@@ -98,6 +121,14 @@ class SettingsStore(private val context: Context) {
             updateToken = p[Keys.UPDATE_TOKEN] ?: "",
             healthAutoSync = p[Keys.HEALTH_AUTO_SYNC] ?: true,
             healthWeightSync = p[Keys.HEALTH_WEIGHT_SYNC] ?: true,
+            liveSmsEnabled = p[Keys.LIVE_SMS] ?: false,
+            liveSmsNumbers = p[Keys.LIVE_SMS_NUMBERS] ?: "",
+            liveSmsIntervalMin = p[Keys.LIVE_SMS_INTERVAL] ?: 10,
+            liveSmsStartStop = p[Keys.LIVE_SMS_START_STOP] ?: true,
+            riderName = p[Keys.RIDER_NAME] ?: "",
+            activeRouteId = p[Keys.ACTIVE_ROUTE],
+            mapsWifiOnly = p[Keys.MAPS_WIFI_ONLY] ?: true,
+            mapOnline = p[Keys.MAP_ONLINE] ?: true,
             themeMode = p[Keys.THEME]
                 ?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
                 ?: ThemeMode.DARK,
@@ -137,6 +168,18 @@ class SettingsStore(private val context: Context) {
     suspend fun setHealthAutoSync(value: Boolean) = set(Keys.HEALTH_AUTO_SYNC, value)
 
     suspend fun setHealthWeightSync(value: Boolean) = set(Keys.HEALTH_WEIGHT_SYNC, value)
+
+    suspend fun setLiveSmsEnabled(value: Boolean) = set(Keys.LIVE_SMS, value)
+    suspend fun setLiveSmsNumbers(value: String) = set(Keys.LIVE_SMS_NUMBERS, value)
+    suspend fun setLiveSmsInterval(value: Int) = set(Keys.LIVE_SMS_INTERVAL, value.coerceIn(1, 60))
+    suspend fun setLiveSmsStartStop(value: Boolean) = set(Keys.LIVE_SMS_START_STOP, value)
+    suspend fun setRiderName(value: String) = set(Keys.RIDER_NAME, value.trim().take(30))
+    suspend fun setMapsWifiOnly(value: Boolean) = set(Keys.MAPS_WIFI_ONLY, value)
+    suspend fun setMapOnline(value: Boolean) = set(Keys.MAP_ONLINE, value)
+
+    suspend fun setActiveRoute(id: String?) {
+        context.dataStore.edit { if (id == null) it.remove(Keys.ACTIVE_ROUTE) else it[Keys.ACTIVE_ROUTE] = id }
+    }
 
     /**
      * Wendet eine Aenderung auf das *gespeicherte* Layout an - innerhalb einer Transaktion.

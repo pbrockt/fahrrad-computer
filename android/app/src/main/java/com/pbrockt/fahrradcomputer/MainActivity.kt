@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsBike
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -42,6 +43,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pbrockt.fahrradcomputer.sensors.SensorKind
 import com.pbrockt.fahrradcomputer.ui.AppColors
 import com.pbrockt.fahrradcomputer.ui.FahrradTheme
+import com.pbrockt.fahrradcomputer.ui.MapsScreen
 import com.pbrockt.fahrradcomputer.ui.RidesScreen
 import com.pbrockt.fahrradcomputer.ui.SensorsScreen
 import com.pbrockt.fahrradcomputer.ui.SettingsScreen
@@ -73,6 +75,7 @@ class MainActivity : ComponentActivity() {
 private enum class Tab(val label: String, val icon: ImageVector) {
     RIDE("Fahrt", Icons.AutoMirrored.Filled.DirectionsBike),
     RIDES("Fahrten", Icons.AutoMirrored.Filled.List),
+    MAPS("Karten", Icons.Filled.Map),
     SENSORS("Sensoren", Icons.Filled.Bluetooth),
     SETTINGS("Einstellungen", Icons.Filled.Settings),
 }
@@ -122,6 +125,14 @@ private fun AppRoot(vm: MainViewModel) {
 
     val healthLauncher = rememberLauncherForActivityResult(vm.healthContract) { vm.onHealthPermissionsResult() }
 
+    val smsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            vm.setLiveSmsEnabled(true)
+        } else {
+            scope.launch { snackbar.showSnackbar("Ohne SMS-Berechtigung kann kein Live-Standort verschickt werden.") }
+        }
+    }
+
     // Berechtigungen koennen auch in der Health-Connect-App geaendert werden - beim
     // Zurueckkommen neu nachsehen.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.refreshHealth() }
@@ -153,11 +164,16 @@ private fun AppRoot(vm: MainViewModel) {
             when (tab) {
                 Tab.RIDE -> DashboardScreen(vm, onStartRequested = { locationLauncher.launch(LOCATION_PERMISSIONS) })
                 Tab.RIDES -> RidesScreen(vm)
+                Tab.MAPS -> MapsScreen(vm)
                 Tab.SENSORS -> SensorsScreen(vm, onScanRequested = { kind ->
                     pendingScan = kind
                     bluetoothLauncher.launch(BLUETOOTH_PERMISSIONS)
                 })
-                Tab.SETTINGS -> SettingsScreen(vm, onConnectHealth = { healthLauncher.launch(vm.healthPermissions) })
+                Tab.SETTINGS -> SettingsScreen(
+                    vm,
+                    onConnectHealth = { healthLauncher.launch(vm.healthPermissions) },
+                    onEnableSms = { smsLauncher.launch(Manifest.permission.SEND_SMS) },
+                )
             }
         }
     }

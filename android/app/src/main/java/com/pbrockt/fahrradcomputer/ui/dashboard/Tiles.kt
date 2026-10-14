@@ -24,6 +24,11 @@ import com.pbrockt.fahrradcomputer.recording.TrackPoint
 import com.pbrockt.fahrradcomputer.sensors.SensorReading
 import com.pbrockt.fahrradcomputer.ui.AppColors
 import com.pbrockt.fahrradcomputer.ui.RouteSketch
+import com.pbrockt.fahrradcomputer.ui.map.BikeMap
+import com.pbrockt.fahrradcomputer.ui.map.mapAvailable
+import com.pbrockt.fahrradcomputer.routes.Route
+import com.pbrockt.fahrradcomputer.routes.RouteProgress
+import java.io.File
 import com.pbrockt.fahrradcomputer.ui.formatDecimal
 import com.pbrockt.fahrradcomputer.ui.formatDuration
 import java.time.Instant
@@ -42,6 +47,13 @@ class TileData(
     val now: Long,
     val route: List<TrackPoint>,
     val phase: RidePhase,
+    val lastPoint: TrackPoint? = null,
+    val activeRoute: Route? = null,
+    val progress: RouteProgress? = null,
+    val offlineMaps: List<File> = emptyList(),
+    val mapOnline: Boolean = false,
+    /** Im Bearbeiten-Modus keine echte Karte - sie wuerde die Fingertipps abfangen. */
+    val interactive: Boolean = true,
 ) {
     // Messwerte nur, solange sie frisch sind - sonst zeigt die Kachel "--" statt eines alten Werts.
     val bpm: Int? get() = hr.fresh(now)
@@ -50,7 +62,7 @@ class TileData(
 }
 
 @Composable
-fun Tile(type: TileType, d: TileData, modifier: Modifier) {
+fun Tile(type: TileType, d: TileData, modifier: Modifier, mapId: String = "dash") {
     val s = d.stats
     when (type) {
         TileType.SPEED -> ValueTile(
@@ -89,7 +101,23 @@ fun Tile(type: TileType, d: TileData, modifier: Modifier) {
         TileType.CLOCK -> ValueTile(
             "Uhrzeit", CLOCK.format(Instant.ofEpochMilli(d.now).atZone(ZoneId.systemDefault())), modifier,
         )
-        TileType.ROUTE -> RouteTile(d.route, modifier)
+        TileType.ROUTE -> when {
+            !d.interactive -> ValueTile("Karte", "🗺", modifier)
+            mapAvailable(d.offlineMaps, d.mapOnline) -> MapTile(d, modifier, mapId)
+            else -> RouteTile(d.route, modifier)
+        }
+        TileType.ROUTE_REMAINING -> {
+            val p = d.progress
+            when {
+                d.activeRoute == null -> ValueTile("Rest km · keine Route", "--", modifier)
+                p == null -> ValueTile("Rest km", formatDecimal(d.activeRoute.lengthM / 1000), modifier)
+                p.offRoute -> ValueTile(
+                    "abseits ${String.format(Locale.GERMANY, "%.0f", p.offRouteM)} m", formatDecimal(p.remainingM / 1000), modifier,
+                    background = AppColors.Stop, content = AppColors.OnZone,
+                )
+                else -> ValueTile("Rest km", formatDecimal(p.remainingM / 1000), modifier)
+            }
+        }
     }
 }
 
@@ -146,7 +174,38 @@ fun ValueTile(
     }
 }
 
-/** Skizze der gefahrenen Strecke - Platzhalter fuer die Navi-Karte aus Phase 6. */
+/** Karte mit Route, gefahrener Strecke und Position; folgt der Position. */
+@Composable
+private fun MapTile(d: TileData, modifier: Modifier, mapId: String) {
+    Box(modifier.clip(RoundedCornerShape(10.dp))) {
+        BikeMap(
+            offlineMaps = d.offlineMaps,
+            online = d.mapOnline,
+            cacheId = mapId,
+            modifier = Modifier.fillMaxSize(),
+            route = d.activeRoute?.points,
+            track = d.route,
+            position = d.lastPoint,
+            follow = true,
+        )
+        val p = d.progress
+        if (p != null) {
+            Text(
+                if (p.offRoute) "Abseits der Route: ${String.format(Locale.GERMANY, "%.0f", p.offRouteM)} m"
+                else "noch ${formatDecimal(p.remainingM / 1000)} km",
+                color = AppColors.OnZone,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                modifier = Modifier.align(Alignment.TopStart).padding(6.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(if (p.offRoute) AppColors.Stop else AppColors.Go)
+                    .padding(horizontal = 8.dp, vertical = 3.dp),
+            )
+        }
+    }
+}
+
+/** Ohne Karte: Skizze der gefahrenen Strecke. */
 @Composable
 private fun RouteTile(route: List<TrackPoint>, modifier: Modifier) {
     Box(modifier.clip(RoundedCornerShape(10.dp)).background(AppColors.Panel).padding(10.dp)) {

@@ -43,6 +43,8 @@ import com.pbrockt.fahrradcomputer.MainViewModel
 import com.pbrockt.fahrradcomputer.recording.RideSummary
 import com.pbrockt.fahrradcomputer.recording.TrackPoint
 import com.pbrockt.fahrradcomputer.recording.TrackSeries
+import com.pbrockt.fahrradcomputer.ui.map.BikeMap
+import com.pbrockt.fahrradcomputer.ui.map.mapAvailable
 import java.io.File
 import java.util.Locale
 
@@ -51,6 +53,7 @@ fun RideDetailScreen(vm: MainViewModel, ride: RideSummary, onBack: () -> Unit) {
     val context = LocalContext.current
     val settings by vm.settings.collectAsStateWithLifecycle()
     val health by vm.healthState.collectAsStateWithLifecycle()
+    val maps by vm.offlineMaps.collectAsStateWithLifecycle()
     var track by remember(ride.id) { mutableStateOf<List<TrackPoint>?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
 
@@ -67,10 +70,12 @@ fun RideDetailScreen(vm: MainViewModel, ride: RideSummary, onBack: () -> Unit) {
         StatGrid(ride)
 
         track?.takeIf { it.size >= 2 }?.let { t ->
-            Box(
-                Modifier.fillMaxWidth().padding(top = 10.dp).aspectRatio(1.4f)
-                    .clip(RoundedCornerShape(10.dp)).background(AppColors.Panel).padding(12.dp)
-            ) { RouteSketch(t, Modifier.fillMaxSize()) }
+            val box = Modifier.fillMaxWidth().padding(top = 10.dp).aspectRatio(1.2f).clip(RoundedCornerShape(10.dp))
+            if (mapAvailable(maps, settings.mapOnline)) {
+                BikeMap(maps, settings.mapOnline, "fahrt", box, track = t, controls = true)
+            } else {
+                Box(box.background(AppColors.Panel).padding(12.dp)) { RouteSketch(t, Modifier.fillMaxSize()) }
+            }
         }
 
         if (ride.zoneSeconds.size == 5 && ride.zoneSeconds.sum() > 0) ZoneBar(ride.zoneSeconds)

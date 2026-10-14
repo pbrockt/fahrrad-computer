@@ -5,6 +5,12 @@ import com.pbrockt.fahrradcomputer.data.AppSettings
 import com.pbrockt.fahrradcomputer.data.RideRepository
 import com.pbrockt.fahrradcomputer.data.SettingsStore
 import com.pbrockt.fahrradcomputer.health.HealthConnect
+import com.pbrockt.fahrradcomputer.maps.OfflineMaps
+import com.pbrockt.fahrradcomputer.routes.RouteStore
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import org.mapsforge.map.android.graphics.AndroidGraphicFactory
 import com.pbrockt.fahrradcomputer.recording.RideSession
 import com.pbrockt.fahrradcomputer.sensors.SensorHub
 import com.pbrockt.fahrradcomputer.sensors.SensorKind
@@ -39,9 +45,15 @@ class FahrradApp : Application() {
         private set
     lateinit var rides: RideRepository
         private set
+    lateinit var routes: RouteStore
+        private set
+    lateinit var offlineMaps: OfflineMaps
+        private set
 
     override fun onCreate() {
         super.onCreate()
+        // Mapsforge braucht das einmal pro Prozess, bevor eine Karte erzeugt wird.
+        AndroidGraphicFactory.createInstance(this)
         settings = SettingsStore(this)
         currentSettings = settings.settings.stateIn(scope, SharingStarted.Eagerly, AppSettings())
         sensors = SensorHub(this, scope)
@@ -49,6 +61,18 @@ class FahrradApp : Application() {
         val ridesDir = java.io.File(filesDir, "fahrten").apply { mkdirs() }
         rides = RideRepository(ridesDir, health) { currentSettings.value }
         ride = RideSession(this, scope, { currentSettings.value }, rides)
+        routes = RouteStore(this)
+        offlineMaps = OfflineMaps(this)
+
+        scope.launch {
+            routes.refresh()
+            // Aktive Route an die Fahrt geben - auch wenn sie spaeter gewechselt wird.
+            combine(settings.settings.map { it.activeRouteId }.distinctUntilChanged(), routes.routes) { id, _ ->
+                routes.byId(id)
+            }.collect { ride.setRoute(it) }
+        }
+        // Downloads, die im Hintergrund fertig wurden, uebernehmen.
+        scope.launch { offlineMaps.refresh() }
 
         scope.launch {
             // Erst wenn die Einstellungen geladen sind - aeltere Fahrten brauchen sie fuer die Kennzahlen.

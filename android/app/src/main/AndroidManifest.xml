@@ -20,7 +20,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- INTERNET nur fuer die Update-Pruefung gegen die GitHub-API. -->
+    <!-- Live-Standort per SMS an selbst eingetragene Nummern, nur waehrend einer Fahrt. -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+
+    <!-- INTERNET fuer Update-Pruefung, Online-Kartenbilder und den Download der Offline-Karten. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 

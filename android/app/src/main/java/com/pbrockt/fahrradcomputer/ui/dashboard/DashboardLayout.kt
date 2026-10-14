@@ -17,7 +17,8 @@ enum class TileType(val label: String) {
     AVG_POWER("Ø Leistung"),
     ALTITUDE("Höhe"),
     CLOCK("Uhrzeit"),
-    ROUTE("Strecke / Navigation"),
+    ROUTE("Karte / Navigation"),
+    ROUTE_REMAINING("Rest der Route"),
 }
 
 /** Zeilenhoehe als Anteil am Bildschirm. */
