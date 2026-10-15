@@ -20,6 +20,7 @@ import com.pbrockt.fahrradcomputer.routes.Route
 import com.pbrockt.fahrradcomputer.recording.RideSummary
 import com.pbrockt.fahrradcomputer.recording.Sex
 import com.pbrockt.fahrradcomputer.recording.TrackPoint
+import com.pbrockt.fahrradcomputer.ui.BellPlayer
 import com.pbrockt.fahrradcomputer.ui.formatDecimal
 import com.pbrockt.fahrradcomputer.sensors.FoundDevice
 import com.pbrockt.fahrradcomputer.sensors.SensorKind
@@ -201,6 +202,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setNavSound(value: Boolean) = viewModelScope.launch { store.setNavSound(value) }
     val guidance = ride.guidance
     val turns = ride.turns
+
+    // --- Bedienung ---
+
+    private val bell = BellPlayer()
+
+    fun ringBell() {
+        if (settings.value.bellOnDoubleTap) bell.ring()
+    }
+
+    /** Zum Ausprobieren in den Einstellungen - auch wenn Doppeltippen aus ist. */
+    fun ringBellNow() = bell.ring()
+
+    fun setEditHoldMs(value: Int) = viewModelScope.launch { store.setEditHoldMs(value) }
+    fun setBellOnDoubleTap(value: Boolean) = viewModelScope.launch { store.setBellOnDoubleTap(value) }
+
+    override fun onCleared() {
+        bell.release()
+    }
 
     // --- Trainingsplan ---
 

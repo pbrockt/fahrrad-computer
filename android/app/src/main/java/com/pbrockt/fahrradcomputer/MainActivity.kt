@@ -5,6 +5,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -12,15 +13,20 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.DirectionsBike
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Bluetooth
-import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -35,13 +41,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pbrockt.fahrradcomputer.sensors.SensorKind
 import com.pbrockt.fahrradcomputer.ui.AppColors
+import com.pbrockt.fahrradcomputer.ui.AppScreen
 import com.pbrockt.fahrradcomputer.ui.FahrradTheme
 import com.pbrockt.fahrradcomputer.ui.MapsScreen
 import com.pbrockt.fahrradcomputer.ui.RidesScreen
@@ -72,13 +78,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Tab(val label: String, val icon: ImageVector) {
-    RIDE("Fahrt", Icons.AutoMirrored.Filled.DirectionsBike),
-    RIDES("Fahrten", Icons.AutoMirrored.Filled.List),
-    MAPS("Karten", Icons.Filled.Map),
-    SENSORS("Sensoren", Icons.Filled.Bluetooth),
-    SETTINGS("Einstellungen", Icons.Filled.Settings),
-}
 
 private val LOCATION_PERMISSIONS = buildList {
     add(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -94,9 +93,11 @@ private val BLUETOOTH_PERMISSIONS = if (Build.VERSION.SDK_INT >= Build.VERSION_C
     arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AppRoot(vm: MainViewModel) {
-    var tab by rememberSaveable { mutableStateOf(Tab.RIDE) }
+    var screen by rememberSaveable { mutableStateOf(AppScreen.RIDE) }
+    val drawer = rememberDrawerState(DrawerValue.Closed)
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -145,35 +146,73 @@ private fun AppRoot(vm: MainViewModel) {
         }
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbar) },
-        bottomBar = {
-            NavigationBar {
-                for (t in Tab.entries) {
-                    NavigationBarItem(
-                        selected = tab == t,
-                        onClick = { tab = t },
-                        icon = { Icon(t.icon, contentDescription = t.label) },
-                        label = { Text(t.label) },
+    // Zurueck fuehrt aus jedem Bereich zum Fahrt-Bildschirm.
+    BackHandler(enabled = screen != AppScreen.RIDE || drawer.isOpen) {
+        if (drawer.isOpen) scope.launch { drawer.close() } else screen = AppScreen.RIDE
+    }
+
+    ModalNavigationDrawer(
+        drawerState = drawer,
+        // Wischen oeffnet das Menue nicht - auf dem Tacho wird zwischen Seiten gewischt.
+        gesturesEnabled = drawer.isOpen,
+        drawerContent = {
+            ModalDrawerSheet {
+                Text(
+                    "Fahrrad-Computer",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 20.dp),
+                )
+                for (item in AppScreen.entries) {
+                    NavigationDrawerItem(
+                        label = { Text(item.label) },
+                        icon = { Icon(item.icon, contentDescription = null) },
+                        selected = screen == item,
+                        onClick = {
+                            screen = item
+                            scope.launch { drawer.close() }
+                        },
+                        modifier = Modifier.padding(horizontal = 12.dp),
                     )
                 }
             }
         },
-    ) { padding ->
-        Box(Modifier.padding(padding)) {
-            when (tab) {
-                Tab.RIDE -> DashboardScreen(vm, onStartRequested = { locationLauncher.launch(LOCATION_PERMISSIONS) })
-                Tab.RIDES -> RidesScreen(vm)
-                Tab.MAPS -> MapsScreen(vm)
-                Tab.SENSORS -> SensorsScreen(vm, onScanRequested = { kind ->
-                    pendingScan = kind
-                    bluetoothLauncher.launch(BLUETOOTH_PERMISSIONS)
-                })
-                Tab.SETTINGS -> SettingsScreen(
-                    vm,
-                    onConnectHealth = { healthLauncher.launch(vm.healthPermissions) },
-                    onEnableSms = { smsLauncher.launch(Manifest.permission.SEND_SMS) },
-                )
+    ) {
+        Scaffold(
+            snackbarHost = { SnackbarHost(snackbar) },
+            topBar = {
+                if (screen != AppScreen.RIDE) {
+                    TopAppBar(
+                        title = { Text(screen.label) },
+                        navigationIcon = {
+                            IconButton(onClick = { scope.launch { drawer.open() } }) {
+                                Icon(Icons.Filled.Menu, contentDescription = "Menü")
+                            }
+                        },
+                    )
+                }
+            },
+        ) { padding ->
+            Box(Modifier.padding(padding)) {
+                when (screen) {
+                    AppScreen.RIDE -> DashboardScreen(
+                        vm,
+                        onStartRequested = { locationLauncher.launch(LOCATION_PERMISSIONS) },
+                        onMenu = { scope.launch { drawer.open() } },
+                        onOpen = { screen = it },
+                    )
+                    AppScreen.RIDES -> RidesScreen(vm)
+                    AppScreen.MAPS -> MapsScreen(vm)
+                    AppScreen.SENSORS -> SensorsScreen(vm, onScanRequested = { kind ->
+                        pendingScan = kind
+                        bluetoothLauncher.launch(BLUETOOTH_PERMISSIONS)
+                    })
+                    AppScreen.SETTINGS -> SettingsScreen(
+                        vm,
+                        onConnectHealth = { healthLauncher.launch(vm.healthPermissions) },
+                        onEnableSms = { smsLauncher.launch(Manifest.permission.SEND_SMS) },
+                    )
+                }
             }
         }
     }

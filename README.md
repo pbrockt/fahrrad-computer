@@ -6,10 +6,11 @@ Kalorienberechnung, Streckenaufzeichnung, Health Connect, Live-Standort und KI-T
 
 Die geplante Vorgehensweise steht in [KONZEPT.md](KONZEPT.md).
 
-## Stand: Phase 7 (0.0.7-alpha.1)
+## Stand: 0.0.8-alpha.1 (neue Bedienung)
 
 | Bereich | Stand |
 |---|---|
+| Bedienung | Kein Menü unten mehr: Fahrten & Training, Karten & Routen, Sensoren und Einstellungen im Menü links (☰). Fahrt-Bildschirm: ganz links die Start-Seite (großer Start-Knopf, während der Fahrt Pause/Stopp; Übersicht Woche/Monat, Training heute, Route, Sensoren, letzte Fahrt), rechts die Tacho-Seiten. Nach Start blättert die App zum Tacho. Oben eine schmale Leiste mit kleinem ▶/⏸. Kachel „Start / Pause / Stopp“. Doppeltippen = Fahrradklingel (abschaltbar). Editor erst nach einstellbarer Haltedauer (0,5–3 s, Standard 1 s). |
 | Dashboard | Mehrere Seiten zum Wischen (Standard: Fahrt, Puls, Übersicht). Lange auf eine Kachel drücken öffnet den Editor: Kachel antippen = Inhalt wählen oder doppelte Breite; Zeilenmenü = Höhe, Kachel hinzufügen, verschieben, löschen; Seiten anlegen, umbenennen, löschen, auf Standard zurücksetzen. Gespeichert als JSON. Puls in Zonenfarbe (Z1–Z5), Ø/max Puls in Zonenfarbe, Streckenskizze als Platzhalter für die Navi. Display bleibt an. |
 | Darstellung | Dunkel, Hell (für pralle Sonne) oder wie System. |
 | Sensoren | Bluetooth-Standardprofile: Puls (Brustgurt, Uhren mit „HF senden“), Trittfrequenz/Speed (CSC), Leistung (Cycling Power). Liefert der Leistungsmesser Kurbeldaten, kommt die Trittfrequenz daraus. Bosch Smart System erscheint, sofern es diese Profile sendet (noch nicht am Rad geprüft). Automatisches Wiederverbinden. |

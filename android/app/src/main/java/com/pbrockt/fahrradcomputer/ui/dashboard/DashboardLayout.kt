@@ -21,6 +21,7 @@ enum class TileType(val label: String) {
     ROUTE_REMAINING("Rest der Route"),
     TURN("Abbiegehinweis"),
     TRAINING_GOAL("Trainingsziel heute"),
+    CONTROLS("Start / Pause / Stopp"),
 }
 
 /** Zeilenhoehe als Anteil am Bildschirm. */

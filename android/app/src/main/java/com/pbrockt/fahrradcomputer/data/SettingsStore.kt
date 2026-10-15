@@ -65,6 +65,10 @@ data class AppSettings(
     val coachGoal: String = "",
     val coachDays: Set<DayOfWeek> = setOf(DayOfWeek.TUESDAY, DayOfWeek.THURSDAY, DayOfWeek.SATURDAY),
     val coachNotes: String = "",
+    /** So lange muss man auf dem Tacho halten, bis der Editor aufgeht. */
+    val editHoldMs: Int = 1000,
+    /** Doppeltippen auf den Tacho laesst die Klingel ertoenen. */
+    val bellOnDoubleTap: Boolean = true,
     val dashboard: DashboardLayout = DashboardLayout.DEFAULT,
 ) {
     val zones: HrZones get() = HrZones(maxHr)
@@ -115,6 +119,8 @@ class SettingsStore(private val context: Context) {
         val COACH_GOAL = stringPreferencesKey("coach_goal")
         val COACH_DAYS = stringPreferencesKey("coach_days")
         val COACH_NOTES = stringPreferencesKey("coach_notes")
+        val EDIT_HOLD_MS = intPreferencesKey("edit_hold_ms")
+        val BELL = booleanPreferencesKey("bell_double_tap")
         val DASHBOARD = stringPreferencesKey("dashboard_layout")
     }
 
@@ -149,6 +155,8 @@ class SettingsStore(private val context: Context) {
                 ?.split(',')?.mapNotNull { n -> runCatching { DayOfWeek.valueOf(n) }.getOrNull() }?.toSet()
                 ?: AppSettings().coachDays,
             coachNotes = p[Keys.COACH_NOTES] ?: "",
+            editHoldMs = p[Keys.EDIT_HOLD_MS] ?: 1000,
+            bellOnDoubleTap = p[Keys.BELL] ?: true,
             themeMode = p[Keys.THEME]
                 ?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
                 ?: ThemeMode.DARK,
@@ -198,6 +206,8 @@ class SettingsStore(private val context: Context) {
     suspend fun setMapOnline(value: Boolean) = set(Keys.MAP_ONLINE, value)
     suspend fun setNavVibrate(value: Boolean) = set(Keys.NAV_VIBRATE, value)
     suspend fun setNavSound(value: Boolean) = set(Keys.NAV_SOUND, value)
+    suspend fun setEditHoldMs(value: Int) = set(Keys.EDIT_HOLD_MS, value.coerceIn(300, 5000))
+    suspend fun setBellOnDoubleTap(value: Boolean) = set(Keys.BELL, value)
     suspend fun setCoachGoal(value: String) = set(Keys.COACH_GOAL, value.take(300))
     suspend fun setCoachNotes(value: String) = set(Keys.COACH_NOTES, value.take(500))
     suspend fun setCoachDays(value: Set<DayOfWeek>) = set(Keys.COACH_DAYS, value.joinToString(",") { it.name })

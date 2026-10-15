@@ -7,32 +7,35 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -41,17 +44,31 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pbrockt.fahrradcomputer.MainViewModel
+import com.pbrockt.fahrradcomputer.coach.PlanMatching
 import com.pbrockt.fahrradcomputer.recording.GpsStatus
 import com.pbrockt.fahrradcomputer.recording.RidePhase
-import com.pbrockt.fahrradcomputer.sensors.SensorReading
 import com.pbrockt.fahrradcomputer.sensors.SensorConnection
-import com.pbrockt.fahrradcomputer.coach.PlanMatching
+import com.pbrockt.fahrradcomputer.sensors.SensorReading
 import com.pbrockt.fahrradcomputer.ui.AppColors
+import com.pbrockt.fahrradcomputer.ui.AppScreen
+import com.pbrockt.fahrradcomputer.ui.HomePage
 import com.pbrockt.fahrradcomputer.ui.formatDecimal
 import com.pbrockt.fahrradcomputer.ui.formatDuration
+import com.pbrockt.fahrradcomputer.ui.holdAndDoubleTap
+import kotlinx.coroutines.launch
 
+/**
+ * Der Fahrt-Bildschirm: ganz links die Start-Seite (Ueberblick, Start/Pause/Stopp),
+ * rechts davon die Tacho-Seiten. Nach "Start" blaettert er von selbst zum Tacho; zum
+ * Beenden wischt man zurueck zur Start-Seite.
+ */
 @Composable
-fun DashboardScreen(vm: MainViewModel, onStartRequested: () -> Unit) {
+fun DashboardScreen(
+    vm: MainViewModel,
+    onStartRequested: () -> Unit,
+    onMenu: () -> Unit,
+    onOpen: (AppScreen) -> Unit,
+) {
     val stats by vm.ride.stats.collectAsStateWithLifecycle()
     val phase by vm.ride.phase.collectAsStateWithLifecycle()
     val gps by vm.ride.gps.collectAsStateWithLifecycle()
@@ -69,14 +86,38 @@ fun DashboardScreen(vm: MainViewModel, onStartRequested: () -> Unit) {
     val plan by vm.plan.collectAsStateWithLifecycle()
     val offlineMaps by vm.offlineMaps.collectAsStateWithLifecycle()
 
-    // Display anlassen, solange das Dashboard zu sehen ist.
+    // Display anlassen, solange der Fahrt-Bildschirm zu sehen ist.
     val view = LocalView.current
     DisposableEffect(view) {
         view.keepScreenOn = true
         onDispose { view.keepScreenOn = false }
     }
 
+    var editing by rememberSaveable { mutableStateOf(false) }
+    var confirmStop by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+
     val layout = settings.dashboard
+    // Seite 0 = Start-Seite, danach die Tacho-Seiten. Laeuft schon eine Fahrt (App neu
+    // geoeffnet), gleich den Tacho zeigen.
+    val pager = rememberPagerState(initialPage = if (phase != RidePhase.IDLE) 1 else 0) { layout.pages.size + 1 }
+
+    // Nach dem Start von selbst zum Tacho blaettern.
+    var lastPhase by remember { mutableStateOf(phase) }
+    LaunchedEffect(phase) {
+        if (lastPhase == RidePhase.IDLE && phase == RidePhase.RECORDING && pager.currentPage == 0) {
+            pager.animateScrollToPage(1)
+        }
+        lastPhase = phase
+    }
+
+    val controls = RideControls(
+        onStart = onStartRequested,
+        onPause = vm::pauseRide,
+        onResume = vm::resumeRide,
+        onStop = { confirmStop = true },
+    )
     val data = TileData(
         stats, hr, cadence, power, settings.zones, now, route, phase,
         lastPoint = lastPoint,
@@ -86,18 +127,31 @@ fun DashboardScreen(vm: MainViewModel, onStartRequested: () -> Unit) {
         todaySession = PlanMatching.today(plan?.plan, java.time.LocalDate.now()),
         offlineMaps = offlineMaps,
         mapOnline = settings.mapOnline,
+        controls = controls,
     )
-    val pager = rememberPagerState(pageCount = { layout.pages.size })
-    var editing by rememberSaveable { mutableStateOf(false) }
-    var confirmStop by remember { mutableStateOf(false) }
-    val haptic = LocalHapticFeedback.current
 
     Column(Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
-        StatusLine(phase, gps, listOf(hr, cadence, power))
+        TopBar(
+            phase = phase,
+            gps = gps,
+            sensors = listOf(hr, cadence, power),
+            onMenu = onMenu,
+            onPlayPause = {
+                when (phase) {
+                    RidePhase.IDLE -> onStartRequested()
+                    RidePhase.RECORDING -> vm.pauseRide()
+                    RidePhase.PAUSED -> vm.resumeRide()
+                }
+            },
+        )
         PageHeader(
-            names = layout.pages.map { it.name },
+            names = listOf("Start") + layout.pages.map { it.name },
             current = pager.currentPage,
-            hint = if (editing) "Bearbeiten" else "lange drücken = anpassen",
+            hint = when {
+                editing -> "Bearbeiten"
+                pager.currentPage == 0 -> "→ Tacho"
+                else -> "halten = anpassen"
+            },
         )
         HorizontalPager(
             state = pager,
@@ -105,27 +159,43 @@ fun DashboardScreen(vm: MainViewModel, onStartRequested: () -> Unit) {
             pageSpacing = 8.dp,
             modifier = Modifier.weight(1f).fillMaxWidth(),
         ) { index ->
-            val page = layout.pages.getOrNull(index) ?: return@HorizontalPager
+            if (index == 0) {
+                HomePage(
+                    vm,
+                    onStart = onStartRequested,
+                    onStop = { confirmStop = true },
+                    onShowRide = { scope.launch { pager.animateScrollToPage(1) } },
+                    onOpen = onOpen,
+                )
+                return@HorizontalPager
+            }
+            val pageIndex = index - 1
+            val page = layout.pages.getOrNull(pageIndex) ?: return@HorizontalPager
             if (editing) {
-                EditablePage(page, index, TileData(
+                EditablePage(page, pageIndex, TileData(
                     stats, hr, cadence, power, settings.zones, now, route, phase, interactive = false,
                 ), onEdit = vm::editDashboard)
             } else {
-                PageView(page, data, mapId = "dash-$index", onLongPress = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    editing = true
-                })
+                PageView(
+                    page, data, mapId = "dash-$pageIndex",
+                    modifier = Modifier.holdAndDoubleTap(
+                        holdMs = settings.editHoldMs.toLong(),
+                        onHold = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            editing = true
+                        },
+                        onDoubleTap = vm::ringBell,
+                    ),
+                )
             }
         }
         if (editing) {
-            EditBar(layout, pager, vm, onDone = { editing = false })
-        } else {
-            Controls(
-                phase = phase,
-                onStart = onStartRequested,
-                onPause = vm::pauseRide,
-                onResume = vm::resumeRide,
-                onStop = { confirmStop = true },
+            EditBar(
+                layout,
+                page = (pager.currentPage - 1).coerceAtLeast(0),
+                scrollToPage = { pager.scrollToPage(it + 1) },
+                vm = vm,
+                onDone = { editing = false },
             )
         }
     }
@@ -167,18 +237,17 @@ fun DashboardScreen(vm: MainViewModel, onStartRequested: () -> Unit) {
     }
 }
 
-/** Eine Seite im Fahrbetrieb: Zeilen nach Hoehe, Kacheln nach Breite verteilt. */
+/** Eine Tacho-Seite: Zeilen nach Hoehe, Kacheln nach Breite verteilt. */
 @Composable
-private fun PageView(page: DashboardPage, data: TileData, mapId: String, onLongPress: () -> Unit) {
-    val gestures = Modifier.pointerInput(Unit) { detectTapGestures(onLongPress = { onLongPress() }) }
+private fun PageView(page: DashboardPage, data: TileData, mapId: String, modifier: Modifier = Modifier) {
     if (page.rows.isEmpty()) {
-        Box(Modifier.fillMaxSize().then(gestures), contentAlignment = Alignment.Center) {
-            Text("Leere Seite – lange drücken, um Kacheln hinzuzufügen.", color = AppColors.Dim, textAlign = TextAlign.Center)
+        Box(Modifier.fillMaxSize().then(modifier), contentAlignment = Alignment.Center) {
+            Text("Leere Seite – gedrückt halten, um Kacheln hinzuzufügen.", color = AppColors.Dim, textAlign = TextAlign.Center)
         }
         return
     }
     Column(
-        Modifier.fillMaxSize().then(gestures),
+        Modifier.fillMaxSize().then(modifier),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         for (row in page.rows) {
@@ -198,23 +267,21 @@ private fun PageView(page: DashboardPage, data: TileData, mapId: String, onLongP
 @Composable
 private fun PageHeader(names: List<String>, current: Int, hint: String) {
     Row(
-        Modifier.fillMaxWidth().padding(bottom = 6.dp),
+        Modifier.fillMaxWidth().padding(bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             names.getOrElse(current) { "" },
             fontWeight = FontWeight.Bold,
-            fontSize = 15.sp,
+            fontSize = 14.sp,
             modifier = Modifier.weight(1f),
         )
-        if (names.size > 1) {
-            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                names.indices.forEach { i ->
-                    Box(
-                        Modifier.size(8.dp).clip(CircleShape)
-                            .background(if (i == current) AppColors.Text else AppColors.Line)
-                    )
-                }
+        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            names.indices.forEach { i ->
+                Box(
+                    Modifier.size(if (i == 0) 6.dp else 8.dp).clip(CircleShape)
+                        .background(if (i == current) AppColors.Text else AppColors.Line)
+                )
             }
         }
         Text(
@@ -227,72 +294,63 @@ private fun PageHeader(names: List<String>, current: Int, hint: String) {
     }
 }
 
+/**
+ * Schmale Leiste oben: Menue, GPS, Sensoren und ein kleiner Start/Pause-Knopf in der
+ * Ecke. Stopp gibt es bewusst nur auf der Start-Seite und als Kachel - nicht aus Versehen.
+ */
 @Composable
-private fun StatusLine(phase: RidePhase, gps: GpsStatus, sensors: List<SensorReading>) {
+private fun TopBar(
+    phase: RidePhase,
+    gps: GpsStatus,
+    sensors: List<SensorReading>,
+    onMenu: () -> Unit,
+    onPlayPause: () -> Unit,
+) {
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val gpsText = when {
-            phase == RidePhase.IDLE -> "GPS startet mit der Fahrt"
-            gps == GpsStatus.OK -> "GPS ok"
-            gps == GpsStatus.SEARCHING -> "GPS sucht …"
-            else -> "GPS aus!"
+        IconButton(onClick = onMenu, modifier = Modifier.size(40.dp)) {
+            Icon(Icons.Filled.Menu, contentDescription = "Menü")
         }
-        val gpsColor = when {
-            phase == RidePhase.IDLE -> AppColors.Dim
-            gps == GpsStatus.OK -> AppColors.Go
-            gps == GpsStatus.SEARCHING -> AppColors.Zones[3]
-            else -> AppColors.Stop
+        val (gpsText, gpsColor) = when {
+            phase == RidePhase.IDLE -> "GPS ab Start" to AppColors.Dim
+            gps == GpsStatus.OK -> "GPS ok" to AppColors.Go
+            gps == GpsStatus.SEARCHING -> "GPS sucht …" to AppColors.Zones[3]
+            else -> "GPS aus!" to AppColors.Stop
         }
-        Text(gpsText, color = gpsColor, fontSize = 14.sp)
+        Text(gpsText, color = gpsColor, fontSize = 13.sp)
         if (phase == RidePhase.PAUSED) {
-            Text("PAUSE", color = AppColors.Zones[3], fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text("PAUSE", color = AppColors.Zones[3], fontWeight = FontWeight.Bold, fontSize = 13.sp)
         }
-        // Ein Symbol je Sensorart: gruen = verbunden, gelb = verbindet, grau = keiner/Fehler.
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            sensors.zip(listOf("♥", "⟳", "⚡")).forEach { (r, symbol) ->
-                val color = when (r.connection) {
-                    SensorConnection.CONNECTED -> AppColors.Go
-                    SensorConnection.CONNECTING -> AppColors.Zones[3]
-                    SensorConnection.NO_PERMISSION, SensorConnection.BLUETOOTH_OFF -> AppColors.Stop
-                    SensorConnection.NONE -> AppColors.Line
-                }
-                Text(symbol, color = color, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Box(Modifier.weight(1f))
+        // Ein Symbol je Sensorart: gruen = verbunden, gelb = verbindet, rot = Fehler, grau = keiner.
+        sensors.zip(listOf("♥", "⟳", "⚡")).forEach { (r, symbol) ->
+            val color = when (r.connection) {
+                SensorConnection.CONNECTED -> AppColors.Go
+                SensorConnection.CONNECTING -> AppColors.Zones[3]
+                SensorConnection.NO_PERMISSION, SensorConnection.BLUETOOTH_OFF -> AppColors.Stop
+                SensorConnection.NONE -> AppColors.Line
             }
+            Text(symbol, color = color, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
-    }
-}
-
-@Composable
-private fun Controls(
-    phase: RidePhase,
-    onStart: () -> Unit,
-    onPause: () -> Unit,
-    onResume: () -> Unit,
-    onStop: () -> Unit,
-) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        @Composable
-        fun Big(text: String, color: Color, onClick: () -> Unit, weight: Float = 1f) {
-            Button(
-                onClick = onClick,
-                colors = ButtonDefaults.buttonColors(containerColor = color, contentColor = AppColors.OnZone),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.weight(weight).height(60.dp),
-            ) { Text(text, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
-        }
-        when (phase) {
-            RidePhase.IDLE -> Big("Start", AppColors.Go, onStart)
-            RidePhase.RECORDING -> {
-                Big("Pause", AppColors.Accent, onPause, 2f)
-                Big("Stopp", AppColors.Stop, onStop)
-            }
-            RidePhase.PAUSED -> {
-                Big("Weiter", AppColors.Go, onResume, 2f)
-                Big("Stopp", AppColors.Stop, onStop)
-            }
+        FilledIconButton(
+            onClick = onPlayPause,
+            modifier = Modifier.size(40.dp),
+            colors = IconButtonDefaults.filledIconButtonColors(
+                containerColor = if (phase == RidePhase.RECORDING) AppColors.Accent else AppColors.Go,
+                contentColor = AppColors.OnZone,
+            ),
+        ) {
+            Icon(
+                if (phase == RidePhase.RECORDING) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                contentDescription = when (phase) {
+                    RidePhase.IDLE -> "Fahrt starten"
+                    RidePhase.RECORDING -> "Pause"
+                    RidePhase.PAUSED -> "Weiter"
+                },
+            )
         }
     }
 }

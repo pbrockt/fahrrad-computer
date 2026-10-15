@@ -33,7 +33,10 @@ import com.pbrockt.fahrradcomputer.coach.PlannedSession
 import com.pbrockt.fahrradcomputer.coach.SessionKind
 import com.pbrockt.fahrradcomputer.routes.TurnAnnouncer
 import com.pbrockt.fahrradcomputer.ui.TurnArrow
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import java.io.File
@@ -44,6 +47,14 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.min
+
+/** Bedienknoepfe fuer die Kachel "Start / Pause / Stopp". */
+class RideControls(
+    val onStart: () -> Unit,
+    val onPause: () -> Unit,
+    val onResume: () -> Unit,
+    val onStop: () -> Unit,
+)
 
 /** Alles, was eine Kachel zum Zeichnen braucht. */
 class TileData(
@@ -61,6 +72,7 @@ class TileData(
     val guidance: Guidance? = null,
     /** Geplante Einheit fuer heute aus dem Trainingsplan. */
     val todaySession: PlannedSession? = null,
+    val controls: RideControls? = null,
     val offlineMaps: List<File> = emptyList(),
     val mapOnline: Boolean = false,
     /** Im Bearbeiten-Modus keine echte Karte - sie wuerde die Fingertipps abfangen. */
@@ -118,6 +130,11 @@ fun Tile(type: TileType, d: TileData, modifier: Modifier, mapId: String = "dash"
             else -> RouteTile(d.route, modifier)
         }
         TileType.TURN -> TurnTile(d, modifier)
+        TileType.CONTROLS -> {
+            val c = d.controls
+            if (c == null || !d.interactive) ValueTile("Start / Pause / Stopp", "▶", modifier)
+            else ControlsTile(d.phase, c, modifier)
+        }
         TileType.TRAINING_GOAL -> {
             val t = d.todaySession
             when {
@@ -270,6 +287,33 @@ private fun TurnTile(d: TileData, modifier: Modifier) {
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+/** Bedienung als Kachel - Stopp fragt wie ueberall noch einmal nach. */
+@Composable
+private fun ControlsTile(phase: RidePhase, c: RideControls, modifier: Modifier) {
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        @Composable
+        fun Btn(text: String, color: Color, weight: Float, onClick: () -> Unit) {
+            Button(
+                onClick = onClick,
+                colors = ButtonDefaults.buttonColors(containerColor = color, contentColor = AppColors.OnZone),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.weight(weight).fillMaxHeight(),
+            ) { Text(text, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+        }
+        when (phase) {
+            RidePhase.IDLE -> Btn("Start", AppColors.Go, 1f, c.onStart)
+            RidePhase.RECORDING -> {
+                Btn("Pause", AppColors.Accent, 2f, c.onPause)
+                Btn("Stopp", AppColors.Stop, 1f, c.onStop)
+            }
+            RidePhase.PAUSED -> {
+                Btn("Weiter", AppColors.Go, 2f, c.onResume)
+                Btn("Stopp", AppColors.Stop, 1f, c.onStop)
             }
         }
     }

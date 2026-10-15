@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -177,8 +176,14 @@ private fun TileDialog(
 
 /** Leiste unten im Bearbeiten-Modus - ersetzt dort Start/Pause/Stopp. */
 @Composable
-fun EditBar(layout: DashboardLayout, pager: PagerState, vm: MainViewModel, onDone: () -> Unit) {
-    val page = pager.currentPage
+fun EditBar(
+    layout: DashboardLayout,
+    /** Index der bearbeiteten Dashboard-Seite (ohne die Start-Seite). */
+    page: Int,
+    scrollToPage: suspend (Int) -> Unit,
+    vm: MainViewModel,
+    onDone: () -> Unit,
+) {
     var menu by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -188,7 +193,7 @@ fun EditBar(layout: DashboardLayout, pager: PagerState, vm: MainViewModel, onDon
     // Nach "Neue Seite" dorthin blaettern, sobald sie im gespeicherten Layout angekommen ist.
     LaunchedEffect(layout.pages.size) {
         if (scrollToLast) {
-            pager.scrollToPage(layout.pages.lastIndex)
+            scrollToPage(layout.pages.lastIndex)
             scrollToLast = false
         }
     }

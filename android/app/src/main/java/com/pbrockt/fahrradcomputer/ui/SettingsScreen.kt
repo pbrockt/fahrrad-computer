@@ -74,6 +74,22 @@ fun SettingsScreen(vm: MainViewModel, onConnectHealth: () -> Unit, onEnableSms: 
             color = AppColors.Dim,
         )
 
+        Text("Bedienung", fontWeight = FontWeight.Bold)
+        Text("Tacho anpassen: so lange gedrückt halten")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for ((ms, label) in listOf(500 to "0,5 s", 1000 to "1 s", 2000 to "2 s", 3000 to "3 s")) {
+                FilterChip(selected = s.editHoldMs == ms, onClick = { vm.setEditHoldMs(ms) }, label = { Text(label) })
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Klingel bei Doppeltippen")
+                Text("Zweimal auf den Tacho tippen. Lautstärke = Medienlautstärke.", color = AppColors.Dim, fontSize = 13.sp)
+            }
+            Switch(checked = s.bellOnDoubleTap, onCheckedChange = vm::setBellOnDoubleTap)
+        }
+        OutlinedButton(onClick = vm::ringBellNow, modifier = Modifier.fillMaxWidth()) { Text("Klingel testen") }
+
         Text("Darstellung", fontWeight = FontWeight.Bold)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for (m in ThemeMode.entries) {

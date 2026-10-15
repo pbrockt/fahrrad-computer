@@ -96,7 +96,7 @@ fun rideTitle(r: RideSummary): String =
     Instant.ofEpochMilli(r.startMs).atZone(ZoneId.systemDefault()).format(DAY)
 
 @Composable
-private fun TotalsCard(title: String, t: Totals, modifier: Modifier) {
+internal fun TotalsCard(title: String, t: Totals, modifier: Modifier) {
     Card(modifier) {
         Column(Modifier.padding(12.dp)) {
             Text(title.replaceFirstChar { it.uppercase() }, color = AppColors.Dim, fontSize = 13.sp)
