@@ -45,7 +45,15 @@ class RideRepository(
 
     private fun loadOrBuild(id: String): RideSummary? {
         jsonFile(id).takeIf { it.exists() }?.let { f ->
-            runCatching { json.decodeFromString<RideSummary>(f.readText()) }.getOrNull()?.let { return it }
+            runCatching { json.decodeFromString<RideSummary>(f.readText()) }.getOrNull()?.let { s ->
+                if (s.elevationMethod >= RideSummaries.ELEVATION_METHOD) return s
+                // Hoehenmeter mit dem neuen, geglaetteten Verfahren nachrechnen - der Rest bleibt.
+                val points = readTrackBlocking(id)
+                return s.copy(
+                    elevationGainM = RideSummaries.elevationGain(points),
+                    elevationMethod = RideSummaries.ELEVATION_METHOD,
+                ).also(::write)
+            }
         }
         val points = readTrackBlocking(id)
         if (points.size < 2) return null

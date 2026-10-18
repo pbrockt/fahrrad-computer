@@ -39,6 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pbrockt.fahrradcomputer.MainViewModel
 import com.pbrockt.fahrradcomputer.recording.RideSummary
 import com.pbrockt.fahrradcomputer.recording.TrackPoint
+import com.pbrockt.fahrradcomputer.recording.Altitude
 import com.pbrockt.fahrradcomputer.recording.TrackSeries
 import com.pbrockt.fahrradcomputer.ui.map.BikeMap
 import com.pbrockt.fahrradcomputer.ui.map.mapAvailable
@@ -86,7 +87,7 @@ fun RideDetailScreen(vm: MainViewModel, ride: RideSummary, onBack: () -> Unit) {
                 }
                 if (s.hasCadence) LineChart("Trittfrequenz", "U/min", s.minutes, s.cadence)
                 if (s.hasPower) LineChart("Leistung", "W", s.minutes, s.power)
-                if (s.hasAltitude) LineChart("Höhe", "m", s.minutes, s.altitude)
+                if (s.hasAltitude) LineChart("Höhe", "m", s.minutes, s.altitude, minRange = Altitude.MIN_PROFILE_RANGE_M.toFloat())
             }
         }
 

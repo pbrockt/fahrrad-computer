@@ -31,14 +31,19 @@ fun LineChart(
     minutes: List<Float>,
     values: List<Float?>,
     modifier: Modifier = Modifier,
+    /** Mindestens so viel Spanne zeigen (z. B. 60 m bei der Hoehe), damit Flaches flach bleibt. */
+    minRange: Float = 0f,
     colorOf: (Float) -> Color? = { null },
 ) {
     val present = values.filterNotNull()
     if (present.isEmpty() || minutes.size != values.size) return
     val lineDefault = AppColors.Accent
     val grid = AppColors.Line
-    val lo = present.min()
-    val hi = present.max()
+    val realLo = present.min()
+    val realHi = present.max()
+    val pad = ((minRange - (realHi - realLo)) / 2).coerceAtLeast(0f)
+    val lo = realLo - pad
+    val hi = realHi + pad
     val range = (hi - lo).takeIf { it > 0f } ?: 1f
     val endMin = minutes.last().takeIf { it > 0f } ?: 1f
 
@@ -46,7 +51,7 @@ fun LineChart(
         Row(Modifier.fillMaxWidth()) {
             Text(title, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             Text(
-                "Ø ${fmt(present.average().toFloat())} · max ${fmt(hi)} $unit",
+                "Ø ${fmt(present.average().toFloat())} · max ${fmt(realHi)} $unit",
                 color = AppColors.Dim, fontSize = 13.sp,
             )
         }
@@ -69,7 +74,7 @@ fun LineChart(
             }
         }
         Row(Modifier.fillMaxWidth().padding(top = 2.dp)) {
-            Text("${fmt(lo)} $unit", color = AppColors.Dim, fontSize = 11.sp, modifier = Modifier.weight(1f))
+            Text("${fmt(realLo)} $unit", color = AppColors.Dim, fontSize = 11.sp, modifier = Modifier.weight(1f))
             Text("${fmt(endMin)} min", color = AppColors.Dim, fontSize = 11.sp)
         }
     }

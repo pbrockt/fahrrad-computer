@@ -40,7 +40,7 @@ class ShareTest {
     @Test
     fun projectionFitsBoxAndKeepsAspect() {
         // Nord-Sued-Strecke: schmal und hoch, muss die Hoehe ausfuellen und mittig stehen.
-        val p = ProjectedRoute(ride, 100f, 200f, 800f, 600f)
+        val p = ProjectedRoute.fit(ride, 100f, 200f, 800f, 600f)
         assertEquals(200f, p.ys.min(), 0.5f)
         assertEquals(800f, p.ys.max(), 0.5f)
         // Norden ist oben: erster Punkt (Sueden) unten
@@ -50,7 +50,7 @@ class ShareTest {
 
     @Test
     fun positionMovesEvenlyAlongRoute() {
-        val p = ProjectedRoute(ride, 0f, 0f, 1000f, 1000f)
+        val p = ProjectedRoute.fit(ride, 0f, 0f, 1000f, 1000f)
         val (_, _, yStart) = p.positionAt(0f)
         val (_, _, yHalf) = p.positionAt(0.5f)
         val (last, _, yEnd) = p.positionAt(1f)

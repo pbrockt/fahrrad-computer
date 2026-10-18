@@ -7,12 +7,16 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Shader
 import android.graphics.Typeface
+import com.pbrockt.fahrradcomputer.recording.Altitude
 import com.pbrockt.fahrradcomputer.recording.RideSummary
 import com.pbrockt.fahrradcomputer.recording.TrackPoint
 import com.pbrockt.fahrradcomputer.ui.formatDecimal
 import com.pbrockt.fahrradcomputer.ui.formatDuration
 import com.pbrockt.fahrradcomputer.ui.rideTitle
 import java.util.Locale
+
+/** Zusammengesetzte OSM-Kacheln fuer [ShareRenderer.mapTop]..[ShareRenderer.mapBottom]. */
+class MapBackground(val bitmap: android.graphics.Bitmap, val window: MapWindow, val scale: Float)
 
 /** Was auf Bild bzw. Video kommt. [points] ist die bereits gekuerzte Strecke. */
 class ShareContent(
@@ -39,12 +43,24 @@ class ShareRenderer(private val content: ShareContent, private val w: Int, priva
     private val routeBottom = profileTop - 40 * s
 
     // Fuer das Zeichnen ausduennen - mehr als ~2000 Punkte sieht man ohnehin nicht.
-    private val drawPoints = content.points.let { p ->
+    private val drawIndices = content.points.let { p ->
         val step = maxOf(1, p.size / 2000)
-        p.filterIndexed { i, _ -> i % step == 0 || i == p.lastIndex }
+        p.indices.filter { i -> i % step == 0 || i == p.lastIndex }
     }
-    private val route = ProjectedRoute(drawPoints, pad, routeTop, w - 2 * pad, routeBottom - routeTop)
+    private val drawPoints = drawIndices.map { content.points[it] }
+    // Geglaettet auf allen Punkten, dann ausgeduennt - sonst glaettet man zu grob.
+    private val smoothAltitudes = Altitude.smoothPoints(content.points).let { a -> drawIndices.map { a[it] } }
+    private val fitted = ProjectedRoute.fit(drawPoints, pad, routeTop, w - 2 * pad, routeBottom - routeTop)
+    private var route = fitted
     private val fullPath = pathUpTo(route.size - 1, null)
+
+    /** Bereich fuer den Kartenhintergrund: volle Breite zwischen Kopf und Hoehenprofil. */
+    val mapTop = 205 * s
+    val mapBottom = profileTop - 45 * s
+    val mapWidth: Int get() = w
+    val mapHeight: Int get() = (mapBottom - mapTop).toInt()
+    /** Wieviel Rand die Strecke zum Kartenrand haben soll. */
+    val mapPadding = 70 * s
 
     private val accent = Color.parseColor("#3FA7D6")
     private val bgPaint = Paint().apply {
@@ -69,17 +85,41 @@ class ShareRenderer(private val content: ShareContent, private val w: Int, priva
     private val dim = Color.parseColor("#8A97A3")
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
 
-    /** [progress] null = Bild (alles fertig), sonst 0..1 fuer die Video-Animation. */
-    fun draw(canvas: Canvas, progress: Float?) {
+    private val casing = line(Color.WHITE, 15f)
+    private val onMapLine = line(Color.parseColor("#1C6FD6"), 8f)
+
+    /**
+     * [progress] null = Bild (alles fertig), sonst 0..1 fuer die Video-Animation.
+     * Mit [map] liegt die Strecke auf der OSM-Karte statt auf dunklem Grund.
+     */
+    fun draw(canvas: Canvas, progress: Float?, map: MapBackground? = null) {
         val p = progress ?: 1f
         canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), bgPaint)
+        route = if (map != null) ProjectedRoute.onMap(drawPoints, map.window, map.scale, 0f, mapTop) else fitted
+        if (map != null && route.size >= 2) {
+            canvas.drawBitmap(map.bitmap, 0f, mapTop, Paint(Paint.FILTER_BITMAP_FLAG))
+            val path = pathUpTo(route.size - 1, null)
+            canvas.drawPath(path, casing)
+            canvas.drawPath(path, onMapLine)
+            fill.color = Color.parseColor("#46B97A")
+            canvas.drawCircle(route.xs[0], route.ys[0], 13 * s, fill)
+            fill.color = Color.parseColor("#E5484D")
+            canvas.drawCircle(route.xs.last(), route.ys.last(), 13 * s, fill)
+            // Pflichtangabe der OSM-Lizenz, gut lesbar auf hellem Kasten.
+            val attr = "© OpenStreetMap-Mitwirkende"
+            val tp = text(24f, Color.parseColor("#333333"))
+            val tw = tp.measureText(attr)
+            fill.color = Color.argb(200, 255, 255, 255)
+            canvas.drawRect(w - tw - 24 * s, mapBottom - 40 * s, w.toFloat(), mapBottom, fill)
+            canvas.drawText(attr, w - tw - 12 * s, mapBottom - 12 * s, tp)
+        }
 
         // Kopf
         canvas.drawText("Radfahrt", pad, 120 * s, text(66f, white, bold = true))
         canvas.drawText(rideTitle(content.summary), pad, 175 * s, text(34f, dim))
 
-        // Strecke
-        if (route.size >= 2) {
+        // Strecke (ohne Karte)
+        if (map == null && route.size >= 2) {
             if (progress != null) canvas.drawPath(fullPath, ghost)
             val (idx, x, y) = route.positionAt(p)
             val traveled = if (progress == null) fullPath else pathUpTo(idx, x to y)
@@ -125,11 +165,13 @@ class ShareRenderer(private val content: ShareContent, private val w: Int, priva
     }
 
     private fun drawProfile(canvas: Canvas, progress: Float) {
-        val alts = drawPoints.map { it.altitude }
+        val alts = smoothAltitudes
         val present = alts.filterNotNull()
-        val lo = present.min()
-        val hi = present.max()
-        val range = (hi - lo).takeIf { it > 1 } ?: 1.0
+        val realLo = present.min()
+        val realHi = present.max()
+        // Mindestens 60 m Spanne zeigen - sonst wirkt eine flache Fahrt wie ein Gebirge.
+        val (lo, hi) = Altitude.displayRange(realLo, realHi)
+        val range = hi - lo
         val top = profileTop
         val height = 110 * s
         val left = pad
@@ -156,7 +198,7 @@ class ShareRenderer(private val content: ShareContent, private val w: Int, priva
         fill.color = Color.argb(150, 63, 167, 214)
         canvas.drawPath(area, fill)
         canvas.restore()
-        canvas.drawText("Höhe ${String.format(Locale.GERMANY, "%.0f–%.0f", lo, hi)} m", left, top - 10 * s, text(26f, dim))
+        canvas.drawText("Höhe ${String.format(Locale.GERMANY, "%.0f–%.0f", realLo, realHi)} m", left, top - 10 * s, text(26f, dim))
     }
 
     /** Linie vom Start bis Punkt [index], optional mit Zwischenstueck bis [tip]. */

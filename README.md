@@ -6,7 +6,7 @@ Kalorienberechnung, Streckenaufzeichnung, Health Connect, Live-Standort und KI-T
 
 Die geplante Vorgehensweise steht in [KONZEPT.md](KONZEPT.md).
 
-## Stand: 0.0.10-alpha.1
+## Stand: 0.0.11-alpha.1
 
 | Bereich | Stand |
 |---|---|
@@ -15,9 +15,10 @@ Die geplante Vorgehensweise steht in [KONZEPT.md](KONZEPT.md).
 | Darstellung | Dunkel, Hell (für pralle Sonne) oder wie System. |
 | Sensoren | Bluetooth-Standardprofile: Puls (Brustgurt, Uhren mit „HF senden“), Trittfrequenz/Speed (CSC), Leistung (Cycling Power). Liefert der Leistungsmesser Kurbeldaten, kommt die Trittfrequenz daraus. Bosch Smart System erscheint, sofern es diese Profile sendet (noch nicht am Rad geprüft). Automatisches Wiederverbinden. |
 | Kalorien | Aus Fahrerleistung (kcal ≈ kJ), sonst Puls (Keytel: Gewicht, Alter, Geschlecht), sonst MET-Schätzung nach Geschwindigkeit (E-Bike). Die Kachel zeigt die Quelle. |
+| Höhe | GPS-Höhe wird geglättet (Median gegen Ausreißer, gleitender Mittelwert über 15 s); Höhenmeter zählen erst ab 8 m Anstieg, dann vom Tal bis zum Gipfel. Profile zeigen mindestens 60 m Spanne. Ab Android 14 Höhe über dem Meeresspiegel. Ältere Fahrten werden beim Öffnen nachgerechnet. |
 | Aufzeichnung | GPS im Vordergrunddienst (läuft bei aus­geschaltetem Display weiter), Start/Pause/Weiter/Stopp, Standzeiten zählen nicht als Fahrzeit, Zwischenspeichern jede Minute. |
 | Fahrten | Gespeichert als GPX (Strecke mit Puls, Trittfrequenz, Leistung) plus JSON mit den Kennzahlen. Liste mit Summen für Woche und Monat; Detailansicht mit Kennzahlen, Streckenskizze, Zeit in Pulszonen und Verläufen (Geschwindigkeit, Puls in Zonenfarben, Trittfrequenz, Leistung, Höhe). Teilen, löschen. Abgebrochene Aufzeichnungen werden beim nächsten Start gerettet. |
-| Teilen | In der Fahrt-Detailansicht: Bild (Strecke, Höhenprofil, Kennzahlen), Video (Punkt fährt die Strecke ab, Zahlen zählen mit, MP4 über den H.264-Encoder des Handys) oder GPX. Vorher die Frage „Start und Ende ausblenden?“ – Nein / 250 m / 500 m (vorausgewählt) / 1 km, für alle Formate. |
+| Teilen | In der Fahrt-Detailansicht: Bild (Strecke auf OpenStreetMap-Karte – Kacheln von tile.openstreetmap.org mit App-Kennung und 14 Tagen Cache, Quellenangabe im Bild; ohne Karte umschaltbar – plus Höhenprofil und Kennzahlen), Video (Punkt fährt die Strecke ab, Zahlen zählen mit, MP4 über den H.264-Encoder des Handys) oder GPX. Vorher die Frage „Start und Ende ausblenden?“ – Nein / 250 m / 500 m (vorausgewählt) / 1 km, für alle Formate. |
 | Health Connect | Fahrten als Training „Radfahren“ mit Strecke, Puls, Geschwindigkeit, Trittfrequenz, Leistung, Distanz, Höhenmetern und Kalorien – automatisch nach dem Stopp oder per Knopf. Gewicht wird von dort übernommen. Feste IDs: erneutes Senden überschreibt statt zu verdoppeln. |
 | Einstellungen | Max. Herzfrequenz (Zonen), Gewicht, Geburtsjahr, Geschlecht, Update-Kanal Release/Alpha, optional GitHub-Token. |
 | Live-Standort | Per SMS an eingetragene Nummern, alle 1–60 Minuten (Standard 10), optional „losgefahren“/„angekommen“. Text mit Uhrzeit, km, Geschwindigkeit, Rest der Route, Akku und Google-Maps-Link; passt in eine SMS. Test-SMS in den Einstellungen. |

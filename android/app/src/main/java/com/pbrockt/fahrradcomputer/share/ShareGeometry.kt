@@ -41,36 +41,54 @@ object PrivacyTrim {
 }
 
 /**
- * Die Strecke in Bildkoordinaten: in ein Rechteck eingepasst, Seitenverhaeltnis erhalten
- * (Laengengrade mit cos(Breite) gestaucht), mittig. y waechst nach unten wie auf dem Bild.
+ * Die Strecke in Bildkoordinaten, dazu der Anteil der Strecke (0..1) bis zu jedem Punkt -
+ * fuer die Animation im Video. Erzeugt ueber [fit] (eingepasst, ohne Karte) oder
+ * [onMap] (exakt passend zu den OSM-Kacheln).
  */
-class ProjectedRoute(points: List<TrackPoint>, left: Float, top: Float, width: Float, height: Float) {
+class ProjectedRoute(val xs: FloatArray, val ys: FloatArray, points: List<TrackPoint>) {
 
-    val xs = FloatArray(points.size)
-    val ys = FloatArray(points.size)
-
-    /** Anteil der Strecke (0..1) bis zu jedem Punkt - fuer die Animation im Video. */
     val fraction = FloatArray(points.size)
 
     init {
         if (points.isNotEmpty()) {
-            val k = cos(Math.toRadians(points.first().lat))
-            val mx = points.map { it.lon * k }
-            val my = points.map { it.lat }
-            val minX = mx.min(); val maxX = mx.max()
-            val minY = my.min(); val maxY = my.max()
-            val spanX = (maxX - minX).takeIf { it > 0 } ?: 1e-9
-            val spanY = (maxY - minY).takeIf { it > 0 } ?: 1e-9
-            val scale = min(width / spanX, height / spanY)
-            val offX = left + (width - spanX * scale).toFloat() / 2
-            val offY = top + (height - spanY * scale).toFloat() / 2
-            for (i in points.indices) {
-                xs[i] = offX + ((mx[i] - minX) * scale).toFloat()
-                ys[i] = offY + ((maxY - my[i]) * scale).toFloat()
-            }
             val cum = PrivacyTrim.cumulative(points)
             val total = cum.last().takeIf { it > 0 } ?: 1.0
             for (i in points.indices) fraction[i] = (cum[i] / total).toFloat()
+        }
+    }
+
+    companion object {
+        /**
+         * In ein Rechteck eingepasst, Seitenverhaeltnis erhalten (Laengengrade mit cos(Breite)
+         * gestaucht), mittig. y waechst nach unten wie auf dem Bild.
+         */
+        fun fit(points: List<TrackPoint>, left: Float, top: Float, width: Float, height: Float): ProjectedRoute {
+            val xs = FloatArray(points.size)
+            val ys = FloatArray(points.size)
+            if (points.isNotEmpty()) {
+                val k = cos(Math.toRadians(points.first().lat))
+                val mx = points.map { it.lon * k }
+                val my = points.map { it.lat }
+                val minX = mx.min(); val maxX = mx.max()
+                val minY = my.min(); val maxY = my.max()
+                val spanX = (maxX - minX).takeIf { it > 0 } ?: 1e-9
+                val spanY = (maxY - minY).takeIf { it > 0 } ?: 1e-9
+                val scale = min(width / spanX, height / spanY)
+                val offX = left + (width - spanX * scale).toFloat() / 2
+                val offY = top + (height - spanY * scale).toFloat() / 2
+                for (i in points.indices) {
+                    xs[i] = offX + ((mx[i] - minX) * scale).toFloat()
+                    ys[i] = offY + ((maxY - my[i]) * scale).toFloat()
+                }
+            }
+            return ProjectedRoute(xs, ys, points)
+        }
+
+        /** Auf den Kartenausschnitt [window], der mit [scale] vergroessert bei ([left], [top]) liegt. */
+        fun onMap(points: List<TrackPoint>, window: MapWindow, scale: Float, left: Float, top: Float): ProjectedRoute {
+            val xs = FloatArray(points.size) { left + ((OsmMath.worldX(points[it].lon, window.zoom) - window.originX) * scale).toFloat() }
+            val ys = FloatArray(points.size) { top + ((OsmMath.worldY(points[it].lat, window.zoom) - window.originY) * scale).toFloat() }
+            return ProjectedRoute(xs, ys, points)
         }
     }
 

@@ -35,6 +35,7 @@ data class TrackSeries(
                 speeds[i] = if (kmh <= RideTracker.MAX_PLAUSIBLE_KMH) kmh.toFloat() else speeds[i - 1]
             }
 
+            val smoothAlt = Altitude.smoothPoints(points)
             val start = points.first().timeMs
             val bucket = maxOf(1, (points.size + maxPoints - 1) / maxPoints)
             val chunks = points.indices.chunked(bucket)
@@ -50,7 +51,7 @@ data class TrackSeries(
                 heartRate = chunks.map { c -> avg(c) { points[it].heartRate } },
                 cadence = chunks.map { c -> avg(c) { points[it].cadence } },
                 power = chunks.map { c -> avg(c) { points[it].power } },
-                altitude = chunks.map { c -> avg(c) { points[it].altitude } },
+                altitude = chunks.map { c -> avg(c) { smoothAlt[it] } },
             )
         }
     }

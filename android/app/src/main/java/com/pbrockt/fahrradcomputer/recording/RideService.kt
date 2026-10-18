@@ -187,7 +187,7 @@ class RideService : Service() {
                     timeMs = location.time,
                     lat = location.latitude,
                     lon = location.longitude,
-                    altitude = if (location.hasAltitude()) location.altitude else null,
+                    altitude = mslAltitude(location),
                     accuracy = if (location.hasAccuracy()) location.accuracy else null,
                     speedMps = if (location.hasSpeed()) location.speed else null,
                 )
@@ -196,6 +196,16 @@ class RideService : Service() {
 
         override fun onProviderDisabled(provider: String) = session.onGpsStatus(GpsStatus.OFF)
         override fun onProviderEnabled(provider: String) = session.onGpsStatus(GpsStatus.SEARCHING)
+    }
+
+    /**
+     * Hoehe ueber dem Meeresspiegel. GPS liefert die Hoehe ueber dem Rechenmodell der Erde
+     * (Ellipsoid) - in Deutschland rund 47 m hoeher. Ab Android 14 rechnet das System selbst um.
+     */
+    private fun mslAltitude(location: Location): Double? = when {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && location.hasMslAltitude() -> location.mslAltitudeMeters
+        location.hasAltitude() -> location.altitude
+        else -> null
     }
 
     private fun buildNotification(): Notification {

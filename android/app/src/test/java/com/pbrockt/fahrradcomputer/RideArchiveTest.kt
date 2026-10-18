@@ -51,10 +51,11 @@ class RideArchiveTest {
 
     @Test
     fun elevationGainIgnoresNoise() {
-        // Rauschen +-2 m um 10 m, dann 30 m Anstieg in 1-m-Schritten
+        // Rauschen +-2 m um 10 m, dann 30 m Anstieg in 1-m-Schritten, dann flach weiter
         val noise = (0 until 20).map { if (it % 2 == 0) 12.0 else 8.0 }
         val climb = (1..30).map { 10.0 + it }
-        val pts = (noise + climb).mapIndexed { i, a -> TrackPoint(t0 + i * 1000L, 53.0, 7.5, a, null) }
+        val flat = List(20) { 40.0 }
+        val pts = (noise + climb + flat).mapIndexed { i, a -> TrackPoint(t0 + i * 1000L, 53.0, 7.5, a, null) }
         assertEquals(30.0, RideSummaries.elevationGain(pts), 5.0)
         assertTrue(RideSummaries.elevationGain(pts.take(20)) < 1.0)
     }

@@ -28,11 +28,19 @@ object ShareExporter {
         mkdirs()
     }
 
-    suspend fun image(context: Context, content: ShareContent): File = withContext(Dispatchers.Default) {
+    /**
+     * Bild zum Teilen. Mit [withMap] liegt die Strecke auf einer OpenStreetMap-Karte -
+     * dafuer werden die passenden Kacheln geladen (Internet noetig). Klappt das nicht,
+     * gibt es eine Exception mit verstaendlicher Meldung; der Dialog bietet dann "ohne Karte".
+     */
+    suspend fun image(context: Context, content: ShareContent, withMap: Boolean = false): File = withContext(Dispatchers.Default) {
         val w = 1080
         val h = 1350
+        val renderer = ShareRenderer(content, w, h)
+        val map = if (withMap) OsmTiles.background(context, content.points, renderer.mapWidth, renderer.mapHeight, renderer.mapPadding) else null
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        ShareRenderer(content, w, h).draw(Canvas(bmp), null)
+        renderer.draw(Canvas(bmp), null, map)
+        map?.bitmap?.recycle()
         val file = File(dir(context), "radfahrt-${content.summary.id}.png")
         file.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
         bmp.recycle()

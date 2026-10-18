@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -41,6 +43,7 @@ fun ShareDialog(ride: RideSummary, points: List<TrackPoint>, onDismiss: () -> Un
     val scope = rememberCoroutineScope()
     var format by remember { mutableStateOf(ShareFormat.IMAGE) }
     var trimM by remember { mutableStateOf(500) }
+    var withMap by remember { mutableStateOf(true) }
     var progress by remember { mutableStateOf<Float?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     val busy = progress != null
@@ -70,7 +73,13 @@ fun ShareDialog(ride: RideSummary, points: List<TrackPoint>, onDismiss: () -> Un
                 when (format) {
                     ShareFormat.VIDEO -> Text("Ein Punkt fährt die Strecke in 6 Sekunden ab, die Zahlen zählen mit.", color = AppColors.Dim, fontSize = 13.sp)
                     ShareFormat.GPX -> Text("Für Strava, Komoot & Co. – mit Puls, Trittfrequenz und Leistung.", color = AppColors.Dim, fontSize = 13.sp)
-                    ShareFormat.IMAGE -> Unit
+                    ShareFormat.IMAGE -> Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Mit Karte (OpenStreetMap)")
+                            Text("Lädt die Karte für das Bild – braucht Internet.", color = AppColors.Dim, fontSize = 13.sp)
+                        }
+                        Switch(checked = withMap, onCheckedChange = { withMap = it }, enabled = !busy)
+                    }
                 }
                 progress?.let { p ->
                     Text(if (format == ShareFormat.VIDEO) "Video wird erstellt … ${(p * 100).toInt()} %" else "Wird erstellt …")
@@ -95,7 +104,7 @@ fun ShareDialog(ride: RideSummary, points: List<TrackPoint>, onDismiss: () -> Un
                             val content = ShareContent(ride, trimmed, trimM)
                             when (format) {
                                 ShareFormat.IMAGE -> ShareExporter.share(
-                                    context, ShareExporter.image(context, content), "image/png", "Bild teilen",
+                                    context, ShareExporter.image(context, content, withMap), "image/png", "Bild teilen",
                                 )
                                 ShareFormat.VIDEO -> ShareExporter.share(
                                     context, ShareExporter.video(context, content) { progress = it }, "video/mp4", "Video teilen",
@@ -108,7 +117,8 @@ fun ShareDialog(ride: RideSummary, points: List<TrackPoint>, onDismiss: () -> Un
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: Exception) {
-                            error = "Konnte nicht erstellt werden: ${e.message ?: e.javaClass.simpleName}"
+                            error = "Konnte nicht erstellt werden: ${e.message ?: e.javaClass.simpleName}" +
+                                if (format == ShareFormat.IMAGE && withMap) "\nTipp: „Mit Karte“ ausschalten und nochmal versuchen." else ""
                         } finally {
                             progress = null
                         }

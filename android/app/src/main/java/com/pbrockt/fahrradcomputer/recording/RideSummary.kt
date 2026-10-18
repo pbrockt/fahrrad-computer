@@ -33,12 +33,16 @@ data class RideSummary(
     /** Sekunden je Pulszone Z1..Z5; leer ohne Pulsdaten. */
     val zoneSeconds: List<Long> = emptyList(),
     val healthConnectSynced: Boolean = false,
+    /** Verfahren der Hoehenmeter: 1 = roh (bis 0.0.10), 2 = geglaettet. Aeltere werden neu berechnet. */
+    val elevationMethod: Int = 1,
 )
 
 object RideSummaries {
 
-    /** Hoehenmeter erst ab dieser Aenderung zaehlen - GPS-Hoehe schwankt um einige Meter. */
-    private const val ELEVATION_HYSTERESIS_M = 5.0
+    const val ELEVATION_METHOD = 2
+
+    /** Hoehenmeter erst ab dieser Aenderung zaehlen - auch geglaettet wandert GPS-Hoehe noch um einige Meter. */
+    private const val ELEVATION_HYSTERESIS_M = 8.0
 
     fun build(id: String, points: List<TrackPoint>, stats: RideStats, zones: HrZones): RideSummary =
         RideSummary(
@@ -57,6 +61,7 @@ object RideSummaries {
             calories = stats.calories,
             calorieSource = stats.calorieSource,
             elevationGainM = elevationGain(points),
+            elevationMethod = ELEVATION_METHOD,
             zoneSeconds = zoneSeconds(points, zones),
         )
 
@@ -75,16 +80,27 @@ object RideSummaries {
         return build(id, points, t.snapshot, zones)
     }
 
+    /**
+     * Hoehenmeter aus der geglaetteten Hoehe ([Altitude]) - roh zaehlt das GPS-Zittern mit.
+     *
+     * Ein Anstieg zaehlt erst, wenn er [ELEVATION_HYSTERESIS_M] uebersteigt - dann aber
+     * vollstaendig vom Tal bis zum Gipfel. So geht oben nichts verloren, und kleines Wandern
+     * der Hoehe auf flacher Strecke zaehlt gar nicht.
+     */
     fun elevationGain(points: List<TrackPoint>): Double {
-        var base: Double? = null
         var gain = 0.0
-        for (p in points) {
-            val alt = p.altitude ?: continue
-            val b = base
-            when {
-                b == null -> base = alt
-                alt >= b + ELEVATION_HYSTERESIS_M -> { gain += alt - b; base = alt }
-                alt <= b - ELEVATION_HYSTERESIS_M -> base = alt
+        var trough = Double.NaN
+        var peak = Double.NaN
+        var climbing = false
+        for (alt in Altitude.smoothPoints(points)) {
+            if (alt == null) continue
+            if (trough.isNaN()) { trough = alt; peak = alt; continue }
+            if (climbing) {
+                if (alt > peak) { gain += alt - peak; peak = alt }
+                else if (alt < peak - ELEVATION_HYSTERESIS_M) { climbing = false; trough = alt }
+            } else {
+                if (alt < trough) trough = alt
+                else if (alt > trough + ELEVATION_HYSTERESIS_M) { climbing = true; gain += alt - trough; peak = alt }
             }
         }
         return gain
