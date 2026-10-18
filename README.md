@@ -6,7 +6,7 @@ Kalorienberechnung, Streckenaufzeichnung, Health Connect, Live-Standort und KI-T
 
 Die geplante Vorgehensweise steht in [KONZEPT.md](KONZEPT.md).
 
-## Stand: 0.0.8-alpha.1 (neue Bedienung)
+## Stand: 0.0.9-alpha.1
 
 | Bereich | Stand |
 |---|---|
