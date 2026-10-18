@@ -48,6 +48,25 @@ object OsmMath {
     }
 
     /**
+     * Wie [fit], aber die Strecke soll in den Bildbereich [left]..[right] x [top]..[bottom]
+     * eines [width] x [height] grossen Kartenbildes passen - z. B. zwischen zwei Info-Kaesten.
+     */
+    fun fitIn(
+        points: List<TrackPoint>, width: Double, height: Double,
+        left: Double, top: Double, right: Double, bottom: Double, scale: Double,
+    ): MapWindow {
+        val inner = fit(points, right - left, bottom - top, scale, 0.0)
+        val xs = points.map { worldX(it.lon, inner.zoom) }
+        val ys = points.map { worldY(it.lat, inner.zoom) }
+        val cx = (xs.min() + xs.max()) / 2
+        val cy = (ys.min() + ys.max()) / 2
+        // Mitte der Strecke auf die Mitte des Zielbereichs legen.
+        val originX = cx - (left + right) / 2 / scale
+        val originY = cy - (top + bottom) / 2 / scale
+        return MapWindow(inner.zoom, originX, originY, width / scale, height / scale)
+    }
+
+    /**
      * Groesste Zoomstufe, bei der die Strecke - mit [scale] vergroessert - in [width] x
      * [height] Bildpixel passt, und der Ausschnitt dazu, mittig auf die Strecke gelegt.
      */

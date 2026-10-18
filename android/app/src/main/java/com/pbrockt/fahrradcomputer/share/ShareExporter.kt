@@ -37,7 +37,7 @@ object ShareExporter {
         val w = 1080
         val h = 1350
         val renderer = ShareRenderer(content, w, h)
-        val map = if (withMap) OsmTiles.background(context, content.points, renderer.mapWidth, renderer.mapHeight, renderer.mapPadding) else null
+        val map = if (withMap) OsmTiles.background(context, content.points, w, h, renderer.posterRouteArea) else null
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         renderer.draw(Canvas(bmp), null, map)
         map?.bitmap?.recycle()

@@ -27,11 +27,11 @@ enum class RidePhase { IDLE, RECORDING, PAUSED }
 
 enum class GpsStatus { OFF, SEARCHING, OK }
 
-/**
- * Ergebnis einer beendeten Fahrt fuer die Zusammenfassung. [healthNote] sagt, ob die Fahrt
- * an Health Connect ging (oder warum nicht); null = nicht versucht.
- */
-data class FinishedRide(val file: File?, val stats: RideStats, val healthNote: String? = null)
+/** Ergebnis einer beendeten Fahrt fuer die Zusammenfassung; [file] null = nichts gespeichert. */
+data class FinishedRide(val file: File?, val stats: RideStats) {
+    /** Id der gespeicherten Fahrt (Dateiname ohne Endung). */
+    val id: String? get() = file?.nameWithoutExtension
+}
 
 /**
  * Die laufende Fahrt. Lebt in der Application, damit Dashboard und [RideService] auf
@@ -59,6 +59,10 @@ class RideSession(
 
     private val _finished = MutableStateFlow<FinishedRide?>(null)
     val finished: StateFlow<FinishedRide?> = _finished.asStateFlow()
+
+    /** Fahrtrichtung in Grad (0 = Nord); null, solange man steht. Fuer "Fahrtrichtung oben". */
+    private val _heading = MutableStateFlow<Float?>(null)
+    val heading: StateFlow<Float?> = _heading.asStateFlow()
 
     /** Letzter angenommener GPS-Punkt - fuer Kartenposition und Live-SMS. */
     private val _lastPoint = MutableStateFlow<TrackPoint?>(null)
@@ -136,11 +140,10 @@ class RideSession(
             val saved = if (points.isEmpty()) null else target?.also { save(it, points) }
             target?.let { partFile(it).delete() }
             // Die Kennzahlen gleich mit ablegen - die Fahrtenliste liest nur diese.
-            val note = if (saved != null && points.size >= 2) {
-                val summary = RideSummaries.build(saved.nameWithoutExtension, points, stats, settings().zones)
-                repository.onRideFinished(summary, points)
-            } else null
-            _finished.value = FinishedRide(saved, stats, note)
+            if (saved != null && points.size >= 2) {
+                repository.onRideFinished(RideSummaries.build(saved.nameWithoutExtension, points, stats, settings().zones))
+            }
+            _finished.value = FinishedRide(saved, stats)
         }
     }
 
@@ -160,6 +163,8 @@ class RideSession(
         val last = points.lastOrNull()
         if (last != null && last !== _lastPoint.value) {
             _lastPoint.value = last
+            // Beim Stehen die letzte Richtung behalten - sonst springt die Karte an der Ampel auf Nord.
+            Heading.of(points.takeLast(60))?.let { _heading.value = it }
             routeTracker?.let { tracker ->
                 val p = tracker.update(last.lat, last.lon)
                 _progress.value = p

@@ -30,9 +30,14 @@ object OsmTiles {
     private const val SCALE = 2.0
     private const val CACHE_DAYS = 14L
 
-    suspend fun background(context: Context, points: List<TrackPoint>, width: Int, height: Int, padding: Float): MapBackground =
+    /**
+     * Kartenbild [width] x [height]; die Strecke liegt mittig im Bereich [routeArea]
+     * (links, oben, rechts, unten in Bildpixeln).
+     */
+    suspend fun background(context: Context, points: List<TrackPoint>, width: Int, height: Int, routeArea: FloatArray): MapBackground =
         withContext(Dispatchers.IO) {
-            val window = OsmMath.fit(points, width.toDouble(), height.toDouble(), SCALE, padding.toDouble())
+            val (l, t, r, b) = routeArea.map { it.toDouble() }
+            val window = OsmMath.fitIn(points, width.toDouble(), height.toDouble(), l, t, r, b, SCALE)
             val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bmp)
             canvas.drawColor(Color.parseColor("#E5E3DF")) // OSM-Hintergrundgrau, falls eine Kachel fehlt

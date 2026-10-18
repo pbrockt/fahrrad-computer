@@ -58,4 +58,19 @@ class OsmMathTest {
         // x: 1000.5..1540.5 -> Kacheln 3..6, y: 2000.5..2400.5 -> 7..9
         assertEquals((7..9).flatMap { y -> (3..6).map { x -> x to y } }, t)
     }
+
+    @Test
+    fun fitInPlacesRouteBetweenInfoBoxes() {
+        // Poster 1080 x 1350, Strecke zwischen Kopf-Kasten (bis 290) und unterem Kasten (ab 830)
+        val area = doubleArrayOf(84.0, 290.0, 996.0, 830.0)
+        val win = OsmMath.fitIn(ride, 1080.0, 1350.0, area[0], area[1], area[2], area[3], 2.0)
+        val p = ProjectedRoute.onMap(ride, win, 2f, 0f, 0f)
+        assertTrue(p.xs.min() >= area[0] - 1 && p.xs.max() <= area[2] + 1)
+        assertTrue(p.ys.min() >= area[1] - 1 && p.ys.max() <= area[3] + 1)
+        assertEquals(((area[0] + area[2]) / 2).toFloat(), (p.xs.min() + p.xs.max()) / 2, 1f)
+        assertEquals(((area[1] + area[3]) / 2).toFloat(), (p.ys.min() + p.ys.max()) / 2, 1f)
+        // Das Kartenbild deckt das ganze Poster ab
+        assertEquals(540.0, win.width, 1e-9)
+        assertEquals(675.0, win.height, 1e-9)
+    }
 }

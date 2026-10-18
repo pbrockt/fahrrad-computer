@@ -154,10 +154,6 @@ fun SettingsScreen(vm: MainViewModel, onConnectHealth: () -> Unit, onEnableSms: 
                     Text(if (n == 0) "Mit Health Connect verbinden" else "Berechtigungen ändern")
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Fahrten automatisch übertragen", Modifier.weight(1f))
-                    Switch(checked = s.healthAutoSync, onCheckedChange = vm::setHealthAutoSync)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Gewicht beim Start übernehmen", Modifier.weight(1f))
                     Switch(checked = s.healthWeightSync, onCheckedChange = vm::setHealthWeightSync)
                 }
@@ -165,7 +161,8 @@ fun SettingsScreen(vm: MainViewModel, onConnectHealth: () -> Unit, onEnableSms: 
                     Text("Gewicht jetzt übernehmen")
                 }
                 Text(
-                    "Übertragen werden je Fahrt: Trainingseinheit Radfahren mit Strecke, Puls, " +
+                    "Übertragen wird nur per Knopf – nach der Fahrt oder in der Fahrt-Ansicht: " +
+                        "Trainingseinheit Radfahren mit Strecke, Puls, " +
                         "Geschwindigkeit, Trittfrequenz, Leistung, Distanz, Höhenmeter und Kalorien. " +
                         "Gelesen wird nur das Gewicht. Nichts davon verlässt das Handy.",
                     color = AppColors.Dim,

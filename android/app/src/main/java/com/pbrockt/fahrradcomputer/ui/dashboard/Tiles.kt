@@ -35,7 +35,19 @@ import com.pbrockt.fahrradcomputer.routes.TurnAnnouncer
 import com.pbrockt.fahrradcomputer.ui.TurnArrow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -73,6 +85,10 @@ class TileData(
     /** Geplante Einheit fuer heute aus dem Trainingsplan. */
     val todaySession: PlannedSession? = null,
     val controls: RideControls? = null,
+    /** Karte: Fahrtrichtung in Grad, Ausrichtung und Umschalter. */
+    val heading: Float? = null,
+    val mapHeadingUp: Boolean = false,
+    val onToggleMapOrientation: () -> Unit = {},
     val offlineMaps: List<File> = emptyList(),
     val mapOnline: Boolean = false,
     /** Im Bearbeiten-Modus keine echte Karte - sie wuerde die Fingertipps abfangen. */
@@ -221,6 +237,8 @@ fun ValueTile(
 /** Karte mit Route, gefahrener Strecke und Position; folgt der Position. */
 @Composable
 private fun MapTile(d: TileData, modifier: Modifier, mapId: String) {
+    // Folgt der Position, bis man die Karte verschiebt; der Knopf holt sie zurueck.
+    var following by remember { mutableStateOf(true) }
     Box(modifier.clip(RoundedCornerShape(10.dp))) {
         BikeMap(
             offlineMaps = d.offlineMaps,
@@ -230,8 +248,28 @@ private fun MapTile(d: TileData, modifier: Modifier, mapId: String) {
             route = d.activeRoute?.points,
             track = d.route,
             position = d.lastPoint,
-            follow = true,
+            follow = following,
+            headingUp = if (d.mapHeadingUp) d.heading else null,
+            onUserPan = { following = false },
         )
+        FilledIconButton(
+            onClick = { if (!following) following = true else d.onToggleMapOrientation() },
+            modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(40.dp),
+            colors = IconButtonDefaults.filledIconButtonColors(containerColor = AppColors.Panel, contentColor = AppColors.Text),
+        ) {
+            Icon(
+                when {
+                    !following -> Icons.Filled.MyLocation
+                    d.mapHeadingUp -> Icons.Filled.Navigation
+                    else -> Icons.Filled.Explore
+                },
+                contentDescription = when {
+                    !following -> "Zur eigenen Position"
+                    d.mapHeadingUp -> "Fahrtrichtung oben – tippen für Norden oben"
+                    else -> "Norden oben – tippen für Fahrtrichtung"
+                },
+            )
+        }
         val p = d.progress
         if (p != null) {
             Text(

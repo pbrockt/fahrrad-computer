@@ -40,7 +40,11 @@ import com.pbrockt.fahrradcomputer.MainViewModel
 import com.pbrockt.fahrradcomputer.recording.RideSummary
 import com.pbrockt.fahrradcomputer.recording.TrackPoint
 import com.pbrockt.fahrradcomputer.recording.Altitude
+import com.pbrockt.fahrradcomputer.recording.TrackColoring
 import com.pbrockt.fahrradcomputer.recording.TrackSeries
+import androidx.compose.material3.FilterChip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import com.pbrockt.fahrradcomputer.ui.map.BikeMap
 import com.pbrockt.fahrradcomputer.ui.map.mapAvailable
 import java.util.Locale
@@ -54,6 +58,7 @@ fun RideDetailScreen(vm: MainViewModel, ride: RideSummary, onBack: () -> Unit) {
     var track by remember(ride.id) { mutableStateOf<List<TrackPoint>?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
     var sharing by remember { mutableStateOf(false) }
+    var colorMode by remember { mutableStateOf(ColorMode.PLAIN) }
 
     LaunchedEffect(ride.id) { track = vm.loadTrack(ride.id) }
     val series = remember(track) { track?.let { TrackSeries.from(it) } }
@@ -68,9 +73,26 @@ fun RideDetailScreen(vm: MainViewModel, ride: RideSummary, onBack: () -> Unit) {
         StatGrid(ride)
 
         track?.takeIf { it.size >= 2 }?.let { t ->
-            val box = Modifier.fillMaxWidth().padding(top = 10.dp).aspectRatio(1.2f).clip(RoundedCornerShape(10.dp))
+            val hasHr = remember(t) { t.any { it.heartRate != null } }
             if (mapAvailable(maps, settings.mapOnline)) {
-                BikeMap(maps, settings.mapOnline, "fahrt", box, track = t, controls = true)
+                Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ColorMode.entries.filter { it != ColorMode.HEART_RATE || hasHr }.forEach { m ->
+                        FilterChip(selected = colorMode == m, onClick = { colorMode = m }, label = { Text(m.label) })
+                    }
+                }
+            }
+            val zoneColors = AppColors.Zones.map { it.toArgb() }
+            val colors = remember(t, colorMode, zones) {
+                when (colorMode) {
+                    ColorMode.PLAIN -> null
+                    ColorMode.SPEED -> TrackColoring.bySpeed(t).map { it to SPEED_COLORS[it.level] }
+                    ColorMode.HEART_RATE -> TrackColoring.byHeartRate(t, zones).map { it to zoneColors[it.level] }
+                }
+            }
+            val box = Modifier.fillMaxWidth().padding(top = 6.dp).aspectRatio(1.2f).clip(RoundedCornerShape(10.dp))
+            if (mapAvailable(maps, settings.mapOnline)) {
+                BikeMap(maps, settings.mapOnline, "fahrt", box, track = t, trackColors = colors, controls = true)
+                Legend(colorMode, t)
             } else {
                 Box(box.background(AppColors.Panel).padding(12.dp)) { RouteSketch(t, Modifier.fillMaxSize()) }
             }
@@ -128,6 +150,31 @@ fun RideDetailScreen(vm: MainViewModel, ride: RideSummary, onBack: () -> Unit) {
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Abbrechen") } },
         )
+    }
+}
+
+private enum class ColorMode(val label: String) { PLAIN("Strecke"), SPEED("Tempo"), HEART_RATE("Puls") }
+
+/** Tempo-Farben von langsam (blau) nach schnell (rot). */
+private val SPEED_COLORS = listOf(0xFF3FA7D6, 0xFF46B97A, 0xFFE8C547, 0xFFF0973A, 0xFFE5484D).map { it.toInt() }
+
+@Composable
+private fun Legend(mode: ColorMode, track: List<TrackPoint>) {
+    when (mode) {
+        ColorMode.PLAIN -> Unit
+        ColorMode.SPEED -> {
+            val range = remember(track) { TrackColoring.speedRange(track) } ?: return
+            Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("${formatDecimal(range.first, 0)} km/h", color = AppColors.Dim, fontSize = 12.sp)
+                Row(Modifier.weight(1f).padding(horizontal = 8.dp).height(10.dp).clip(RoundedCornerShape(5.dp))) {
+                    SPEED_COLORS.forEach { c -> Box(Modifier.weight(1f).fillMaxHeight().background(Color(c))) }
+                }
+                Text("${formatDecimal(range.second, 0)} km/h", color = AppColors.Dim, fontSize = 12.sp)
+            }
+        }
+        ColorMode.HEART_RATE -> Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            AppColors.Zones.forEachIndexed { i, c -> Text("■ Z${i + 1}", color = c, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+        }
     }
 }
 

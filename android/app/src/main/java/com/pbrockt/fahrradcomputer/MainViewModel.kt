@@ -201,6 +201,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setNavVibrate(value: Boolean) = viewModelScope.launch { store.setNavVibrate(value) }
     fun setNavSound(value: Boolean) = viewModelScope.launch { store.setNavSound(value) }
     val guidance = ride.guidance
+    val heading = ride.heading
+    fun toggleMapOrientation() = viewModelScope.launch { store.setMapHeadingUp(!settings.value.mapHeadingUp) }
     val turns = ride.turns
 
     // --- Bedienung ---
@@ -299,7 +301,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun setHealthAutoSync(value: Boolean) = viewModelScope.launch { store.setHealthAutoSync(value) }
     fun setHealthWeightSync(value: Boolean) = viewModelScope.launch { store.setHealthWeightSync(value) }
 
     // --- Sensoren ---

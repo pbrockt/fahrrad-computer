@@ -85,6 +85,8 @@ fun DashboardScreen(
     val guidance by vm.guidance.collectAsStateWithLifecycle()
     val plan by vm.plan.collectAsStateWithLifecycle()
     val offlineMaps by vm.offlineMaps.collectAsStateWithLifecycle()
+    val heading by vm.heading.collectAsStateWithLifecycle()
+    val health by vm.healthState.collectAsStateWithLifecycle()
 
     // Display anlassen, solange der Fahrt-Bildschirm zu sehen ist.
     val view = LocalView.current
@@ -128,6 +130,9 @@ fun DashboardScreen(
         offlineMaps = offlineMaps,
         mapOnline = settings.mapOnline,
         controls = controls,
+        heading = heading,
+        mapHeadingUp = settings.mapHeadingUp,
+        onToggleMapOrientation = vm::toggleMapOrientation,
     )
 
     Column(Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
@@ -228,11 +233,17 @@ fun DashboardScreen(
                         s.avgPower?.let { appendLine("Ø Leistung $it W · max ${s.maxPower} W") }
                         if (s.calories > 0) appendLine("Kalorien: ${"%.0f".format(s.calories)} kcal (${s.calorieSource.label})")
                         if (f.file == null) append("Kein GPS-Signal - es wurde keine Datei gespeichert.")
-                        f.healthNote?.let { append("\n$it") }
                     }
                 )
             },
             confirmButton = { TextButton(onClick = vm::dismissFinished) { Text("OK") } },
+            // Nach Health Connect nur auf Wunsch - hier direkt, ohne die Fahrt erst zu suchen.
+            dismissButton = {
+                val id = f.id
+                if (id != null && health.connected) {
+                    TextButton(onClick = { vm.syncRide(id); vm.dismissFinished() }) { Text("An Health Connect") }
+                }
+            },
         )
     }
 }

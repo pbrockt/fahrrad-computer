@@ -39,8 +39,6 @@ data class AppSettings(
      */
     val updateToken: String = "",
     val themeMode: ThemeMode = ThemeMode.DARK,
-    /** Fahrten nach dem Stopp automatisch an Health Connect senden. */
-    val healthAutoSync: Boolean = true,
     /** Beim Start das neueste Gewicht aus Health Connect uebernehmen. */
     val healthWeightSync: Boolean = true,
     /** Live-Standort per SMS waehrend der Fahrt. */
@@ -61,6 +59,8 @@ data class AppSettings(
     /** Abbiegehinweise per Vibration bzw. Ton ankuendigen. */
     val navVibrate: Boolean = true,
     val navSound: Boolean = false,
+    /** Tacho-Karte in Fahrtrichtung drehen statt Norden oben. */
+    val mapHeadingUp: Boolean = false,
     /** Trainingsplan: Ziel, Wochentage, freie Hinweise (z. B. Beschwerden). */
     val coachGoal: String = "",
     val coachDays: Set<DayOfWeek> = setOf(DayOfWeek.TUESDAY, DayOfWeek.THURSDAY, DayOfWeek.SATURDAY),
@@ -104,7 +104,6 @@ class SettingsStore(private val context: Context) {
         val AUTO_UPDATE_CHECK = booleanPreferencesKey("auto_update_check")
         val UPDATE_TOKEN = stringPreferencesKey("update_token")
         val THEME = stringPreferencesKey("theme")
-        val HEALTH_AUTO_SYNC = booleanPreferencesKey("health_auto_sync")
         val HEALTH_WEIGHT_SYNC = booleanPreferencesKey("health_weight_sync")
         val LIVE_SMS = booleanPreferencesKey("live_sms")
         val LIVE_SMS_NUMBERS = stringPreferencesKey("live_sms_numbers")
@@ -116,6 +115,7 @@ class SettingsStore(private val context: Context) {
         val MAP_ONLINE = booleanPreferencesKey("map_online")
         val NAV_VIBRATE = booleanPreferencesKey("nav_vibrate")
         val NAV_SOUND = booleanPreferencesKey("nav_sound")
+        val MAP_HEADING_UP = booleanPreferencesKey("map_heading_up")
         val COACH_GOAL = stringPreferencesKey("coach_goal")
         val COACH_DAYS = stringPreferencesKey("coach_days")
         val COACH_NOTES = stringPreferencesKey("coach_notes")
@@ -138,7 +138,6 @@ class SettingsStore(private val context: Context) {
                 ?: UpdateChannel.RELEASE,
             autoUpdateCheck = p[Keys.AUTO_UPDATE_CHECK] ?: true,
             updateToken = p[Keys.UPDATE_TOKEN] ?: "",
-            healthAutoSync = p[Keys.HEALTH_AUTO_SYNC] ?: true,
             healthWeightSync = p[Keys.HEALTH_WEIGHT_SYNC] ?: true,
             liveSmsEnabled = p[Keys.LIVE_SMS] ?: false,
             liveSmsNumbers = p[Keys.LIVE_SMS_NUMBERS] ?: "",
@@ -150,6 +149,7 @@ class SettingsStore(private val context: Context) {
             mapOnline = p[Keys.MAP_ONLINE] ?: true,
             navVibrate = p[Keys.NAV_VIBRATE] ?: true,
             navSound = p[Keys.NAV_SOUND] ?: false,
+            mapHeadingUp = p[Keys.MAP_HEADING_UP] ?: false,
             coachGoal = p[Keys.COACH_GOAL] ?: "",
             coachDays = p[Keys.COACH_DAYS]
                 ?.split(',')?.mapNotNull { n -> runCatching { DayOfWeek.valueOf(n) }.getOrNull() }?.toSet()
@@ -193,7 +193,6 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setThemeMode(value: ThemeMode) = set(Keys.THEME, value.name)
 
-    suspend fun setHealthAutoSync(value: Boolean) = set(Keys.HEALTH_AUTO_SYNC, value)
 
     suspend fun setHealthWeightSync(value: Boolean) = set(Keys.HEALTH_WEIGHT_SYNC, value)
 
@@ -206,6 +205,7 @@ class SettingsStore(private val context: Context) {
     suspend fun setMapOnline(value: Boolean) = set(Keys.MAP_ONLINE, value)
     suspend fun setNavVibrate(value: Boolean) = set(Keys.NAV_VIBRATE, value)
     suspend fun setNavSound(value: Boolean) = set(Keys.NAV_SOUND, value)
+    suspend fun setMapHeadingUp(value: Boolean) = set(Keys.MAP_HEADING_UP, value)
     suspend fun setEditHoldMs(value: Int) = set(Keys.EDIT_HOLD_MS, value.coerceIn(300, 5000))
     suspend fun setBellOnDoubleTap(value: Boolean) = set(Keys.BELL, value)
     suspend fun setCoachGoal(value: String) = set(Keys.COACH_GOAL, value.take(300))

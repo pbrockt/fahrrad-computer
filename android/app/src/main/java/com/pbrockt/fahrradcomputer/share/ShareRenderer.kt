@@ -54,13 +54,14 @@ class ShareRenderer(private val content: ShareContent, private val w: Int, priva
     private var route = fitted
     private val fullPath = pathUpTo(route.size - 1, null)
 
-    /** Bereich fuer den Kartenhintergrund: volle Breite zwischen Kopf und Hoehenprofil. */
-    val mapTop = 205 * s
-    val mapBottom = profileTop - 45 * s
-    val mapWidth: Int get() = w
-    val mapHeight: Int get() = (mapBottom - mapTop).toInt()
-    /** Wieviel Rand die Strecke zum Kartenrand haben soll. */
-    val mapPadding = 70 * s
+    // --- Poster mit Karte: Karte ueber das ganze Bild, Infos als Kaesten darueber ---
+    private val topCardBottom = pad + 160 * s
+    private val bottomCardHeight = (if (hasAltitude) 380 else 290) * s
+    private val bottomCardTop = h - pad - bottomCardHeight
+
+    /** Bildbereich, in den die Strecke auf dem Poster passen soll: zwischen den Kaesten. */
+    val posterRouteArea: FloatArray
+        get() = floatArrayOf(pad + 20 * s, topCardBottom + 60 * s, w - pad - 20 * s, bottomCardTop - 80 * s)
 
     private val accent = Color.parseColor("#3FA7D6")
     private val bgPaint = Paint().apply {
@@ -93,33 +94,20 @@ class ShareRenderer(private val content: ShareContent, private val w: Int, priva
      * Mit [map] liegt die Strecke auf der OSM-Karte statt auf dunklem Grund.
      */
     fun draw(canvas: Canvas, progress: Float?, map: MapBackground? = null) {
+        if (map != null) {
+            drawPoster(canvas, map)
+            return
+        }
         val p = progress ?: 1f
         canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), bgPaint)
-        route = if (map != null) ProjectedRoute.onMap(drawPoints, map.window, map.scale, 0f, mapTop) else fitted
-        if (map != null && route.size >= 2) {
-            canvas.drawBitmap(map.bitmap, 0f, mapTop, Paint(Paint.FILTER_BITMAP_FLAG))
-            val path = pathUpTo(route.size - 1, null)
-            canvas.drawPath(path, casing)
-            canvas.drawPath(path, onMapLine)
-            fill.color = Color.parseColor("#46B97A")
-            canvas.drawCircle(route.xs[0], route.ys[0], 13 * s, fill)
-            fill.color = Color.parseColor("#E5484D")
-            canvas.drawCircle(route.xs.last(), route.ys.last(), 13 * s, fill)
-            // Pflichtangabe der OSM-Lizenz, gut lesbar auf hellem Kasten.
-            val attr = "© OpenStreetMap-Mitwirkende"
-            val tp = text(24f, Color.parseColor("#333333"))
-            val tw = tp.measureText(attr)
-            fill.color = Color.argb(200, 255, 255, 255)
-            canvas.drawRect(w - tw - 24 * s, mapBottom - 40 * s, w.toFloat(), mapBottom, fill)
-            canvas.drawText(attr, w - tw - 12 * s, mapBottom - 12 * s, tp)
-        }
+        route = fitted
 
         // Kopf
         canvas.drawText("Radfahrt", pad, 120 * s, text(66f, white, bold = true))
         canvas.drawText(rideTitle(content.summary), pad, 175 * s, text(34f, dim))
 
-        // Strecke (ohne Karte)
-        if (map == null && route.size >= 2) {
+        // Strecke
+        if (route.size >= 2) {
             if (progress != null) canvas.drawPath(fullPath, ghost)
             val (idx, x, y) = route.positionAt(p)
             val traveled = if (progress == null) fullPath else pathUpTo(idx, x to y)
@@ -134,7 +122,7 @@ class ShareRenderer(private val content: ShareContent, private val w: Int, priva
         }
 
         // Hoehenprofil
-        if (hasAltitude) drawProfile(canvas, p)
+        if (hasAltitude) drawProfile(canvas, p, pad, profileTop, w - 2 * pad, 110 * s, labelColor = dim)
 
         // Kennzahlen - im Video zaehlen Distanz und Zeit mit.
         val r = content.summary
@@ -164,7 +152,86 @@ class ShareRenderer(private val content: ShareContent, private val w: Int, priva
         canvas.drawText(brand, w - pad - foot.measureText(brand), h - 40 * s, foot)
     }
 
-    private fun drawProfile(canvas: Canvas, progress: Float) {
+    /**
+     * Poster: die OSM-Karte ueber das ganze Bild, die Strecke kraeftig darauf, oben ein
+     * Kasten mit Titel und Distanz, unten ein Kasten mit Hoehenprofil und Kennzahlen.
+     */
+    private fun drawPoster(canvas: Canvas, map: MapBackground) {
+        canvas.drawBitmap(map.bitmap, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
+        // Leichte Verlaeufe oben und unten, damit die Kaesten weich in die Karte uebergehen.
+        val shade = Paint()
+        shade.shader = LinearGradient(0f, 0f, 0f, 380 * s, Color.argb(120, 0, 0, 0), Color.TRANSPARENT, Shader.TileMode.CLAMP)
+        canvas.drawRect(0f, 0f, w.toFloat(), 380 * s, shade)
+        shade.shader = LinearGradient(0f, bottomCardTop - 200 * s, 0f, h.toFloat(), Color.TRANSPARENT, Color.argb(140, 0, 0, 0), Shader.TileMode.CLAMP)
+        canvas.drawRect(0f, bottomCardTop - 200 * s, w.toFloat(), h.toFloat(), shade)
+
+        route = ProjectedRoute.onMap(drawPoints, map.window, map.scale, 0f, 0f)
+        if (route.size >= 2) {
+            val path = pathUpTo(route.size - 1, null)
+            canvas.drawPath(path, casing)
+            canvas.drawPath(path, onMapLine)
+            fill.color = Color.WHITE
+            canvas.drawCircle(route.xs[0], route.ys[0], 16 * s, fill)
+            canvas.drawCircle(route.xs.last(), route.ys.last(), 16 * s, fill)
+            fill.color = Color.parseColor("#46B97A")
+            canvas.drawCircle(route.xs[0], route.ys[0], 11 * s, fill)
+            fill.color = Color.parseColor("#E5484D")
+            canvas.drawCircle(route.xs.last(), route.ys.last(), 11 * s, fill)
+        }
+
+        val card = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(215, 11, 15, 20) }
+        val radius = 28 * s
+        val r = content.summary
+
+        // Kopf-Kasten: Titel, Datum, Distanz gross rechts
+        canvas.drawRoundRect(pad, pad, w - pad, topCardBottom, radius, radius, card)
+        canvas.drawText("Radfahrt", pad + 36 * s, pad + 78 * s, text(58f, white, bold = true))
+        canvas.drawText(rideTitle(r), pad + 36 * s, pad + 128 * s, text(30f, dim))
+        val dist = "${formatDecimal(r.distanceM / 1000, 1)} km"
+        val distPaint = text(64f, Color.parseColor("#3FA7D6"), bold = true)
+        canvas.drawText(dist, w - pad - 36 * s - distPaint.measureText(dist), pad + 100 * s, distPaint)
+
+        // Lizenzhinweis direkt ueber dem unteren Kasten
+        val attr = "© OpenStreetMap-Mitwirkende"
+        val tp = text(22f, Color.parseColor("#333333"))
+        val tw = tp.measureText(attr)
+        fill.color = Color.argb(210, 255, 255, 255)
+        canvas.drawRoundRect(w - pad - tw - 20 * s, bottomCardTop - 50 * s, w - pad, bottomCardTop - 14 * s, 8 * s, 8 * s, fill)
+        canvas.drawText(attr, w - pad - tw - 10 * s, bottomCardTop - 24 * s, tp)
+
+        // Unterer Kasten: Hoehenprofil und Kennzahlen
+        canvas.drawRoundRect(pad, bottomCardTop, w - pad, h - pad, radius, radius, card)
+        var y = bottomCardTop + 30 * s
+        if (hasAltitude) {
+            drawProfile(canvas, 1f, pad + 36 * s, y + 30 * s, w - 2 * pad - 72 * s, 70 * s, labelColor = dim)
+            y += 120 * s
+        }
+        val stats = listOf(
+            "Fahrzeit" to formatDuration(r.movingTimeMs),
+            "Ø Tempo" to "${formatDecimal(r.avgSpeedKmh)} km/h",
+            "Höhenmeter" to "${String.format(Locale.GERMANY, "%.0f", r.elevationGainM)} m",
+            (r.avgHr?.let { "Ø Puls" to "$it bpm" } ?: ("Max. Tempo" to "${formatDecimal(r.maxSpeedKmh)} km/h")),
+            (if (r.calories > 0) "Kalorien" to "${String.format(Locale.GERMANY, "%.0f", r.calories)} kcal" else "Ø Trittfrequenz" to (r.avgCadence?.let { "$it U/min" } ?: "–")),
+            "Max. Tempo" to "${formatDecimal(r.maxSpeedKmh)} km/h",
+        ).distinct()
+        val colW = (w - 2 * pad - 72 * s) / 3
+        stats.take(6).forEachIndexed { i, (label, value) ->
+            val x = pad + 36 * s + (i % 3) * colW
+            val rowY = y + (i / 3) * 100 * s
+            canvas.drawText(label, x, rowY + 30 * s, text(26f, dim))
+            canvas.drawText(value, x, rowY + 76 * s, text(42f, white, bold = true))
+        }
+        val foot = text(22f, dim)
+        if (content.trimmedM > 0) {
+            canvas.drawText("Start und Ende (je ${content.trimmedM} m) ausgeblendet", pad + 36 * s, h - pad - 22 * s, foot)
+        }
+        val brand = "Fahrrad-Computer"
+        canvas.drawText(brand, w - pad - 36 * s - foot.measureText(brand), h - pad - 22 * s, foot)
+    }
+
+    private fun drawProfile(
+        canvas: Canvas, progress: Float, left: Float, top: Float, width: Float, height: Float, labelColor: Int,
+    ) {
         val alts = smoothAltitudes
         val present = alts.filterNotNull()
         val realLo = present.min()
@@ -172,10 +239,6 @@ class ShareRenderer(private val content: ShareContent, private val w: Int, priva
         // Mindestens 60 m Spanne zeigen - sonst wirkt eine flache Fahrt wie ein Gebirge.
         val (lo, hi) = Altitude.displayRange(realLo, realHi)
         val range = hi - lo
-        val top = profileTop
-        val height = 110 * s
-        val left = pad
-        val width = w - 2 * pad
         fun xAt(i: Int) = left + route.fraction[i] * width
         fun yAt(a: Double) = top + height - ((a - lo) / range * height).toFloat()
 
@@ -198,7 +261,7 @@ class ShareRenderer(private val content: ShareContent, private val w: Int, priva
         fill.color = Color.argb(150, 63, 167, 214)
         canvas.drawPath(area, fill)
         canvas.restore()
-        canvas.drawText("Höhe ${String.format(Locale.GERMANY, "%.0f–%.0f", realLo, realHi)} m", left, top - 10 * s, text(26f, dim))
+        canvas.drawText("Höhe ${String.format(Locale.GERMANY, "%.0f–%.0f", realLo, realHi)} m", left, top - 10 * s, text(24f, labelColor))
     }
 
     /** Linie vom Start bis Punkt [index], optional mit Zwischenstueck bis [tip]. */

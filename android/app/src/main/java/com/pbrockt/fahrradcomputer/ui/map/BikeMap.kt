@@ -17,6 +17,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.pbrockt.fahrradcomputer.BuildConfig
+import android.annotation.SuppressLint
+import android.view.MotionEvent
+import com.pbrockt.fahrradcomputer.recording.ColorRun
 import com.pbrockt.fahrradcomputer.recording.TrackPoint
 import com.pbrockt.fahrradcomputer.routes.RoutePoint
 import org.mapsforge.core.graphics.Cap
@@ -25,6 +28,7 @@ import org.mapsforge.core.graphics.Style
 import org.mapsforge.core.model.BoundingBox
 import org.mapsforge.core.model.LatLong
 import org.mapsforge.core.model.MapPosition
+import org.mapsforge.core.model.Rotation
 import org.mapsforge.core.util.LatLongUtils
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory
 import org.mapsforge.map.android.util.AndroidUtil
@@ -59,8 +63,14 @@ fun BikeMap(
     modifier: Modifier = Modifier,
     route: List<RoutePoint>? = null,
     track: List<TrackPoint> = emptyList(),
+    /** Eingefaerbte Strecke (Tempo/Puls): Stuecke von [track] mit Farbe (ARGB). Ersetzt die blaue Linie. */
+    trackColors: List<Pair<ColorRun, Int>>? = null,
     position: TrackPoint? = null,
     follow: Boolean = false,
+    /** Fahrtrichtung in Grad, wenn die Karte in Fahrtrichtung gedreht werden soll; null = Norden oben. */
+    headingUp: Float? = null,
+    /** Wird gerufen, sobald der Nutzer die Karte verschiebt - dann soll sie nicht mehr folgen. */
+    onUserPan: (() -> Unit)? = null,
     controls: Boolean = false,
 ) {
     // Aendern sich die Kartendateien (Download fertig), wird die Karte neu aufgebaut.
@@ -71,7 +81,10 @@ fun BikeMap(
         Box(modifier) {
             AndroidView(
                 factory = { holder.mapView },
-                update = { holder.update(route, track, position, follow) },
+                update = {
+                    holder.onPan = onUserPan
+                    holder.update(route, track, trackColors, position, follow, headingUp)
+                },
             )
             // Pflichtangabe der OSM-Lizenz.
             Text(
@@ -85,6 +98,7 @@ fun BikeMap(
     }
 }
 
+@SuppressLint("ClickableViewAccessibility") // nur Beobachten, kein eigener Klick
 private class MapHolder(context: Context, maps: List<File>, cacheId: String, controls: Boolean) {
 
     val mapView = MapView(context).apply {
@@ -109,7 +123,12 @@ private class MapHolder(context: Context, maps: List<File>, cacheId: String, con
 
     private var lastRoute: List<RoutePoint>? = null
     private var lastTrack: List<TrackPoint>? = null
+    private var lastColors: List<Pair<ColorRun, Int>>? = null
+    private val colorLines = mutableListOf<Polyline>()
     private var fitted = false
+    private var rotation = 0f
+
+    var onPan: (() -> Unit)? = null
 
     init {
         val layers = mapView.layerManager.layers
@@ -134,17 +153,45 @@ private class MapHolder(context: Context, maps: List<File>, cacheId: String, con
         // Startansicht: Rheinland-Pfalz, bis Route oder Position bekannt sind.
         mapView.setCenter(LatLong(49.95, 7.3))
         mapView.setZoomLevel(8)
+        // Verschieben erkennen, ohne der Karte die Bewegung wegzunehmen (false = weiterreichen).
+        mapView.setOnTouchListener { _, e ->
+            if (e.actionMasked == MotionEvent.ACTION_MOVE) onPan?.invoke()
+            false
+        }
     }
 
-    fun update(route: List<RoutePoint>?, track: List<TrackPoint>, position: TrackPoint?, follow: Boolean) {
+    fun update(
+        route: List<RoutePoint>?,
+        track: List<TrackPoint>,
+        colors: List<Pair<ColorRun, Int>>?,
+        position: TrackPoint?,
+        follow: Boolean,
+        headingUp: Float?,
+    ) {
         if (route !== lastRoute) {
             lastRoute = route
             routeLine.setPoints(route?.map { LatLong(it.lat, it.lon) }.orEmpty())
             fitted = false
         }
-        if (track !== lastTrack) {
+        if (track !== lastTrack || colors !== lastColors) {
             lastTrack = track
-            trackLine.setPoints(track.map { LatLong(it.lat, it.lon) })
+            lastColors = colors
+            val layers = mapView.layerManager.layers
+            colorLines.forEach { layers.remove(it) }
+            colorLines.clear()
+            if (colors.isNullOrEmpty()) {
+                trackLine.setPoints(track.map { LatLong(it.lat, it.lon) })
+            } else {
+                trackLine.setPoints(emptyList())
+                // Farbige Stuecke unter die Positionsmarke legen.
+                val at = layers.indexOf(marker)
+                colors.forEach { (run, color) ->
+                    val line = Polyline(stroke(color, 9f), AndroidGraphicFactory.INSTANCE)
+                    line.setPoints((run.from..run.to.coerceAtMost(track.lastIndex)).map { LatLong(track[it].lat, track[it].lon) })
+                    layers.add(at.coerceAtLeast(0), line)
+                    colorLines += line
+                }
+            }
         }
         if (position != null) {
             val here = LatLong(position.lat, position.lon)
@@ -157,6 +204,12 @@ private class MapHolder(context: Context, maps: List<File>, cacheId: String, con
             }
         } else {
             marker.isVisible = false
+        }
+        // In Fahrtrichtung drehen (Karte gegen den Uhrzeigersinn um die Richtung), sonst Norden oben.
+        val wanted = if (follow && headingUp != null) -headingUp else 0f
+        if (kotlin.math.abs(wanted - rotation) > 2f && mapView.width > 0) {
+            rotation = wanted
+            mapView.rotate(Rotation(wanted, mapView.width / 2f, mapView.height / 2f))
         }
         if (!fitted) {
             val pts = route?.map { LatLong(it.lat, it.lon) } ?: track.map { LatLong(it.lat, it.lon) }
