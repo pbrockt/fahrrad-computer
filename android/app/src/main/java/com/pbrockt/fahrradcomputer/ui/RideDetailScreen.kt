@@ -1,7 +1,5 @@
 package com.pbrockt.fahrradcomputer.ui
 
-import android.content.Context
-import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,7 +35,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pbrockt.fahrradcomputer.MainViewModel
 import com.pbrockt.fahrradcomputer.recording.RideSummary
@@ -45,7 +42,6 @@ import com.pbrockt.fahrradcomputer.recording.TrackPoint
 import com.pbrockt.fahrradcomputer.recording.TrackSeries
 import com.pbrockt.fahrradcomputer.ui.map.BikeMap
 import com.pbrockt.fahrradcomputer.ui.map.mapAvailable
-import java.io.File
 import java.util.Locale
 
 @Composable
@@ -56,6 +52,7 @@ fun RideDetailScreen(vm: MainViewModel, ride: RideSummary, onBack: () -> Unit) {
     val maps by vm.offlineMaps.collectAsStateWithLifecycle()
     var track by remember(ride.id) { mutableStateOf<List<TrackPoint>?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var sharing by remember { mutableStateOf(false) }
 
     LaunchedEffect(ride.id) { track = vm.loadTrack(ride.id) }
     val series = remember(track) { track?.let { TrackSeries.from(it) } }
@@ -94,8 +91,8 @@ fun RideDetailScreen(vm: MainViewModel, ride: RideSummary, onBack: () -> Unit) {
         }
 
         Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { share(context, vm.gpxFile(ride.id)) }, modifier = Modifier.weight(1f)) {
-                Text("GPX teilen")
+            OutlinedButton(onClick = { sharing = true }, enabled = (track?.size ?: 0) >= 2, modifier = Modifier.weight(1f)) {
+                Text("Teilen")
             }
             OutlinedButton(
                 onClick = { vm.syncRide(ride.id) },
@@ -112,6 +109,10 @@ fun RideDetailScreen(vm: MainViewModel, ride: RideSummary, onBack: () -> Unit) {
                 color = AppColors.Dim, fontSize = 13.sp, modifier = Modifier.padding(bottom = 12.dp),
             )
         }
+    }
+
+    if (sharing) {
+        track?.let { ShareDialog(ride, it, onDismiss = { sharing = false }) }
     }
 
     if (confirmDelete) {
@@ -181,14 +182,4 @@ private fun ZoneBar(seconds: List<Long>) {
             }
         }
     }
-}
-
-private fun share(context: Context, file: File) {
-    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-    val send = Intent(Intent.ACTION_SEND).apply {
-        type = "application/gpx+xml"
-        putExtra(Intent.EXTRA_STREAM, uri)
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    }
-    context.startActivity(Intent.createChooser(send, "Fahrt teilen"))
 }

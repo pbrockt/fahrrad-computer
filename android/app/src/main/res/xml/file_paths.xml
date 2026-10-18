@@ -3,4 +3,6 @@
     <!-- Update-APK fuer den Installer und aufgezeichnete Fahrten zum Teilen. -->
     <cache-path name="updates" path="updates/" />
     <files-path name="fahrten" path="fahrten/" />
+    <!-- Bild, Video und gekuerzte GPX zum Teilen. -->
+    <cache-path name="teilen" path="teilen/" />
 </paths>
