@@ -1,6 +1,9 @@
 package com.pbrockt.fahrradcomputer
 
 import android.app.Application
+import android.content.Intent
+import androidx.core.content.ContextCompat
+import com.pbrockt.fahrradcomputer.trainer.TrainerService
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pbrockt.fahrradcomputer.data.AppSettings
@@ -125,6 +128,32 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun resumeRide() = ride.resume()
     fun stopRide() = ride.stop()
     fun dismissFinished() = ride.dismissFinished()
+
+    // --- Heimtrainer ---
+
+    val trainerStats = fahrradApp.trainer.stats
+    val broadcast = fahrradApp.broadcaster.state
+
+    fun startTrainer() {
+        val ctx = getApplication<Application>()
+        ContextCompat.startForegroundService(ctx, Intent(ctx, TrainerService::class.java))
+    }
+
+    fun stopTrainer() {
+        val ctx = getApplication<Application>()
+        ctx.stopService(Intent(ctx, TrainerService::class.java))
+    }
+
+    fun setTrainerLevel(value: Int) = viewModelScope.launch { store.setTrainerLevel(value) }
+    fun setTrainerFtp(value: Int) = viewModelScope.launch { store.setTrainerFtp(value) }
+    fun setTrainerCalibration(value: Int) = viewModelScope.launch { store.setTrainerCalibration(value) }
+    fun setRestHr(value: Int) = viewModelScope.launch { store.setRestHr(value) }
+
+    /** Vergisst das Gelernte, z. B. nach einem Wechsel des Heimtrainers. */
+    fun resetTrainerLearning() = viewModelScope.launch {
+        store.setTrainerGain(0.0)
+        _message.value = "Gelerntes zurückgesetzt."
+    }
 
     // --- Fahrten ---
 

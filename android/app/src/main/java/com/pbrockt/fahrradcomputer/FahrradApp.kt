@@ -8,6 +8,8 @@ import com.pbrockt.fahrradcomputer.coach.CoachStore
 import com.pbrockt.fahrradcomputer.health.HealthConnect
 import com.pbrockt.fahrradcomputer.maps.OfflineMaps
 import com.pbrockt.fahrradcomputer.routes.RouteStore
+import com.pbrockt.fahrradcomputer.trainer.PowerBroadcaster
+import com.pbrockt.fahrradcomputer.trainer.TrainerSession
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -52,6 +54,10 @@ class FahrradApp : Application() {
         private set
     lateinit var coach: CoachStore
         private set
+    lateinit var trainer: TrainerSession
+        private set
+    lateinit var broadcaster: PowerBroadcaster
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -67,6 +73,8 @@ class FahrradApp : Application() {
         routes = RouteStore(this)
         offlineMaps = OfflineMaps(this)
         coach = CoachStore(this)
+        trainer = TrainerSession { currentSettings.value }
+        broadcaster = PowerBroadcaster(this)
         scope.launch { coach.load() }
 
         scope.launch {
@@ -98,6 +106,12 @@ class FahrradApp : Application() {
                     }
             }
         }
+    }
+
+    /** Merkt sich, was der Heimtrainer ueber Trittfrequenz und Watt gelernt hat. */
+    fun saveTrainerGain() {
+        val gain = trainer.learnedGain
+        if (gain > 0) scope.launch { settings.setTrainerGain(gain) }
     }
 
     /**

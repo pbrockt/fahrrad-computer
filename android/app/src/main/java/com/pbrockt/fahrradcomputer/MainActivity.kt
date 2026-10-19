@@ -53,6 +53,7 @@ import com.pbrockt.fahrradcomputer.ui.MapsScreen
 import com.pbrockt.fahrradcomputer.ui.RidesScreen
 import com.pbrockt.fahrradcomputer.ui.SensorsScreen
 import com.pbrockt.fahrradcomputer.ui.SettingsScreen
+import com.pbrockt.fahrradcomputer.ui.TrainerScreen
 import com.pbrockt.fahrradcomputer.ui.dashboard.DashboardScreen
 import kotlinx.coroutines.launch
 
@@ -93,6 +94,16 @@ private val BLUETOOTH_PERMISSIONS = if (Build.VERSION.SDK_INT >= Build.VERSION_C
     arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
 }
 
+/** Heimtrainer: Sensoren lesen, sich Zwift anbieten und die Benachrichtigung zeigen. */
+private val TRAINER_PERMISSIONS = buildList {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        add(Manifest.permission.BLUETOOTH_SCAN)
+        add(Manifest.permission.BLUETOOTH_CONNECT)
+        add(Manifest.permission.BLUETOOTH_ADVERTISE)
+    }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
+}.toTypedArray()
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AppRoot(vm: MainViewModel) {
@@ -121,6 +132,19 @@ private fun AppRoot(vm: MainViewModel) {
             pendingScan?.let(vm::startScan)
         } else {
             scope.launch { snackbar.showSnackbar("Ohne Bluetooth-Berechtigung lässt sich kein Gurt verbinden.") }
+        }
+    }
+
+    val trainerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { result ->
+        val bluetooth = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            (result[Manifest.permission.BLUETOOTH_CONNECT] == true && result[Manifest.permission.BLUETOOTH_ADVERTISE] == true)
+        if (bluetooth) {
+            vm.retrySensors()
+            vm.startTrainer()
+        } else {
+            scope.launch { snackbar.showSnackbar("Ohne Bluetooth-Berechtigung kann nichts an Zwift gesendet werden.") }
         }
     }
 
@@ -201,6 +225,9 @@ private fun AppRoot(vm: MainViewModel) {
                         onMenu = { scope.launch { drawer.open() } },
                         onOpen = { screen = it },
                     )
+                    AppScreen.TRAINER -> TrainerScreen(vm, onStart = {
+                        if (TRAINER_PERMISSIONS.isEmpty()) vm.startTrainer() else trainerLauncher.launch(TRAINER_PERMISSIONS)
+                    })
                     AppScreen.RIDES -> RidesScreen(vm)
                     AppScreen.MAPS -> MapsScreen(vm)
                     AppScreen.SENSORS -> SensorsScreen(vm, onScanRequested = { kind ->

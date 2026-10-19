@@ -6,7 +6,7 @@ Kalorienberechnung, Streckenaufzeichnung, Health Connect, Live-Standort und KI-T
 
 Die geplante Vorgehensweise steht in [KONZEPT.md](KONZEPT.md).
 
-## Stand: 0.0.12-alpha.1
+## Stand: 0.0.13-alpha.1
 
 | Bereich | Stand |
 |---|---|
@@ -14,6 +14,7 @@ Die geplante Vorgehensweise steht in [KONZEPT.md](KONZEPT.md).
 | Dashboard | Mehrere Seiten zum Wischen (Standard: Fahrt, Puls, Übersicht). Lange auf eine Kachel drücken öffnet den Editor: Kachel antippen = Inhalt wählen oder doppelte Breite; Zeilenmenü = Höhe, Kachel hinzufügen, verschieben, löschen; Seiten anlegen, umbenennen, löschen, auf Standard zurücksetzen. Gespeichert als JSON. Puls in Zonenfarbe (Z1–Z5), Ø/max Puls in Zonenfarbe, Streckenskizze als Platzhalter für die Navi. Display bleibt an. |
 | Darstellung | Dunkel, Hell (für pralle Sonne) oder wie System. |
 | Sensoren | Bluetooth-Standardprofile: Puls (Brustgurt, Uhren mit „HF senden“), Trittfrequenz/Speed (CSC), Leistung (Cycling Power). Liefert der Leistungsmesser Kurbeldaten, kommt die Trittfrequenz daraus. Bosch Smart System erscheint, sofern es diese Profile sendet (noch nicht am Rad geprüft). Automatisches Wiederverbinden. |
+| Heimtrainer | Menü „Heimtrainer“: virtuelle Watt für einen Heimtrainer ohne Leistungsmesser (wie HR2VP). Trittfrequenz × Widerstandsstufe (1–10, in der App mitstellen) gibt sofortige Änderungen, der Puls (Herzfrequenzreserve aus Ruhe-/Maxpuls, auf die FTP abgebildet) legt das Niveau fest; die App lernt daraus, wie schwer der Trainer ist, und merkt es sich. FTP eigene oder geschätzt (Gewicht, Alter, Geschlecht), Korrektur 50–150 %. Das Handy bietet sich per Bluetooth als Leistungsmesser (Cycling Power mit Kurbeldaten → Trittfrequenz) und Pulsgurt an: in Zwift, Rouvy, MyWhoosh auf PC/Tablet koppeln. Läuft im Vordergrunddienst auch bei gesperrtem Handy. Anzeige Watt, Puls, Trittfrequenz, kcal, Zeit, Ø/max Watt. Wird nicht als Fahrt gespeichert (das macht Zwift). |
 | Kalorien | Aus Fahrerleistung (kcal ≈ kJ), sonst Puls (Keytel: Gewicht, Alter, Geschlecht), sonst MET-Schätzung nach Geschwindigkeit (E-Bike). Die Kachel zeigt die Quelle. |
 | Höhe | GPS-Höhe wird geglättet (Median gegen Ausreißer, gleitender Mittelwert über 15 s); Höhenmeter zählen erst ab 8 m Anstieg, dann vom Tal bis zum Gipfel. Profile zeigen mindestens 60 m Spanne. Ab Android 14 Höhe über dem Meeresspiegel. Ältere Fahrten werden beim Öffnen nachgerechnet. |
 | Aufzeichnung | GPS im Vordergrunddienst (läuft bei aus­geschaltetem Display weiter), Start/Pause/Weiter/Stopp, Standzeiten zählen nicht als Fahrzeit, Zwischenspeichern jede Minute. |

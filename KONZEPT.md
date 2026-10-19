@@ -139,6 +139,7 @@ Entwicklung mit Claude, Tests am Rad durch Phillipp. Aufwand in Sitzungen à 1�
 | 6 | Karte/Navigation mit GPX | 2–3 |
 | 7 | KI-Trainingsplan | 1–2 |
 | 8 | Live-Webseite (optional) | 2–4 |
+| 9 | Heimtrainer: virtuelle Watt aus Puls + Trittfrequenz, per Bluetooth an Zwift/Rouvy/MyWhoosh (0.0.13) | 1 |
 
 - **Nutzbare Grundversion** (Phasen 0–2): ca. **1–2 Wochen** Freizeit.
 - **Kompletter Umfang:** realistisch **4–8 Wochen**.

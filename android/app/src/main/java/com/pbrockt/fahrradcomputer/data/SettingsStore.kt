@@ -70,6 +70,16 @@ data class AppSettings(
     /** Doppeltippen auf den Tacho laesst die Klingel ertoenen. */
     val bellOnDoubleTap: Boolean = true,
     val dashboard: DashboardLayout = DashboardLayout.DEFAULT,
+    /** Ruhepuls - fuer die Herzfrequenzreserve der Heimtrainer-Watt. */
+    val restHr: Int = 60,
+    /** Heimtrainer: eigene FTP in Watt, 0 = aus Gewicht/Alter schaetzen. */
+    val trainerFtp: Int = 0,
+    /** Widerstandsstufe am Heimtrainer, 1-10. */
+    val trainerLevel: Int = 5,
+    /** Korrektur der virtuellen Watt in Prozent. */
+    val trainerCalibration: Int = 100,
+    /** Gelernter Zusammenhang Trittfrequenz -> Watt, 0 = noch nichts gelernt. */
+    val trainerGain: Double = 0.0,
 ) {
     val zones: HrZones get() = HrZones(maxHr)
 
@@ -122,6 +132,11 @@ class SettingsStore(private val context: Context) {
         val EDIT_HOLD_MS = intPreferencesKey("edit_hold_ms")
         val BELL = booleanPreferencesKey("bell_double_tap")
         val DASHBOARD = stringPreferencesKey("dashboard_layout")
+        val REST_HR = intPreferencesKey("rest_hr")
+        val TRAINER_FTP = intPreferencesKey("trainer_ftp")
+        val TRAINER_LEVEL = intPreferencesKey("trainer_level")
+        val TRAINER_CALIBRATION = intPreferencesKey("trainer_calibration")
+        val TRAINER_GAIN = doublePreferencesKey("trainer_gain")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { p ->
@@ -162,6 +177,11 @@ class SettingsStore(private val context: Context) {
                 ?: ThemeMode.DARK,
             // Unlesbares oder fehlendes Layout -> Standard, statt eines leeren Bildschirms.
             dashboard = LayoutCodec.decode(p[Keys.DASHBOARD]) ?: DashboardLayout.DEFAULT,
+            restHr = p[Keys.REST_HR] ?: 60,
+            trainerFtp = p[Keys.TRAINER_FTP] ?: 0,
+            trainerLevel = p[Keys.TRAINER_LEVEL] ?: 5,
+            trainerCalibration = p[Keys.TRAINER_CALIBRATION] ?: 100,
+            trainerGain = p[Keys.TRAINER_GAIN] ?: 0.0,
         )
     }
 
@@ -211,6 +231,12 @@ class SettingsStore(private val context: Context) {
     suspend fun setCoachGoal(value: String) = set(Keys.COACH_GOAL, value.take(300))
     suspend fun setCoachNotes(value: String) = set(Keys.COACH_NOTES, value.take(500))
     suspend fun setCoachDays(value: Set<DayOfWeek>) = set(Keys.COACH_DAYS, value.joinToString(",") { it.name })
+
+    suspend fun setRestHr(value: Int) = set(Keys.REST_HR, value.coerceIn(30, 110))
+    suspend fun setTrainerFtp(value: Int) = set(Keys.TRAINER_FTP, value.coerceIn(0, 600))
+    suspend fun setTrainerLevel(value: Int) = set(Keys.TRAINER_LEVEL, value.coerceIn(1, 10))
+    suspend fun setTrainerCalibration(value: Int) = set(Keys.TRAINER_CALIBRATION, value.coerceIn(50, 150))
+    suspend fun setTrainerGain(value: Double) = set(Keys.TRAINER_GAIN, value.coerceAtLeast(0.0))
 
     suspend fun setActiveRoute(id: String?) {
         context.dataStore.edit { if (id == null) it.remove(Keys.ACTIVE_ROUTE) else it[Keys.ACTIVE_ROUTE] = id }

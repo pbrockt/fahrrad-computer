@@ -28,7 +28,7 @@ enum class SensorKind(
     POWER("Leistung", uuid16(0x1818), uuid16(0x2A63)),
 }
 
-private fun uuid16(id: Int): UUID = UUID.fromString(String.format("0000%04x-0000-1000-8000-00805f9b34fb", id))
+internal fun uuid16(id: Int): UUID = UUID.fromString(String.format("0000%04x-0000-1000-8000-00805f9b34fb", id))
 
 enum class SensorConnection { NONE, NO_PERMISSION, BLUETOOTH_OFF, CONNECTING, CONNECTED }
 

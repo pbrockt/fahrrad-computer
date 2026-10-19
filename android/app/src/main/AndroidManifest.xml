@@ -9,6 +9,8 @@
         android:name="android.permission.BLUETOOTH_SCAN"
         android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- Heimtrainer: das Handy bietet sich Zwift & Co. als Leistungsmesser und Pulsgurt an. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
 
     <!-- GPS-Aufzeichnung. Hintergrund-Standort ist nicht noetig: waehrend der Fahrt laeuft
          ein Vordergrunddienst mit Benachrichtigung. -->
@@ -88,6 +90,11 @@
             android:name=".recording.RideService"
             android:exported="false"
             android:foregroundServiceType="location|connectedDevice" />
+
+        <service
+            android:name=".trainer.TrainerService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
 
         <!-- Gibt das Update-APK an den Installer und GPX-Dateien zum Teilen frei. -->
         <provider
