@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -61,6 +62,12 @@ fun MapsScreen(vm: MainViewModel) {
         uri?.let(vm::importRoute)
     }
 
+    // Frisch geplante Route gleich in der Vorschau zeigen.
+    val planned by vm.plannedRoute.collectAsStateWithLifecycle()
+    LaunchedEffect(planned, routes) {
+        val id = planned ?: return@LaunchedEffect
+        if (routes.any { it.id == id }) { preview = id; vm.consumePlannedRoute() }
+    }
     val open = preview?.let { id -> routes.firstOrNull { it.id == id } }
     if (open != null) {
         BackHandler { preview = null }
@@ -72,6 +79,15 @@ fun MapsScreen(vm: MainViewModel) {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
+        DestinationSearch(vm)
+        val planning by vm.planning.collectAsStateWithLifecycle()
+        if (planning) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.material3.CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                Text("  Route wird geplant …", color = AppColors.Dim)
+            }
+        }
+
         Text("Routen", fontWeight = FontWeight.Bold)
         val active = routes.firstOrNull { it.id == settings.activeRouteId }
         Text(

@@ -23,6 +23,25 @@ enum class ThemeMode(val label: String) {
 }
 
 /**
+ * Hervorhebungsfarbe: Knoepfe, Leiste unten, Banner,
+ * aktiver Menue-Eintrag. [light] fuer hellen, [dark] fuer schwarzen Grund.
+ */
+enum class AccentColor(val label: String, val light: Long, val dark: Long) {
+    RED("Rot", 0xFFC8102E, 0xFFE3141B),
+    PINK("Pink", 0xFFD81B60, 0xFFF0287A),
+    MAGENTA("Magenta", 0xFFAD1AAD, 0xFFCC33CC),
+    PURPLE("Lila", 0xFF6A2BC2, 0xFF8A4FE0),
+    ROYAL_BLUE("Königsblau", 0xFF2942B8, 0xFF4A63E0),
+    BLUE("Blau", 0xFF0B6FB8, 0xFF2E90E0),
+    AQUA("Türkis", 0xFF0097A7, 0xFF19B5C8),
+    GREEN("Grün", 0xFF2B8A3E, 0xFF3BA552),
+    LIME("Limette", 0xFF6B9A0A, 0xFF8CBF1A),
+    GOLD("Gold", 0xFFB8860B, 0xFFD9A21B),
+    ORANGE("Orange", 0xFFE06A00, 0xFFF57C12),
+    GRAPHITE("Graphit", 0xFF3A3A3A, 0xFF6A6A6A),
+}
+
+/**
  * Schmale Schrift fuer alles - fuer grosse Ziffern. Barlow Condensed
  * steht unter der SIL Open Font License (assets/OFL-BarlowCondensed.txt).
  */
@@ -59,6 +78,8 @@ data class Palette(
     val Altitude: Color,
     val Grade: Color = Color(0xFFE53935),
 ) {
+    /** Dunklere Stufe der Hervorhebungsfarbe - fuer Felder neben "Start". */
+    val AccentDark: Color get() = Color(Accent.red * 0.65f, Accent.green * 0.65f, Accent.blue * 0.65f)
     /** Z1 grau, Z2 blau, Z3 gruen, Z4 orange, Z5 rot. */
     val Zones = listOf(
         Color(0xFF8E8E93),
@@ -120,13 +141,15 @@ private val AppTypography: Typography = Typography().let { t ->
 }
 
 @Composable
-fun FahrradTheme(mode: ThemeMode = ThemeMode.DARK, content: @Composable () -> Unit) {
+fun FahrradTheme(mode: ThemeMode = ThemeMode.DARK, accent: AccentColor = AccentColor.RED, content: @Composable () -> Unit) {
     val dark = when (mode) {
         ThemeMode.DARK -> true
         ThemeMode.LIGHT -> false
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
     }
-    val p = if (dark) Palette.Dark else Palette.Light
+    val p = (if (dark) Palette.Dark else Palette.Light).let { base ->
+        base.copy(Accent = Color(if (dark) accent.dark else accent.light))
+    }
     val scheme = if (dark) {
         darkColorScheme(
             primary = p.Accent, onPrimary = Color.White, secondary = p.Go,

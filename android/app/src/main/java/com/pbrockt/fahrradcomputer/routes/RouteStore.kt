@@ -49,6 +49,22 @@ class RouteStore(private val context: Context) {
         }
     }
 
+    /** Speichert eine geplante Route (GPX-Text von BRouter) unter [name]. */
+    suspend fun importGpxText(name: String, gpx: String): Result<Route> = withContext(Dispatchers.IO) {
+        runCatching {
+            val id = uniqueId(name)
+            val target = File(dir, "$id.gpx")
+            // Den Namen in die Datei schreiben - BRouter nennt jede Route "brouter_trekking_0".
+            target.writeText(gpx.replace(Regex("<name>[^<]*</name>"), "<name>${name.replace("&", "&amp;").replace("<", "&lt;")}</name>"))
+            val route = load(target) ?: run {
+                target.delete()
+                error("Die geplante Route ist leer.")
+            }
+            refresh()
+            route
+        }
+    }
+
     suspend fun delete(id: String) = withContext(Dispatchers.IO) {
         File(dir, "$id.gpx").delete()
         profileFile(id).delete()

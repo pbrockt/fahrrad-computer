@@ -257,11 +257,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // --- Health Connect ---
 
+    private val _healthWeight = MutableStateFlow<Pair<Double, java.time.Instant>?>(null)
+    /** Neuestes Gewicht in Health Connect - zur Kontrolle in den Einstellungen. */
+    val healthWeight: StateFlow<Pair<Double, java.time.Instant>?> = _healthWeight.asStateFlow()
+
     fun refreshHealth() {
         viewModelScope.launch {
             _healthState.value = HealthState(health.availability, health.granted())
+            _healthWeight.value = health.latestWeight()
         }
     }
+
+    fun setAccentColor(value: com.pbrockt.fahrradcomputer.ui.AccentColor) = viewModelScope.launch { store.setAccentColor(value) }
+    fun setHealthAutoSync(value: Boolean) = viewModelScope.launch { store.setHealthAutoSync(value) }
 
     fun onHealthPermissionsResult() {
         refreshHealth()
@@ -271,6 +279,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun importWeightNow() {
         viewModelScope.launch {
             val kg = fahrradApp.importWeight(force = true)
+            refreshHealth()
             _message.value = kg?.let { "Gewicht übernommen: ${formatDecimal(it)} kg" }
                 ?: "Kein Gewicht in Health Connect gefunden (oder keine Leseberechtigung)."
         }
@@ -291,6 +300,83 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun activateRoute(id: String?) = viewModelScope.launch { store.setActiveRoute(id) }
+
+    // --- Zielsuche und Routenplanung ---
+
+    private val _places = MutableStateFlow<List<com.pbrockt.fahrradcomputer.routes.Place>>(emptyList())
+    val places: StateFlow<List<com.pbrockt.fahrradcomputer.routes.Place>> = _places.asStateFlow()
+    private val _searchBusy = MutableStateFlow(false)
+    val searchBusy: StateFlow<Boolean> = _searchBusy.asStateFlow()
+    private val _planning = MutableStateFlow(false)
+    val planning: StateFlow<Boolean> = _planning.asStateFlow()
+    /** Frisch geplante Route - die Routen-Seite oeffnet dann ihre Vorschau. */
+    private val _plannedRoute = MutableStateFlow<String?>(null)
+    val plannedRoute: StateFlow<String?> = _plannedRoute.asStateFlow()
+    fun consumePlannedRoute() { _plannedRoute.value = null }
+
+    /** Aktueller Standort: waehrend der Fahrt der letzte GPS-Punkt, sonst der letzte bekannte. */
+    @android.annotation.SuppressLint("MissingPermission")
+    private fun currentPosition(): Pair<Double, Double>? {
+        lastPoint.value?.let { return it.lat to it.lon }
+        val ctx = getApplication<Application>()
+        if (ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.ACCESS_COARSE_LOCATION) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) return null
+        val lm = ctx.getSystemService(android.location.LocationManager::class.java) ?: return null
+        return listOf(android.location.LocationManager.GPS_PROVIDER, android.location.LocationManager.NETWORK_PROVIDER)
+            .mapNotNull { runCatching { lm.getLastKnownLocation(it) }.getOrNull() }
+            .maxByOrNull { it.time }?.let { it.latitude to it.longitude }
+    }
+
+    fun searchPlaces(query: String, category: com.pbrockt.fahrradcomputer.routes.PlaceCategory? = null) {
+        val q = category?.label ?: query
+        if (q.isBlank()) { _places.value = emptyList(); return }
+        val pos = currentPosition()
+        viewModelScope.launch {
+            _searchBusy.value = true
+            val r = withContext(Dispatchers.IO) {
+                runCatching { com.pbrockt.fahrradcomputer.routes.PlaceSearch.search(q, pos?.first, pos?.second, category) }
+            }
+            r.onSuccess { _places.value = it; if (it.isEmpty()) _message.value = "Nichts gefunden." }
+                .onFailure { _message.value = "Suche: ${it.message ?: "keine Verbindung"}" }
+            _searchBusy.value = false
+        }
+    }
+
+    fun clearPlaces() { _places.value = emptyList() }
+
+    /** Route vom aktuellen Standort zum Ort planen, speichern, aktivieren und anzeigen. */
+    fun planRoute(place: com.pbrockt.fahrradcomputer.routes.Place, profile: com.pbrockt.fahrradcomputer.routes.BikeProfile, roundTrip: Boolean) {
+        val from = currentPosition() ?: run {
+            _message.value = "Kein Standort bekannt – einmal kurz die Karte öffnen oder eine Fahrt starten."
+            return
+        }
+        viewModelScope.launch {
+            _planning.value = true
+            val points = buildList {
+                add(from)
+                add(place.lat to place.lon)
+                if (roundTrip) add(from)
+            }
+            val gpx = withContext(Dispatchers.IO) {
+                runCatching { com.pbrockt.fahrradcomputer.routes.Routing.route(points, profile) }
+            }
+            gpx.onFailure { _message.value = it.message ?: "Routenplanung fehlgeschlagen." }
+            gpx.onSuccess { text ->
+                val name = (if (roundTrip) "${place.name} hin & zurück" else "Zu ${place.name}") + " (${profile.label})"
+                routeStore.importGpxText(name, text)
+                    .onSuccess { r ->
+                        store.setActiveRoute(r.id)
+                        _plannedRoute.value = r.id
+                        _places.value = emptyList()
+                        _message.value = "Route geplant: ${formatDecimal(r.lengthM / 1000)} km" +
+                            (r.profile?.let { " · ${it.totalAscentM.toInt()} Hm" } ?: "") + " – aktiviert."
+                    }
+                    .onFailure { _message.value = it.message ?: "Route konnte nicht gespeichert werden." }
+            }
+            _planning.value = false
+        }
+    }
 
     fun deleteRoute(id: String) {
         viewModelScope.launch {

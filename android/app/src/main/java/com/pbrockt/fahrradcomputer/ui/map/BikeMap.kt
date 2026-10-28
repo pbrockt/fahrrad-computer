@@ -11,6 +11,8 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -78,9 +80,12 @@ fun BikeMap(
         val context = LocalContext.current
         val holder = remember { MapHolder(context, offlineMaps, cacheId, controls) }
         DisposableEffect(holder) { onDispose { holder.destroy() } }
-        Box(modifier) {
+        // Genau so gross wie die Kachel und darauf zugeschnitten - sonst misst sich die
+        // Karte selbst (bis Bildschirmgroesse) und uebermalt Nachbarkacheln grau.
+        Box(modifier.clipToBounds()) {
             AndroidView(
                 factory = { holder.mapView },
+                modifier = Modifier.fillMaxSize(),
                 update = {
                     holder.onPan = onUserPan
                     holder.update(route, track, trackColors, position, follow, headingUp)

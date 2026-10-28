@@ -12,6 +12,7 @@ import com.pbrockt.fahrradcomputer.recording.BodyProfile
 import com.pbrockt.fahrradcomputer.recording.Sex
 import com.pbrockt.fahrradcomputer.sensors.SensorKind
 import com.pbrockt.fahrradcomputer.trainer.VirtualPower
+import com.pbrockt.fahrradcomputer.ui.AccentColor
 import com.pbrockt.fahrradcomputer.ui.ThemeMode
 import com.pbrockt.fahrradcomputer.ui.dashboard.DashboardLayout
 import com.pbrockt.fahrradcomputer.ui.dashboard.LayoutCodec
@@ -42,6 +43,10 @@ data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.DARK,
     /** Beim Start das neueste Gewicht aus Health Connect uebernehmen. */
     val healthWeightSync: Boolean = true,
+    /** Fahrten nach dem Beenden automatisch an Health Connect senden. */
+    val healthAutoSync: Boolean = false,
+    /** Hervorhebungsfarbe (Standard Rot). */
+    val accentColor: AccentColor = AccentColor.RED,
     /** Live-Standort per SMS waehrend der Fahrt. */
     val liveSmsEnabled: Boolean = false,
     /** Empfaenger als Freitext; gelesen ueber [com.pbrockt.fahrradcomputer.live.LiveSms.parseNumbers]. */
@@ -138,6 +143,8 @@ class SettingsStore(private val context: Context) {
         val UPDATE_TOKEN = stringPreferencesKey("update_token")
         val THEME = stringPreferencesKey("theme")
         val HEALTH_WEIGHT_SYNC = booleanPreferencesKey("health_weight_sync")
+        val HEALTH_AUTO_SYNC = booleanPreferencesKey("health_auto_sync")
+        val ACCENT = stringPreferencesKey("accent_color")
         val LIVE_SMS = booleanPreferencesKey("live_sms")
         val LIVE_SMS_NUMBERS = stringPreferencesKey("live_sms_numbers")
         val LIVE_SMS_INTERVAL = intPreferencesKey("live_sms_interval")
@@ -188,6 +195,8 @@ class SettingsStore(private val context: Context) {
             autoUpdateCheck = p[Keys.AUTO_UPDATE_CHECK] ?: true,
             updateToken = p[Keys.UPDATE_TOKEN] ?: "",
             healthWeightSync = p[Keys.HEALTH_WEIGHT_SYNC] ?: true,
+            healthAutoSync = p[Keys.HEALTH_AUTO_SYNC] ?: false,
+            accentColor = p[Keys.ACCENT]?.let { runCatching { AccentColor.valueOf(it) }.getOrNull() } ?: AccentColor.RED,
             liveSmsEnabled = p[Keys.LIVE_SMS] ?: false,
             liveSmsNumbers = p[Keys.LIVE_SMS_NUMBERS] ?: "",
             liveSmsIntervalMin = p[Keys.LIVE_SMS_INTERVAL] ?: 10,
@@ -260,6 +269,8 @@ class SettingsStore(private val context: Context) {
 
 
     suspend fun setHealthWeightSync(value: Boolean) = set(Keys.HEALTH_WEIGHT_SYNC, value)
+    suspend fun setAccentColor(value: AccentColor) = set(Keys.ACCENT, value.name)
+    suspend fun setHealthAutoSync(value: Boolean) = set(Keys.HEALTH_AUTO_SYNC, value)
 
     suspend fun setLiveSmsEnabled(value: Boolean) = set(Keys.LIVE_SMS, value)
     suspend fun setLiveSmsNumbers(value: String) = set(Keys.LIVE_SMS_NUMBERS, value)

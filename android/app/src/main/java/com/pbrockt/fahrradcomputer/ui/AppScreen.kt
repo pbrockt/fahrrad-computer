@@ -9,15 +9,12 @@ import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.ui.graphics.vector.ImageVector
 
-/**
- * Die Bereiche der App. Hier liegen die Hauptbereiche als Reiter unten
- * ([tab] = true); Heimtrainer und Sensoren sind Unterseiten mit Zurueck-Pfeil.
- */
-enum class AppScreen(val label: String, val icon: ImageVector, val tab: Boolean, val parent: AppScreen? = null) {
-    RIDES("Verlauf", Icons.Filled.History, tab = true),
-    RIDE("Computer", Icons.Filled.PhoneAndroid, tab = true),
-    MAPS("Routen", Icons.Filled.Route, tab = true),
-    SETTINGS("Einstellungen", Icons.Filled.Tune, tab = true),
-    TRAINER("Heimtrainer", Icons.Filled.FitnessCenter, tab = false, parent = RIDE),
-    SENSORS("Sensoren", Icons.Filled.Bluetooth, tab = false, parent = SETTINGS),
+/** Die Bereiche der App, in dieser Reihenfolge im Menue links. */
+enum class AppScreen(val label: String, val icon: ImageVector) {
+    RIDE("Computer", Icons.Filled.PhoneAndroid),
+    RIDES("Verlauf", Icons.Filled.History),
+    MAPS("Routen", Icons.Filled.Route),
+    TRAINER("Heimtrainer", Icons.Filled.FitnessCenter),
+    SENSORS("Sensoren", Icons.Filled.Bluetooth),
+    SETTINGS("Einstellungen", Icons.Filled.Tune),
 }

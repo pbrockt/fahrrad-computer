@@ -78,7 +78,12 @@ enum class RowHeight(val label: String, val weight: Float) {
 }
 
 /** Eine Kachel; eine breite Kachel belegt zwei Einheiten der Zeile. */
-data class TileSlot(val type: TileType, val wide: Boolean = false) {
+data class TileSlot(
+    val type: TileType,
+    val wide: Boolean = false,
+    /** Einstellungen dieser Kachel, siehe [TileOptions]. */
+    val options: Map<String, String> = emptyMap(),
+) {
     val units: Int get() = if (wide) 2 else 1
 }
 

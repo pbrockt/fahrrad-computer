@@ -27,13 +27,13 @@ object LayoutCodec {
     private data class RowDto(val height: String = RowHeight.MEDIUM.name, val tiles: List<TileDto> = emptyList())
 
     @Serializable
-    private data class TileDto(val type: String, val wide: Boolean = false)
+    private data class TileDto(val type: String, val wide: Boolean = false, val options: Map<String, String> = emptyMap())
 
     fun encode(layout: DashboardLayout): String = json.encodeToString(
         LayoutDto(
             pages = layout.pages.map { p ->
                 PageDto(p.name, p.rows.map { r ->
-                    RowDto(r.height.name, r.tiles.map { TileDto(it.type.name, it.wide) })
+                    RowDto(r.height.name, r.tiles.map { TileDto(it.type.name, it.wide, it.options) })
                 })
             }
         )
@@ -50,7 +50,7 @@ object LayoutCodec {
                     var units = 0
                     val tiles = r.tiles.mapNotNull { t ->
                         val type = enumOrNull<TileType>(t.type) ?: return@mapNotNull null
-                        TileSlot(type, t.wide)
+                        TileSlot(type, t.wide, t.options)
                     }.takeWhile { units += it.units; units <= DashboardLayout.MAX_ROW_UNITS }
                     if (tiles.isEmpty()) null
                     else TileRow(tiles, enumOrNull<RowHeight>(r.height) ?: RowHeight.MEDIUM)

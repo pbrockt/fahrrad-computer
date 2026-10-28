@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -21,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
@@ -91,12 +94,13 @@ fun SettingsScreen(
     onEnableSms: () -> Unit,
     onOpenSensors: () -> Unit,
     onOpenTrainer: () -> Unit,
+    onMenu: () -> Unit = {},
 ) {
     var page by rememberSaveable { mutableStateOf(SettingsPage.ROOT) }
     BackHandler(enabled = page != SettingsPage.ROOT) { page = SettingsPage.ROOT }
 
     Column(Modifier.fillMaxSize().background(AppColors.Bg)) {
-        Header(page) { page = SettingsPage.ROOT }
+        Header(page, onMenu) { page = SettingsPage.ROOT }
         when (page) {
             SettingsPage.ROOT -> Root(vm, onOpenSensors, onOpenTrainer) { page = it }
             SettingsPage.PROFILE -> SubPage { ProfilePage(vm) }
@@ -116,9 +120,13 @@ fun SettingsScreen(
 // --- Aufbau: Kopfzeile, Abschnitte, Zeilen ---
 
 @Composable
-private fun Header(page: SettingsPage, onBack: () -> Unit) {
+private fun Header(page: SettingsPage, onMenu: () -> Unit, onBack: () -> Unit) {
     Box(Modifier.fillMaxWidth().height(52.dp)) {
-        if (page != SettingsPage.ROOT) {
+        if (page == SettingsPage.ROOT) {
+            androidx.compose.material3.IconButton(onClick = onMenu, modifier = Modifier.align(Alignment.CenterStart)) {
+                Icon(Icons.Filled.Menu, contentDescription = "Menü", tint = AppColors.Text)
+            }
+        } else {
             Row(
                 Modifier.align(Alignment.CenterStart).clickable(onClick = onBack).padding(horizontal = 8.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -311,6 +319,7 @@ private fun ZoneLegend(text: String) {
 }
 
 @Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 private fun DashboardPage(vm: MainViewModel) {
     val s by vm.settings.collectAsStateWithLifecycle()
     var confirmReset by remember { mutableStateOf(false) }
@@ -321,6 +330,31 @@ private fun DashboardPage(vm: MainViewModel) {
         }
     }
     Hint("Hell ist in praller Sonne besser ablesbar.")
+
+    Group("Hervorhebungsfarbe")
+    // Farbfelder; die gewaehlte Farbe hat einen Rahmen.
+    androidx.compose.foundation.layout.FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        for (a in AccentColor.entries) {
+            val color = androidx.compose.ui.graphics.Color(if (AppColors.isDark) a.dark else a.light)
+            val selected = s.accentColor == a
+            Box(
+                Modifier.height(44.dp).width(96.dp)
+                    .background(color)
+                    .then(if (selected) Modifier.border(3.dp, AppColors.Text) else Modifier)
+                    .clickable { vm.setAccentColor(a) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    (if (selected) "✓ " else "") + a.label.uppercase(Locale.GERMANY), color = androidx.compose.ui.graphics.Color.White,
+                    fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
+                )
+            }
+        }
+    }
+    Hint("Für Start-Leiste, Knöpfe, Seitenbanner und Menü. Zonenfarben und Warnungen bleiben gleich.")
 
     Group("Tacho-Seiten")
     Hint("Bearbeiten direkt auf dem Tacho: so lange gedrückt halten, dann Kachel antippen.")
@@ -469,14 +503,45 @@ private fun HealthPage(vm: MainViewModel, onConnectHealth: () -> Unit) {
             Button(onClick = onConnectHealth, modifier = Modifier.fillMaxWidth()) {
                 Text(if (n == 0) "Mit Health Connect verbinden" else "Berechtigungen ändern")
             }
+            Group("Fahrten")
+            SwitchRow(
+                "Fahrten automatisch übertragen", s.healthAutoSync,
+                if (s.healthAutoSync) "Jede Fahrt geht nach „Beenden“ von selbst an Health Connect."
+                else "Aus: nur per Knopf – nach der Fahrt oder in der Fahrt-Ansicht.",
+                vm::setHealthAutoSync,
+            )
+            Hint(
+                "Übertragen wird eine Trainingseinheit Radfahren mit Strecke, Puls, Tempo, Trittfrequenz, Leistung, " +
+                    "Distanz, Höhenmetern und Kalorien. Erneutes Senden überschreibt statt zu verdoppeln.",
+            )
+
+            Group("Gewicht")
+            val hw by vm.healthWeight.collectAsStateWithLifecycle()
+            LaunchedEffect(Unit) { vm.refreshHealth() }
+            val dateFmt = java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm")
+            Row(Modifier.fillMaxWidth()) {
+                Column(Modifier.weight(1f)) {
+                    Hint("IN HEALTH CONNECT")
+                    Text(
+                        hw?.let { "${formatDecimal(it.first)} kg" } ?: "–",
+                        fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 30.sp,
+                    )
+                    Hint(hw?.let { "vom ${it.second.atZone(java.time.ZoneId.systemDefault()).format(dateFmt)}" } ?: "kein Eintrag oder keine Leseberechtigung")
+                }
+                Column(Modifier.weight(1f)) {
+                    Hint("IN DER APP")
+                    Text(
+                        if (s.weightKg > 0) "${formatDecimal(s.weightKg)} kg" else "–",
+                        fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 30.sp,
+                        color = if (hw != null && s.weightKg > 0 && kotlin.math.abs(hw!!.first - s.weightKg) >= 0.1) AppColors.Stop else AppColors.Text,
+                    )
+                    Hint("damit rechnen Kalorien und FTP")
+                }
+            }
             SwitchRow("Gewicht beim Start übernehmen", s.healthWeightSync, null, vm::setHealthWeightSync)
             OutlinedButton(onClick = vm::importWeightNow, enabled = health.connected, modifier = Modifier.fillMaxWidth()) {
                 Text("Gewicht jetzt übernehmen")
             }
-            Hint(
-                "Übertragen wird nur per Knopf – nach der Fahrt oder in der Fahrt-Ansicht: Trainingseinheit Radfahren mit " +
-                    "Strecke, Puls, Tempo, Trittfrequenz, Leistung, Distanz, Höhenmetern und Kalorien. Gelesen wird nur das Gewicht.",
-            )
         }
         else -> {
             Text(

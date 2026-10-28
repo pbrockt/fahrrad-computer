@@ -101,7 +101,10 @@ class HealthConnect(private val context: Context) {
     }
 
     /** Das neueste Gewicht aus Health Connect (z. B. von einer Waage-App), oder null. */
-    suspend fun latestWeightKg(): Double? {
+    suspend fun latestWeightKg(): Double? = latestWeight()?.first
+
+    /** Neuestes Gewicht der letzten 12 Monate mit Zeitpunkt - zur Kontrolle in den Einstellungen. */
+    suspend fun latestWeight(): Pair<Double, Instant>? {
         if (HealthPermission.getReadPermission(WeightRecord::class) !in granted()) return null
         return runCatching {
             client.readRecords(
@@ -111,7 +114,7 @@ class HealthConnect(private val context: Context) {
                     ascendingOrder = false,
                     pageSize = 1,
                 )
-            ).records.firstOrNull()?.weight?.inKilograms
+            ).records.firstOrNull()?.let { it.weight.inKilograms to it.time }
         }.getOrNull()
     }
 

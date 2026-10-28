@@ -9,8 +9,12 @@ import com.pbrockt.fahrradcomputer.ui.dashboard.DashboardLayout.Companion.MAX_RO
  */
 object LayoutEditor {
 
+    /** Neuer Inhalt - die Einstellungen der alten Kachel passen dann nicht mehr. */
     fun setTileType(l: DashboardLayout, page: Int, row: Int, col: Int, type: TileType) =
-        l.mapTile(page, row, col) { it.copy(type = type) }
+        l.mapTile(page, row, col) { if (it.type == type) it else it.copy(type = type, options = emptyMap()) }
+
+    fun setTileOption(l: DashboardLayout, page: Int, row: Int, col: Int, key: String, value: String) =
+        l.mapTile(page, row, col) { it.copy(options = it.options + (key to value)) }
 
     /** Schmal <-> breit, sofern die Zeile dafuer Platz hat. */
     fun toggleWide(l: DashboardLayout, page: Int, row: Int, col: Int): DashboardLayout {

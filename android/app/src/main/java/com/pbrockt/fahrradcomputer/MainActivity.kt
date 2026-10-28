@@ -81,7 +81,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val vm: MainViewModel = viewModel()
             val settings by vm.settings.collectAsStateWithLifecycle()
-            FahrradTheme(settings.themeMode) {
+            FahrradTheme(settings.themeMode, settings.accentColor) {
                 // Statusleisten-Symbole passend zum Modus: dunkle Symbole auf hellem Grund.
                 val dark = AppColors.isDark
                 LaunchedEffect(dark) {
@@ -186,66 +186,81 @@ private fun AppRoot(vm: MainViewModel) {
         }
     }
 
-    val phase by vm.ride.phase.collectAsStateWithLifecycle()
-    // Unterseiten fuehren zurueck zu ihrem Bereich, die Reiter zurueck zum Computer.
-    BackHandler(enabled = screen != AppScreen.RIDE) {
-        screen = screen.parent ?: AppScreen.RIDE
+    val drawer = rememberDrawerState(DrawerValue.Closed)
+    // Zurueck schliesst das Menue bzw. fuehrt aus jedem Bereich zum Computer.
+    BackHandler(enabled = screen != AppScreen.RIDE || drawer.isOpen) {
+        if (drawer.isOpen) scope.launch { drawer.close() } else screen = AppScreen.RIDE
     }
+    val openMenu: () -> Unit = { scope.launch { drawer.open() } }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbar) },
-        topBar = {
-            // Der Computer und die Einstellungen zeichnen ihre Kopfzeile selbst.
-            if (screen != AppScreen.RIDE && screen != AppScreen.SETTINGS) {
-                CenterAlignedTopAppBar(
-                    title = {
-                        Text(
-                            screen.label.uppercase(java.util.Locale.GERMANY),
-                            fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 19.sp, letterSpacing = 0.8.sp,
-                        )
-                    },
-                    navigationIcon = {
-                        screen.parent?.let { parent ->
-                            IconButton(onClick = { screen = parent }) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück")
-                            }
-                        }
-                    },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = AppColors.Bg),
+    ModalNavigationDrawer(
+        drawerState = drawer,
+        // Wischen oeffnet das Menue nicht - auf dem Tacho wird zwischen Seiten gewischt.
+        gesturesEnabled = drawer.isOpen,
+        drawerContent = {
+            ModalDrawerSheet(drawerContainerColor = AppColors.Bg) {
+                Text(
+                    "FAHRRAD-COMPUTER",
+                    fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 24.sp, letterSpacing = 1.sp,
+                    color = AppColors.Accent,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 22.dp),
                 )
+                HorizontalDivider(color = AppColors.Line)
+                for (item in AppScreen.entries) {
+                    MenuItem(item, selected = screen == item) {
+                        screen = item
+                        scope.launch { drawer.close() }
+                    }
+                }
             }
         },
-        bottomBar = {
-            // Waehrend der Fahrt gehoert der Platz dem Tacho.
-            if (!(screen == AppScreen.RIDE && phase != RidePhase.IDLE)) {
-                TabBar(current = screen.parent ?: screen, onSelect = { screen = it })
-            }
-        },
-    ) { padding ->
-        Box(Modifier.padding(padding)) {
-            when (screen) {
-                AppScreen.RIDE -> DashboardScreen(
-                    vm,
-                    onStartRequested = { locationLauncher.launch(LOCATION_PERMISSIONS) },
-                    onMenu = {},
-                    onOpen = { screen = it },
-                )
-                AppScreen.TRAINER -> TrainerScreen(vm, onStart = {
-                    if (TRAINER_PERMISSIONS.isEmpty()) vm.startTrainer() else trainerLauncher.launch(TRAINER_PERMISSIONS)
-                })
-                AppScreen.RIDES -> RidesScreen(vm)
-                AppScreen.MAPS -> MapsScreen(vm)
-                AppScreen.SENSORS -> SensorsScreen(vm, onScanRequested = { kind ->
-                    pendingScan = kind
-                    bluetoothLauncher.launch(BLUETOOTH_PERMISSIONS)
-                })
-                AppScreen.SETTINGS -> SettingsScreen(
-                    vm,
-                    onConnectHealth = { healthLauncher.launch(vm.healthPermissions) },
-                    onEnableSms = { smsLauncher.launch(Manifest.permission.SEND_SMS) },
-                    onOpenSensors = { screen = AppScreen.SENSORS },
-                    onOpenTrainer = { screen = AppScreen.TRAINER },
-                )
+    ) {
+        Scaffold(
+            snackbarHost = { SnackbarHost(snackbar) },
+            topBar = {
+                // Der Computer und die Einstellungen zeichnen ihre Kopfzeile selbst.
+                if (screen != AppScreen.RIDE && screen != AppScreen.SETTINGS) {
+                    CenterAlignedTopAppBar(
+                        title = {
+                            Text(
+                                screen.label.uppercase(java.util.Locale.GERMANY),
+                                fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 19.sp, letterSpacing = 0.8.sp,
+                            )
+                        },
+                        navigationIcon = {
+                            IconButton(onClick = openMenu) { Icon(Icons.Filled.Menu, contentDescription = "Menü") }
+                        },
+                        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = AppColors.Bg),
+                    )
+                }
+            },
+        ) { padding ->
+            Box(Modifier.padding(padding)) {
+                when (screen) {
+                    AppScreen.RIDE -> DashboardScreen(
+                        vm,
+                        onStartRequested = { locationLauncher.launch(LOCATION_PERMISSIONS) },
+                        onMenu = openMenu,
+                        onOpen = { screen = it },
+                    )
+                    AppScreen.TRAINER -> TrainerScreen(vm, onStart = {
+                        if (TRAINER_PERMISSIONS.isEmpty()) vm.startTrainer() else trainerLauncher.launch(TRAINER_PERMISSIONS)
+                    })
+                    AppScreen.RIDES -> RidesScreen(vm)
+                    AppScreen.MAPS -> MapsScreen(vm)
+                    AppScreen.SENSORS -> SensorsScreen(vm, onScanRequested = { kind ->
+                        pendingScan = kind
+                        bluetoothLauncher.launch(BLUETOOTH_PERMISSIONS)
+                    })
+                    AppScreen.SETTINGS -> SettingsScreen(
+                        vm,
+                        onConnectHealth = { healthLauncher.launch(vm.healthPermissions) },
+                        onEnableSms = { smsLauncher.launch(Manifest.permission.SEND_SMS) },
+                        onOpenSensors = { screen = AppScreen.SENSORS },
+                        onOpenTrainer = { screen = AppScreen.TRAINER },
+                        onMenu = openMenu,
+                    )
+                }
             }
         }
     }
@@ -253,30 +268,23 @@ private fun AppRoot(vm: MainViewModel) {
     UpdateDialog(vm)
 }
 
-/** Reiter unten: Symbol und Name in Grossbuchstaben, aktiver Reiter kraeftig. */
+/** Eintrag im Menue links: Symbol und Name in Grossbuchstaben, der aktive Bereich in Rot. */
 @Composable
-private fun TabBar(current: AppScreen, onSelect: (AppScreen) -> Unit) {
-    Column(Modifier.background(AppColors.Bg)) {
-        HorizontalDivider(color = AppColors.Line)
-        Row(Modifier.fillMaxWidth().navigationBarsPadding().height(62.dp)) {
-            for (tab in AppScreen.entries.filter { it.tab }) {
-                val selected = tab == current
-                val color = if (selected) AppColors.Text else AppColors.Dim
-                Column(
-                    Modifier.weight(1f).fillMaxHeight().clickable { onSelect(tab) },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    Icon(tab.icon, contentDescription = null, tint = color, modifier = Modifier.size(26.dp))
-                    Text(
-                        tab.label.uppercase(java.util.Locale.GERMANY), color = color, fontSize = 13.sp,
-                        fontFamily = Condensed, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                        letterSpacing = 0.6.sp,
-                    )
-                }
-            }
-        }
+private fun MenuItem(item: AppScreen, selected: Boolean, onClick: () -> Unit) {
+    val color = if (selected) AppColors.Accent else AppColors.Text
+    Row(
+        Modifier.fillMaxWidth().height(58.dp).clickable(onClick = onClick)
+            .background(if (selected) AppColors.Panel else AppColors.Bg).padding(horizontal = 24.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(item.icon, contentDescription = null, tint = color, modifier = Modifier.size(26.dp))
+        Text(
+            item.label.uppercase(java.util.Locale.GERMANY), color = color, fontSize = 19.sp,
+            fontFamily = Condensed, fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp,
+            modifier = Modifier.padding(start = 18.dp),
+        )
     }
+    HorizontalDivider(color = AppColors.Line)
 }
 
 @Composable

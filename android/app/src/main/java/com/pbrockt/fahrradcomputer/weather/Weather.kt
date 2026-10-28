@@ -65,6 +65,12 @@ object Wind {
         }
     }
 
+    /** Windstaerke nach Beaufort (0-12) aus km/h. */
+    fun beaufort(kmh: Double): Int {
+        val limits = doubleArrayOf(1.0, 6.0, 12.0, 20.0, 29.0, 39.0, 50.0, 62.0, 75.0, 89.0, 103.0, 118.0)
+        return limits.count { kmh >= it }
+    }
+
     /** WMO-Wettercode in kurzen Worten. */
     fun describe(code: Int): String = when (code) {
         0 -> "klar"

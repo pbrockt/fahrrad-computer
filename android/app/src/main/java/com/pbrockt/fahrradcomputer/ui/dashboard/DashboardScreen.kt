@@ -313,7 +313,7 @@ internal fun PageView(page: DashboardPage, data: TileData, mapId: String, modifi
                 horizontalArrangement = Arrangement.spacedBy(1.dp),
             ) {
                 for (slot in row.tiles) {
-                    Tile(slot.type, data, Modifier.weight(slot.units.toFloat()).fillMaxSize(), mapId)
+                    Tile(slot.type, data, Modifier.weight(slot.units.toFloat()).fillMaxSize(), mapId, slot.options)
                 }
             }
         }
@@ -395,7 +395,7 @@ internal fun RideBar(
 @Composable
 private fun SquareButton(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier, onClick: () -> Unit) {
     Column(
-        modifier.fillMaxHeight().background(Color(0xFF8E0B10)).clickable(onClick = onClick),
+        modifier.fillMaxHeight().background(AppColors.AccentDark).clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -467,10 +467,13 @@ internal fun TopBar(
     onMenu: () -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().height(44.dp).padding(start = 14.dp, end = 10.dp),
+        Modifier.fillMaxWidth().height(44.dp).padding(end = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        IconButton(onClick = onMenu, modifier = Modifier.size(44.dp)) {
+            Icon(Icons.Filled.Menu, contentDescription = "Menü", tint = AppColors.Text)
+        }
         Text(
             title.uppercase(java.util.Locale.GERMANY),
             color = AppColors.Text,

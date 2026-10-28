@@ -75,6 +75,7 @@ fun EditablePage(page: DashboardPage, pageIndex: Int, data: TileData, onEdit: Ed
                         Modifier.weight(slot.units.toFloat()).fillMaxSize()
                             .border(2.dp, AppColors.Accent)
                             .clickable { tileDialog = r to c },
+                        options = slot.options,
                     )
                 }
                 RowMenu(page, pageIndex, r, onEdit)
@@ -91,6 +92,7 @@ fun EditablePage(page: DashboardPage, pageIndex: Int, data: TileData, onEdit: Ed
                 canWiden = LayoutEditor.canWiden(page.rows[r], c),
                 onType = { t -> onEdit { LayoutEditor.setTileType(it, pageIndex, r, c, t) } },
                 onToggleWide = { onEdit { LayoutEditor.toggleWide(it, pageIndex, r, c) } },
+                onOption = { key, value -> onEdit { LayoutEditor.setTileOption(it, pageIndex, r, c, key, value) } },
                 onRemove = {
                     tileDialog = null
                     onEdit { LayoutEditor.removeTile(it, pageIndex, r, c) }
@@ -132,12 +134,14 @@ private fun RowMenu(page: DashboardPage, pageIndex: Int, r: Int, onEdit: Edit) {
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun TileDialog(
     slot: TileSlot,
     canWiden: Boolean,
     onType: (TileType) -> Unit,
     onToggleWide: () -> Unit,
+    onOption: (String, String) -> Unit,
     onRemove: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -146,6 +150,29 @@ private fun TileDialog(
         title = { Text("Kachel") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
+                // Einstellungen der gewaehlten Kachel zuerst - die lange Liste kommt danach.
+                val opts = TileOptions.forType(slot.type)
+                if (opts.isNotEmpty()) {
+                    Text(
+                        "EINSTELLUNGEN: ${slot.type.label.uppercase(java.util.Locale.GERMANY)}", color = AppColors.Accent, fontSize = 13.sp,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    )
+                    for (o in opts) {
+                        Text(o.label, modifier = Modifier.padding(top = 6.dp))
+                        androidx.compose.foundation.layout.FlowRow(
+                            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp),
+                        ) {
+                            for ((value, label) in o.choices) {
+                                androidx.compose.material3.FilterChip(
+                                    selected = slot.options.opt(o) == value,
+                                    onClick = { onOption(o.key, value) },
+                                    label = { Text(label) },
+                                )
+                            }
+                        }
+                    }
+                    HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                }
                 for ((category, types) in TileType.entries.groupBy { it.category }) {
                   Text(
                       category.label.uppercase(java.util.Locale.GERMANY), color = AppColors.Dim, fontSize = 13.sp,

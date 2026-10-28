@@ -84,12 +84,13 @@ class RideRepository(
         runCatching { gpxFile(id).bufferedReader().use(GpxReader::read) }.getOrDefault(emptyList())
 
     /**
-     * Nach einer Fahrt: Kennzahlen ablegen. Nach Health Connect geht die Fahrt bewusst nicht
-     * automatisch - nur, wenn man es per Knopf ausloest.
+     * Nach einer Fahrt: Kennzahlen ablegen. Nach Health Connect geht die Fahrt nur, wenn
+     * "automatisch uebertragen" eingeschaltet ist - sonst per Knopf.
      */
     suspend fun onRideFinished(summary: RideSummary) {
         withContext(Dispatchers.IO) { mutex.withLock { write(summary) } }
         refresh()
+        if (settings().healthAutoSync && health.granted().isNotEmpty()) sync(summary.id)
     }
 
     /** Sendet eine Fahrt an Health Connect. null = ok, sonst Fehlermeldung. */
