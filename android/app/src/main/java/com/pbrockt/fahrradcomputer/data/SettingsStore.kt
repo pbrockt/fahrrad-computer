@@ -88,6 +88,16 @@ data class AppSettings(
     val navOffRouteBeep: Boolean = true,
     /** Wetter und Wind von Open-Meteo laden (Standort auf ~1 km gerundet). */
     val weatherEnabled: Boolean = true,
+    /** Live-Link zum eigenen Server (server/live). */
+    val liveLinkEnabled: Boolean = false,
+    val liveLinkUrl: String = "",
+    val liveLinkToken: String = "",
+    val liveLinkIntervalS: Int = 30,
+    /** Die ersten 500 m nicht senden - sonst sieht jeder, wo man wohnt. */
+    val liveLinkHideStart: Boolean = true,
+    val liveLinkHeartRate: Boolean = false,
+    /** Link fuer Zuschauer, vom Server beim Verbindungstest gemeldet. */
+    val liveLinkViewUrl: String = "",
 ) {
     val zones: HrZones get() = HrZones(maxHr)
 
@@ -154,6 +164,13 @@ class SettingsStore(private val context: Context) {
         val SPEED_ZONES = stringPreferencesKey("speed_zones")
         val NAV_OFF_ROUTE_BEEP = booleanPreferencesKey("nav_off_route_beep")
         val WEATHER = booleanPreferencesKey("weather")
+        val LIVE_LINK = booleanPreferencesKey("live_link")
+        val LIVE_LINK_URL = stringPreferencesKey("live_link_url")
+        val LIVE_LINK_TOKEN = stringPreferencesKey("live_link_token")
+        val LIVE_LINK_INTERVAL = intPreferencesKey("live_link_interval")
+        val LIVE_LINK_HIDE_START = booleanPreferencesKey("live_link_hide_start")
+        val LIVE_LINK_HR = booleanPreferencesKey("live_link_hr")
+        val LIVE_LINK_VIEW = stringPreferencesKey("live_link_view")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { p ->
@@ -203,6 +220,13 @@ class SettingsStore(private val context: Context) {
             speedZones = p[Keys.SPEED_ZONES]?.let(Zones::parse) ?: Zones.DEFAULT_SPEED,
             navOffRouteBeep = p[Keys.NAV_OFF_ROUTE_BEEP] ?: true,
             weatherEnabled = p[Keys.WEATHER] ?: true,
+            liveLinkEnabled = p[Keys.LIVE_LINK] ?: false,
+            liveLinkUrl = p[Keys.LIVE_LINK_URL] ?: "",
+            liveLinkToken = p[Keys.LIVE_LINK_TOKEN] ?: "",
+            liveLinkIntervalS = p[Keys.LIVE_LINK_INTERVAL] ?: 30,
+            liveLinkHideStart = p[Keys.LIVE_LINK_HIDE_START] ?: true,
+            liveLinkHeartRate = p[Keys.LIVE_LINK_HR] ?: false,
+            liveLinkViewUrl = p[Keys.LIVE_LINK_VIEW] ?: "",
         )
     }
 
@@ -259,6 +283,13 @@ class SettingsStore(private val context: Context) {
     suspend fun setTrainerCalibration(value: Int) = set(Keys.TRAINER_CALIBRATION, value.coerceIn(50, 150))
     suspend fun setCadenceZones(value: Zones) = set(Keys.CADENCE_ZONES, value.thresholds.joinToString(","))
     suspend fun setSpeedZones(value: Zones) = set(Keys.SPEED_ZONES, value.thresholds.joinToString(","))
+    suspend fun setLiveLinkEnabled(value: Boolean) = set(Keys.LIVE_LINK, value)
+    suspend fun setLiveLinkUrl(value: String) = set(Keys.LIVE_LINK_URL, value.trim())
+    suspend fun setLiveLinkToken(value: String) = set(Keys.LIVE_LINK_TOKEN, value.trim())
+    suspend fun setLiveLinkInterval(value: Int) = set(Keys.LIVE_LINK_INTERVAL, value.coerceIn(10, 300))
+    suspend fun setLiveLinkHideStart(value: Boolean) = set(Keys.LIVE_LINK_HIDE_START, value)
+    suspend fun setLiveLinkHeartRate(value: Boolean) = set(Keys.LIVE_LINK_HR, value)
+    suspend fun setLiveLinkViewUrl(value: String) = set(Keys.LIVE_LINK_VIEW, value)
     suspend fun setWeatherEnabled(value: Boolean) = set(Keys.WEATHER, value)
     suspend fun setNavOffRouteBeep(value: Boolean) = set(Keys.NAV_OFF_ROUTE_BEEP, value)
     suspend fun setTrainerGain(value: Double) = set(Keys.TRAINER_GAIN, value.coerceAtLeast(0.0))

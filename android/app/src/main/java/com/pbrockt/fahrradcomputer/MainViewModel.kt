@@ -18,6 +18,7 @@ import com.pbrockt.fahrradcomputer.coach.StoredPlan
 import java.time.DayOfWeek
 import java.time.LocalDate
 import com.pbrockt.fahrradcomputer.health.HealthAvailability
+import com.pbrockt.fahrradcomputer.live.LiveLink
 import com.pbrockt.fahrradcomputer.live.LiveSms
 import com.pbrockt.fahrradcomputer.live.SmsSender
 import com.pbrockt.fahrradcomputer.maps.MapRegion
@@ -418,6 +419,46 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 "Test-SMS an $sent von ${numbers.size} Nummer(n) übergeben."
             }
         }
+    }
+
+    // --- Live-Link (eigener Server) ---
+
+    fun setLiveLinkEnabled(value: Boolean) = viewModelScope.launch { store.setLiveLinkEnabled(value) }
+    fun setLiveLinkUrl(value: String) = viewModelScope.launch { store.setLiveLinkUrl(value) }
+    fun setLiveLinkToken(value: String) = viewModelScope.launch { store.setLiveLinkToken(value) }
+    fun setLiveLinkInterval(value: Int) = viewModelScope.launch { store.setLiveLinkInterval(value) }
+    fun setLiveLinkHideStart(value: Boolean) = viewModelScope.launch { store.setLiveLinkHideStart(value) }
+    fun setLiveLinkHeartRate(value: Boolean) = viewModelScope.launch { store.setLiveLinkHeartRate(value) }
+
+    /** Fragt den Server, ob Adresse und Token stimmen, und merkt sich den Link fuer Zuschauer. */
+    fun testLiveLink() {
+        val s = settings.value
+        if (s.liveLinkUrl.isBlank() || s.liveLinkToken.isBlank()) {
+            _message.value = "Bitte zuerst Server-Adresse und Upload-Token eintragen."
+            return
+        }
+        viewModelScope.launch {
+            val r = withContext(Dispatchers.IO) { LiveLink.post(s.liveLinkUrl, s.liveLinkToken, LiveLink.ping()) }
+            _message.value = r.fold(
+                onSuccess = { json ->
+                    val view = (json["view"] as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
+                    store.setLiveLinkViewUrl(view)
+                    "Verbindung klappt. Link für Zuschauer gespeichert."
+                },
+                onFailure = { "Live-Link: ${it.message ?: it.javaClass.simpleName}" },
+            )
+        }
+    }
+
+    /** Den Link fuer Zuschauer teilen (WhatsApp, SMS ...). */
+    fun shareLiveLink() {
+        val url = settings.value.liveLinkViewUrl.ifBlank { return }
+        val ctx = getApplication<Application>()
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, "Hier kannst du meine Radfahrt live verfolgen: $url")
+        }
+        ctx.startActivity(Intent.createChooser(send, "Live-Link teilen").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     fun setHealthWeightSync(value: Boolean) = viewModelScope.launch { store.setHealthWeightSync(value) }

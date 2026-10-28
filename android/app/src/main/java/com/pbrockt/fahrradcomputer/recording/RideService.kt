@@ -28,6 +28,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import com.pbrockt.fahrradcomputer.live.LiveLink
 import com.pbrockt.fahrradcomputer.live.LiveSms
 import com.pbrockt.fahrradcomputer.routes.TurnAnnouncer
 import com.pbrockt.fahrradcomputer.live.SmsSender
@@ -79,6 +80,7 @@ class RideService : Service() {
         forward(app.sensors.cadence, session::onCadence)
         forward(app.sensors.power, session::onPower)
         scope.launch { liveSmsLoop() }
+        scope.launch { liveLinkLoop() }
         // Abbiegehinweise ankuendigen - nicht, solange man abseits der Route ist.
         scope.launch {
             session.guidance.filterNotNull().collect { g ->
@@ -114,6 +116,87 @@ class RideService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_NOT_STICKY
 
+    // --- Live-Link zum eigenen Server ---
+
+    /** Id der Fahrt auf dem Server; eine neue je Start des Dienstes. */
+    private val liveRide = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"))
+    private var liveSentUpTo = 0
+    private var liveStartIdx: Int? = null
+    private var liveRouteSent = false
+    private var liveEverSent = false
+
+    /**
+     * Schickt alle [LiveLink]-Sekunden die neuen Punkte. Klappt es nicht (Funkloch), bleiben
+     * sie liegen und gehen beim naechsten Mal mit - der Server ignoriert doppelte.
+     */
+    private suspend fun liveLinkLoop() {
+        while (true) {
+            val s = app.currentSettings.value
+            if (s.liveLinkEnabled && s.liveLinkUrl.isNotBlank() && s.liveLinkToken.isNotBlank()) {
+                val body = liveBody(finished = false)
+                if (body != null) {
+                    val (json, count) = body
+                    val ok = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                        LiveLink.post(s.liveLinkUrl, s.liveLinkToken, json).isSuccess
+                    }
+                    if (ok) {
+                        liveSentUpTo += count
+                        liveRouteSent = true
+                        liveEverSent = true
+                    }
+                }
+            }
+            delay(app.currentSettings.value.liveLinkIntervalS * 1000L)
+        }
+    }
+
+    /** JSON fuer den naechsten Versand und wie viele neue Punkte drin sind; null = noch nichts zu senden. */
+    private fun liveBody(finished: Boolean): Pair<String, Int>? {
+        val s = app.currentSettings.value
+        val track = session.route.value
+        if (liveStartIdx == null) {
+            liveStartIdx = if (s.liveLinkHideStart) LiveLink.firstVisible(track) else 0
+        }
+        // Noch in der Naehe des Starts: gar nichts senden, auch keine Kennzahlen.
+        val from = liveStartIdx ?: return null
+        val begin = maxOf(liveSentUpTo, from)
+        val batch = if (begin < track.size) track.subList(begin, minOf(track.size, begin + 1000)) else emptyList()
+        if (liveSentUpTo < from) liveSentUpTo = from
+        val stats = session.stats.value
+        val state = when {
+            finished -> "finished"
+            session.phase.value == RidePhase.PAUSED -> "paused"
+            else -> "riding"
+        }
+        val json = LiveLink.payload(
+            ride = liveRide,
+            name = s.riderName,
+            state = state,
+            stats = LiveLink.Stats(
+                distanceM = stats.distanceM,
+                movingMs = stats.movingTimeMs,
+                speedKmh = stats.speedKmh,
+                avgKmh = stats.avgSpeedKmh,
+                ascentM = session.climb.value.ascentM,
+                remainingM = session.progress.value?.remainingM,
+                battery = sms.batteryPercent(),
+                heartRate = app.sensors.heartRate.value.fresh(System.currentTimeMillis()),
+            ),
+            points = batch,
+            route = if (liveRouteSent) null else session.activeRoute.value?.points,
+            includeHeartRate = s.liveLinkHeartRate,
+        )
+        return json to batch.size
+    }
+
+    /** Zum Schluss "angekommen" melden - der Dienst endet gleich, daher in einem eigenen Thread. */
+    private fun sendLiveFinished() {
+        val s = app.currentSettings.value
+        if (!liveEverSent || !s.liveLinkEnabled || s.liveLinkUrl.isBlank()) return
+        val body = liveBody(finished = true)?.first ?: return
+        Thread { LiveLink.post(s.liveLinkUrl, s.liveLinkToken, body) }.start()
+    }
+
     override fun onDestroy() {
         // Nur bei einem echten Stopp - wird der Dienst vom System beendet, laeuft die Fahrt
         // noch (Phase != IDLE) und "angekommen" waere falsch.
@@ -125,6 +208,7 @@ class RideService : Service() {
                 LiveSms.stop(s.riderName, System.currentTimeMillis(), session.stats.value, p?.lat, p?.lon),
             )
         }
+        if (session.phase.value == RidePhase.IDLE) sendLiveFinished()
         locationManager?.removeUpdates(locationListener)
         signals.release()
         scope.cancel()
@@ -143,7 +227,8 @@ class RideService : Service() {
             val p = withTimeoutOrNull(START_FIX_WAIT_MS) { session.lastPoint.filterNotNull().first() }
             sms.send(
                 LiveSms.parseNumbers(s.liveSmsNumbers),
-                LiveSms.start(s.riderName, System.currentTimeMillis(), p?.lat, p?.lon, s.liveSmsIntervalMin),
+                LiveSms.start(s.riderName, System.currentTimeMillis(), p?.lat, p?.lon, s.liveSmsIntervalMin) +
+                    (if (s.liveLinkEnabled && s.liveLinkViewUrl.isNotBlank()) " Live-Karte: ${s.liveLinkViewUrl}" else ""),
             )
             startSmsSent = true
         }

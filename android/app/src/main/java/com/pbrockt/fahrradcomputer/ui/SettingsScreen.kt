@@ -158,6 +158,52 @@ fun SettingsScreen(vm: MainViewModel, onConnectHealth: () -> Unit, onEnableSms: 
             color = AppColors.Dim,
         )
 
+        Text("Live-Link (eigener Server)", fontWeight = FontWeight.Bold)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Während der Fahrt an den Server senden")
+                Text(
+                    "Zuschauer sehen Strecke, Position und Zahlen auf einer Karte. Den Server-Teil " +
+                        "(PHP, ohne Datenbank-Server) gibt es im Repo unter server/live.",
+                    color = AppColors.Dim, fontSize = 13.sp,
+                )
+            }
+            Switch(checked = s.liveLinkEnabled, onCheckedChange = vm::setLiveLinkEnabled)
+        }
+        if (s.liveLinkEnabled) {
+            TextSetting("Server-Adresse, z. B. https://mein-server.de/live", s.liveLinkUrl, KeyboardType.Uri, vm::setLiveLinkUrl)
+            TokenField(s.liveLinkToken, label = "Upload-Token (aus config.php)", onChange = vm::setLiveLinkToken)
+            Text("Senden alle")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (sec in listOf(15, 30, 60, 120)) {
+                    FilterChip(
+                        selected = s.liveLinkIntervalS == sec,
+                        onClick = { vm.setLiveLinkInterval(sec) },
+                        label = { Text(if (sec < 60) "$sec s" else "${sec / 60} min") },
+                    )
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Die ersten 500 m nicht senden (Wohnort)", Modifier.weight(1f))
+                Switch(checked = s.liveLinkHideStart, onCheckedChange = vm::setLiveLinkHideStart)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Puls mitsenden", Modifier.weight(1f))
+                Switch(checked = s.liveLinkHeartRate, onCheckedChange = vm::setLiveLinkHeartRate)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = vm::testLiveLink, modifier = Modifier.weight(1f)) { Text("Verbindung testen") }
+                OutlinedButton(
+                    onClick = vm::shareLiveLink, enabled = s.liveLinkViewUrl.isNotBlank(), modifier = Modifier.weight(1f),
+                ) { Text("Link teilen") }
+            }
+            Text(
+                if (s.liveLinkViewUrl.isBlank()) "Nach dem Test steht hier der Link für Zuschauer."
+                else "Link für Zuschauer: ${s.liveLinkViewUrl}\nIst Live-SMS an, steht er auch in der „losgefahren“-SMS.",
+                color = AppColors.Dim, fontSize = 13.sp,
+            )
+        }
+
         Text("Live-Standort per SMS", fontWeight = FontWeight.Bold)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Während der Fahrt Standort senden", Modifier.weight(1f))
@@ -252,7 +298,7 @@ fun SettingsScreen(vm: MainViewModel, onConnectHealth: () -> Unit, onEnableSms: 
             Text("Beim Start nach Updates suchen", Modifier.weight(1f))
             Switch(checked = s.autoUpdateCheck, onCheckedChange = vm::setAutoUpdateCheck)
         }
-        TokenField(s.updateToken, vm::setUpdateToken)
+        TokenField(s.updateToken, onChange = vm::setUpdateToken)
         Button(onClick = { vm.checkForUpdates() }, modifier = Modifier.fillMaxWidth()) {
             Text("Jetzt nach Updates suchen")
         }
@@ -292,13 +338,13 @@ private fun TextSetting(label: String, value: String, keyboard: KeyboardType, on
 }
 
 @Composable
-private fun TokenField(value: String, onChange: (String) -> Unit) {
+private fun TokenField(value: String, label: String = "GitHub-Token (nur bei privatem Repo nötig)", onChange: (String) -> Unit) {
     var text by remember { mutableStateOf(value) }
     LaunchedEffect(value) { if (text.isEmpty()) text = value }
     OutlinedTextField(
         value = text,
         onValueChange = { text = it; onChange(it) },
-        label = { Text("GitHub-Token (nur bei privatem Repo nötig)") },
+        label = { Text(label) },
         singleLine = true,
         visualTransformation = PasswordVisualTransformation(),
         modifier = Modifier.fillMaxWidth(),
