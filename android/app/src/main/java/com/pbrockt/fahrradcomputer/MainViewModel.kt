@@ -95,6 +95,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _healthState = MutableStateFlow(HealthState(health.availability, emptySet()))
     val healthState: StateFlow<HealthState> = _healthState.asStateFlow()
+    // Muss vor init stehen - refreshHealth() im init schreibt schon hinein.
+    private val _healthWeight = MutableStateFlow<Pair<Double, java.time.Instant>?>(null)
+    /** Neuestes Gewicht in Health Connect - zur Kontrolle in den Einstellungen. */
+    val healthWeight: StateFlow<Pair<Double, java.time.Instant>?> = _healthWeight.asStateFlow()
     val healthPermissions: Set<String> get() = health.permissions
     val healthContract get() = health.requestContract
 
@@ -256,10 +260,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // --- Health Connect ---
-
-    private val _healthWeight = MutableStateFlow<Pair<Double, java.time.Instant>?>(null)
-    /** Neuestes Gewicht in Health Connect - zur Kontrolle in den Einstellungen. */
-    val healthWeight: StateFlow<Pair<Double, java.time.Instant>?> = _healthWeight.asStateFlow()
 
     fun refreshHealth() {
         viewModelScope.launch {
