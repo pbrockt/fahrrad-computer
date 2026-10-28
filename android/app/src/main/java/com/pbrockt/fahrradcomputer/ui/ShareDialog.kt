@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pbrockt.fahrradcomputer.recording.FitCodec
 import com.pbrockt.fahrradcomputer.recording.RideSummary
 import com.pbrockt.fahrradcomputer.recording.TrackPoint
 import com.pbrockt.fahrradcomputer.share.PrivacyTrim
@@ -30,7 +31,7 @@ import com.pbrockt.fahrradcomputer.share.ShareExporter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-private enum class ShareFormat(val label: String) { IMAGE("Bild"), VIDEO("Video"), GPX("GPX-Datei") }
+private enum class ShareFormat(val label: String) { IMAGE("Bild"), VIDEO("Video"), GPX("GPX"), FIT("FIT") }
 
 /**
  * Teilen mit Datenschutz-Frage: Vor dem Erzeugen wird gefragt, ob Start und Ende
@@ -44,6 +45,7 @@ fun ShareDialog(ride: RideSummary, points: List<TrackPoint>, onDismiss: () -> Un
     var format by remember { mutableStateOf(ShareFormat.IMAGE) }
     var trimM by remember { mutableStateOf(500) }
     var withMap by remember { mutableStateOf(true) }
+    var eBike by remember { mutableStateOf(true) }
     var progress by remember { mutableStateOf<Float?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     val busy = progress != null
@@ -73,6 +75,17 @@ fun ShareDialog(ride: RideSummary, points: List<TrackPoint>, onDismiss: () -> Un
                 when (format) {
                     ShareFormat.VIDEO -> Text("Ein Punkt fährt die Strecke in 6 Sekunden ab, die Zahlen zählen mit.", color = AppColors.Dim, fontSize = 13.sp)
                     ShareFormat.GPX -> Text("Für Strava, Komoot & Co. – mit Puls, Trittfrequenz und Leistung.", color = AppColors.Dim, fontSize = 13.sp)
+                    ShareFormat.FIT -> Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Als E-Bike-Fahrt")
+                            Text(
+                                "FIT für Strava, Intervals.icu, Garmin Connect – mit Kalorien und Kennzahlen. " +
+                                    "Strava zählt E-Bike-Fahrten nicht für Segmente.",
+                                color = AppColors.Dim, fontSize = 13.sp,
+                            )
+                        }
+                        Switch(checked = eBike, onCheckedChange = { eBike = it }, enabled = !busy)
+                    }
                     ShareFormat.IMAGE -> Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text("Mit Karte (OpenStreetMap)")
@@ -112,6 +125,15 @@ fun ShareDialog(ride: RideSummary, points: List<TrackPoint>, onDismiss: () -> Un
                                 ShareFormat.GPX -> ShareExporter.share(
                                     context, ShareExporter.gpx(context, ride.id, trimmed), "application/gpx+xml", "GPX teilen",
                                 )
+                                ShareFormat.FIT -> {
+                                    // Kalorien anteilig, falls Start und Ende weggelassen wurden.
+                                    val share = FitCodec.totals(trimmed).movingS * 1000 / ride.movingTimeMs.coerceAtLeast(1)
+                                    val kcal = ride.calories * share.coerceIn(0.0, 1.0)
+                                    ShareExporter.share(
+                                        context, ShareExporter.fit(context, ride.id, trimmed, kcal, eBike),
+                                        "application/vnd.ant.fit", "FIT teilen",
+                                    )
+                                }
                             }
                             onDismiss()
                         } catch (e: CancellationException) {

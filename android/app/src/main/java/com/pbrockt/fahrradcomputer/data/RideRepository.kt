@@ -2,6 +2,7 @@ package com.pbrockt.fahrradcomputer.data
 
 import com.pbrockt.fahrradcomputer.health.HealthConnect
 import com.pbrockt.fahrradcomputer.recording.GpxReader
+import com.pbrockt.fahrradcomputer.recording.GpxWriter
 import com.pbrockt.fahrradcomputer.recording.RideSummaries
 import com.pbrockt.fahrradcomputer.recording.RideSummary
 import com.pbrockt.fahrradcomputer.recording.TrackPoint
@@ -15,6 +16,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /**
  * Die gespeicherten Fahrten: je Fahrt `<id>.gpx` (die Strecke) und `<id>.json` (die
@@ -102,6 +106,25 @@ class RideRepository(
         return error
     }
 
+    /**
+     * Uebernimmt eine fremde Fahrt (z. B. aus einer FIT-Datei) ins Archiv. Die Kennzahlen
+     * rechnet [loadOrBuild] beim naechsten Laden aus der Strecke. Gibt die neue Id zurueck.
+     */
+    suspend fun importTrack(points: List<TrackPoint>): Result<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            require(points.size >= 2) { "Keine Strecke mit GPS-Positionen in der Datei." }
+            val id = Instant.ofEpochMilli(points.first().timeMs).atZone(ZoneId.systemDefault()).format(FILE_NAME)
+            mutex.withLock {
+                val target = gpxFile(id)
+                require(!target.exists()) { "Eine Fahrt vom selben Zeitpunkt ist schon vorhanden." }
+                val tmp = File(dir, target.name + ".tmp")
+                tmp.bufferedWriter().use { GpxWriter.write(it, "Radfahrt $id", points) }
+                tmp.renameTo(target)
+            }
+            id
+        }.also { if (it.isSuccess) refresh() }
+    }
+
     suspend fun delete(id: String) {
         withContext(Dispatchers.IO) {
             mutex.withLock {
@@ -114,6 +137,8 @@ class RideRepository(
 
     companion object {
         const val PART_SUFFIX = ".laufend"
+        /** Wie bei eigenen Fahrten ([com.pbrockt.fahrradcomputer.recording.RideSession]). */
+        private val FILE_NAME = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm")
     }
 
     private fun write(summary: RideSummary) {

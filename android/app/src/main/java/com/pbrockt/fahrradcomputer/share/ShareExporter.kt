@@ -9,6 +9,7 @@ import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.media.MediaMuxer
 import androidx.core.content.FileProvider
+import com.pbrockt.fahrradcomputer.recording.FitCodec
 import com.pbrockt.fahrradcomputer.recording.GpxWriter
 import com.pbrockt.fahrradcomputer.recording.TrackPoint
 import kotlinx.coroutines.Dispatchers
@@ -52,6 +53,14 @@ object ShareExporter {
         file.bufferedWriter().use { GpxWriter.write(it, "Radfahrt $id", points) }
         file
     }
+
+    /** FIT fuer Strava, Intervals.icu, Garmin Connect - aus der gekuerzten Strecke. */
+    suspend fun fit(context: Context, id: String, points: List<TrackPoint>, calories: Double, eBike: Boolean): File =
+        withContext(Dispatchers.IO) {
+            val file = File(dir(context), "radfahrt-$id.fit")
+            FitCodec.write(file, points, calories, eBike)
+            file
+        }
 
     /**
      * Video: der Punkt faehrt die Strecke in [ANIMATION_S] Sekunden ab, danach bleibt das

@@ -8,6 +8,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pbrockt.fahrradcomputer.data.AppSettings
 import android.net.Uri
+import com.pbrockt.fahrradcomputer.recording.FitCodec
+import com.pbrockt.fahrradcomputer.share.ShareExporter
+import com.pbrockt.fahrradcomputer.ui.dashboard.LayoutCodec
 import com.pbrockt.fahrradcomputer.coach.Coach
 import com.pbrockt.fahrradcomputer.coach.CoachPrompt
 import com.pbrockt.fahrradcomputer.coach.CoachRequest
@@ -161,6 +164,62 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     suspend fun loadTrack(id: String): List<TrackPoint> = repository.readTrack(id)
 
+    /** FIT-Datei (Garmin, Zwift, Wahoo ...) als Fahrt uebernehmen. */
+    fun importFit(uri: Uri) {
+        viewModelScope.launch {
+            val ctx = getApplication<Application>()
+            val points = withContext(Dispatchers.IO) {
+                runCatching {
+                    ctx.contentResolver.openInputStream(uri).use { input ->
+                        requireNotNull(input) { "Datei lässt sich nicht öffnen." }
+                        FitCodec.read(input.buffered())
+                    }
+                }
+            }
+            _message.value = points.fold(
+                onSuccess = { p ->
+                    repository.importTrack(p).fold(
+                        onSuccess = { "Fahrt übernommen (${p.size} Punkte)." },
+                        onFailure = { it.message ?: "Import fehlgeschlagen." },
+                    )
+                },
+                onFailure = { "Keine lesbare FIT-Datei: ${it.message ?: it.javaClass.simpleName}" },
+            )
+        }
+    }
+
+    // --- Tacho-Layout als Datei ---
+
+    /** Das aktuelle Layout als JSON-Datei teilen (sichern, aufs neue Handy, weitergeben). */
+    fun exportLayout() {
+        viewModelScope.launch {
+            val ctx = getApplication<Application>()
+            val file = withContext(Dispatchers.IO) {
+                File(ctx.cacheDir, "teilen").apply { mkdirs() }.let { File(it, "tacho-layout.json") }
+                    .apply { writeText(LayoutCodec.encode(settings.value.dashboard)) }
+            }
+            ShareExporter.share(ctx, file, "application/json", "Tacho-Layout teilen")
+        }
+    }
+
+    fun importLayout(uri: Uri) {
+        viewModelScope.launch {
+            val ctx = getApplication<Application>()
+            val text = withContext(Dispatchers.IO) {
+                runCatching {
+                    ctx.contentResolver.openInputStream(uri)?.use { it.readBytes().take(MAX_LAYOUT_BYTES).toByteArray().decodeToString() }
+                }.getOrNull()
+            }
+            val layout = LayoutCodec.decode(text)
+            if (layout == null) {
+                _message.value = "Kein lesbares Tacho-Layout in der Datei."
+            } else {
+                store.editDashboard { layout }
+                _message.value = "Tacho-Layout übernommen (${layout.pages.size} Seiten)."
+            }
+        }
+    }
+
     fun deleteRide(id: String) {
         viewModelScope.launch { repository.delete(id) }
     }
@@ -247,6 +306,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setEditHoldMs(value: Int) = viewModelScope.launch { store.setEditHoldMs(value) }
     fun setBellOnDoubleTap(value: Boolean) = viewModelScope.launch { store.setBellOnDoubleTap(value) }
+
+    private companion object {
+        const val MAX_LAYOUT_BYTES = 200_000
+    }
 
     override fun onCleared() {
         bell.release()

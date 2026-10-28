@@ -1,5 +1,7 @@
 package com.pbrockt.fahrradcomputer.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -89,6 +91,22 @@ fun SettingsScreen(vm: MainViewModel, onConnectHealth: () -> Unit, onEnableSms: 
             Switch(checked = s.bellOnDoubleTap, onCheckedChange = vm::setBellOnDoubleTap)
         }
         OutlinedButton(onClick = vm::ringBellNow, modifier = Modifier.fillMaxWidth()) { Text("Klingel testen") }
+
+        Text("Tacho-Layout", fontWeight = FontWeight.Bold)
+        val layoutImporter = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            uri?.let(vm::importLayout)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = vm::exportLayout, modifier = Modifier.weight(1f)) { Text("Exportieren") }
+            OutlinedButton(
+                onClick = { layoutImporter.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
+                modifier = Modifier.weight(1f),
+            ) { Text("Importieren") }
+        }
+        Text(
+            "Alle Tacho-Seiten als Datei sichern oder teilen. Importieren ersetzt die aktuellen Seiten.",
+            color = AppColors.Dim,
+        )
 
         Text("Darstellung", fontWeight = FontWeight.Bold)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

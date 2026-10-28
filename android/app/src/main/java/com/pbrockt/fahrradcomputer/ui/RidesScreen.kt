@@ -1,6 +1,8 @@
 package com.pbrockt.fahrradcomputer.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -52,6 +55,11 @@ fun RidesScreen(vm: MainViewModel) {
 private fun RideList(vm: MainViewModel) {
     val rides by vm.rides.collectAsStateWithLifecycle()
     var selected by rememberSaveable { mutableStateOf<String?>(null) }
+    val fitImporter = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let(vm::importFit)
+    }
+    // FIT hat keinen festen MIME-Typ - manche Dateimanager melden octet-stream.
+    val importFit = { fitImporter.launch(arrayOf("application/vnd.ant.fit", "application/fits", "application/octet-stream", "*/*")) }
 
     val open = selected?.let { id -> rides.firstOrNull { it.id == id } }
     if (open != null) {
@@ -63,6 +71,7 @@ private fun RideList(vm: MainViewModel) {
     if (rides.isEmpty()) {
         Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
             Text("Noch keine Fahrten aufgezeichnet.", color = AppColors.Dim)
+            OutlinedButton(onClick = importFit, modifier = Modifier.padding(top = 12.dp)) { Text("FIT-Datei importieren") }
         }
         return
     }
@@ -85,7 +94,11 @@ private fun RideList(vm: MainViewModel) {
         items(rides, key = { it.id }) { ride ->
             RideRow(ride, Modifier.fillMaxWidth().clickable { selected = ride.id })
         }
-        item { Text("", Modifier.padding(4.dp)) }
+        item {
+            OutlinedButton(onClick = importFit, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                Text("FIT-Datei importieren (Garmin, Wahoo, Zwift …)")
+            }
+        }
     }
 }
 
