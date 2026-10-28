@@ -55,16 +55,7 @@ import kotlinx.coroutines.delay
 fun MapsScreen(vm: MainViewModel) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val routes by vm.routes.collectAsStateWithLifecycle()
-    val states by vm.mapStates.collectAsStateWithLifecycle()
     var preview by rememberSaveable { mutableStateOf<String?>(null) }
-
-    // Downloads laufen im Hintergrund weiter - solange der Bildschirm offen ist, Fortschritt holen.
-    LaunchedEffect(Unit) {
-        while (true) {
-            vm.refreshMaps()
-            delay(1_000)
-        }
-    }
 
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let(vm::importRoute)
@@ -120,57 +111,15 @@ fun MapsScreen(vm: MainViewModel) {
             }
         }
 
-        Text("Abbiegehinweise", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Vibrieren", Modifier.weight(1f))
-            Switch(checked = settings.navVibrate, onCheckedChange = vm::setNavVibrate)
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Piepsen, wenn du reagieren sollst", Modifier.weight(1f))
-            Switch(checked = settings.navSound, onCheckedChange = vm::setNavSound)
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Warnen, wenn du von der Route abkommst", Modifier.weight(1f))
-            Switch(checked = settings.navOffRouteBeep, onCheckedChange = vm::setNavOffRouteBeep)
-        }
-        OutlinedButton(onClick = vm::testNavBeep, modifier = Modifier.fillMaxWidth()) { Text("Piepton testen") }
         Text(
-            "Die App erkennt Abbiegungen aus der Form der Route. Vibration 150 m vorher (einmal) und " +
-                "kurz davor (zweimal), am Ziel dreimal. Gepiepst wird nur, wenn du reagieren sollst: " +
-                "jetzt abbiegen (zwei Töne), abseits der Route (ein langer tiefer Ton), am Ziel (drei). " +
-                "Lautstärke = Medienlautstärke. Straßennamen kennt die App nicht.",
-            color = AppColors.Dim, fontSize = 13.sp,
-        )
-
-        Text("Offline-Karten", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
-        Text(
-            "OpenStreetMap-Karten von mapsforge.org – danach braucht die Karte kein Internet mehr. " +
-                "Mehrere Länder lassen sich kombinieren.",
-            color = AppColors.Dim, fontSize = 13.sp,
-        )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Nur über WLAN laden", Modifier.weight(1f))
-            Switch(checked = settings.mapsWifiOnly, onCheckedChange = vm::setMapsWifiOnly)
-        }
-        for (region in MapRegions.ALL) {
-            RegionRow(region, states[region.id] ?: MapState.Missing, vm)
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Online-Karte ohne Offline-Karte")
-                Text("Lädt Kartenbilder von openstreetmap.org (mobile Daten).", color = AppColors.Dim, fontSize = 13.sp)
-            }
-            Switch(checked = settings.mapOnline, onCheckedChange = vm::setMapOnline)
-        }
-        Text(
-            "Kartendaten © OpenStreetMap-Mitwirkende (ODbL), Kartendateien: mapsforge.org.",
-            color = AppColors.Dim, fontSize = 12.sp,
+            "Abbiegehinweise und Offline-Karten findest du unter Einstellungen → Navigation bzw. Offline-Karten.",
+            color = AppColors.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp),
         )
     }
 }
 
 @Composable
-private fun RegionRow(region: MapRegion, state: MapState, vm: MainViewModel) {
+internal fun RegionRow(region: MapRegion, state: MapState, vm: MainViewModel) {
     var confirmDelete by remember { mutableStateOf(false) }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
@@ -256,6 +205,24 @@ private fun RoutePreview(vm: MainViewModel, route: Route, active: Boolean, onBac
                 fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, modifier = Modifier.padding(top = 8.dp),
             )
             ElevationProfileChart(profile, Modifier.fillMaxWidth().height(140.dp).padding(top = 4.dp))
+            if (profile.climbs.isNotEmpty()) {
+                Text(
+                    "ANSTIEGE · ${profile.climbs.size}",
+                    fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, modifier = Modifier.padding(top = 6.dp),
+                )
+                // Die Karte soll nicht verschwinden - lange Listen kuerzen.
+                for (c in profile.climbs.take(4)) {
+                    Text(
+                        "${c.number}. bei km ${formatDecimal(c.startM / 1000)}: ${formatDecimal(c.lengthM / 1000)} km · " +
+                            "${c.gainM.toInt()} Hm · Ø ${formatDecimal(c.avgGrade)} % · max ${formatDecimal(c.maxGrade)} %",
+                        color = androidx.compose.ui.graphics.Color(
+                            com.pbrockt.fahrradcomputer.routes.RouteProfile.GRADE_COLORS[com.pbrockt.fahrradcomputer.routes.RouteProfile.gradeLevel(c.avgGrade)]
+                        ),
+                        fontSize = 14.sp,
+                    )
+                }
+                if (profile.climbs.size > 4) Text("… und ${profile.climbs.size - 4} weitere", color = AppColors.Dim, fontSize = 13.sp)
+            }
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 com.pbrockt.fahrradcomputer.routes.RouteProfile.GRADE_COLORS.forEachIndexed { i, c ->
                     Text(

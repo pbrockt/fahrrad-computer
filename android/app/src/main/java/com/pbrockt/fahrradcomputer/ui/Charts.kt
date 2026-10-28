@@ -194,28 +194,35 @@ fun zoneSeconds(minutes: List<Float>, values: List<Float?>, zones: Zones, skip: 
     return sec.toList()
 }
 
-/** Zeit in Zonen als gestapelter Balken mit Prozentangaben. */
+/**
+ * Zeit in Zonen als Tabelle: je Zone eine Zeile mit Nummer, Anteil, Dauer
+ * und einem Balken in Zonenfarbe, dessen Laenge den Anteil zeigt.
+ */
 @Composable
 fun ZoneTimeBar(title: String, seconds: List<Long>, modifier: Modifier = Modifier) {
     val total = seconds.sum().toFloat()
     if (total <= 0f) return
+    val max = seconds.max().toFloat()
     Column(modifier.background(AppColors.Bg).padding(vertical = 8.dp)) {
         Text(
             title.uppercase(Locale.GERMANY), fontFamily = Condensed, fontWeight = FontWeight.SemiBold,
-            fontSize = 16.sp, letterSpacing = 0.6.sp,
+            fontSize = 16.sp, letterSpacing = 0.6.sp, modifier = Modifier.padding(bottom = 6.dp),
         )
-        Row(Modifier.fillMaxWidth().height(22.dp).padding(top = 6.dp)) {
-            seconds.forEachIndexed { i, s ->
-                if (s > 0) Box(Modifier.weight(s / total).fillMaxHeight().background(AppColors.zone(i + 1)))
-            }
-        }
-        Row(Modifier.fillMaxWidth().padding(top = 6.dp)) {
-            seconds.forEachIndexed { i, s ->
-                Text(
-                    "Z${i + 1} ${String.format(Locale.GERMANY, "%.0f", s / total * 100)} %",
-                    color = AppColors.zone(i + 1), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f),
-                )
+        seconds.forEachIndexed { i, sec ->
+            val color = AppColors.zone(i + 1)
+            val cell = color.copy(alpha = 0.75f)
+            Row(Modifier.fillMaxWidth().height(30.dp).padding(bottom = 2.dp)) {
+                @Composable
+                fun Cell(text: String, w: Float) = Box(
+                    Modifier.weight(w).fillMaxHeight().padding(end = 2.dp).background(cell),
+                    contentAlignment = androidx.compose.ui.Alignment.Center,
+                ) { Text(text, color = Color.White, fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 15.sp) }
+                Cell("${i + 1}", 0.6f)
+                Cell("${(sec / total * 100).toInt()} %", 1f)
+                Cell(String.format(Locale.GERMANY, "%d:%02d", sec / 60, sec % 60), 1.3f)
+                Box(Modifier.weight(3.4f).fillMaxHeight()) {
+                    Box(Modifier.fillMaxHeight().fillMaxWidth((sec / max).coerceAtLeast(0.01f)).background(color))
+                }
             }
         }
     }

@@ -39,6 +39,56 @@ class RouteProfile(
 
     val totalAscentM: Double get() = ascentTo.last()
 
+    /** Die Anstiege der Route (wie ClimbPro bei Garmin), einmal berechnet. */
+    val climbs: List<Climb> by lazy { findClimbs() }
+
+    /** Anstieg, auf dem man bei [d] gerade ist, sonst null. */
+    fun climbAt(d: Double): Climb? = climbs.firstOrNull { d >= it.startM && d <= it.endM }
+
+    /** Naechster Anstieg nach [d]. */
+    fun nextClimb(d: Double): Climb? = climbs.firstOrNull { it.startM > d }
+
+    /**
+     * Sucht Anstiege: vom tiefsten Punkt seit dem letzten Anstieg bis zum Gipfel. Ein Anstieg
+     * endet, wenn es danach deutlich bergab geht (mind. 10 m oder ein Fuenftel des Gewinns).
+     * Zaehlt nur ab [MIN_CLIMB_GAIN_M] Hoehe, [MIN_CLIMB_LENGTH_M] Laenge und
+     * [MIN_CLIMB_GRADE] Prozent Durchschnitt - kleine Wellen sind keine Anstiege.
+     */
+    private fun findClimbs(): List<Climb> {
+        val e = elevationM
+        val out = mutableListOf<Climb>()
+        var lo = 0
+        var peak = -1
+        fun finish() {
+            if (peak > lo) {
+                val gain = e[peak] - e[lo]
+                val length = distanceM[peak] - distanceM[lo]
+                if (gain >= MIN_CLIMB_GAIN_M && length >= MIN_CLIMB_LENGTH_M && gain / length * 100 >= MIN_CLIMB_GRADE) {
+                    var maxGrade = 0.0
+                    var d = distanceM[lo]
+                    while (d <= distanceM[peak]) { maxGrade = max(maxGrade, gradeAt(d)); d += STEP_M }
+                    out += Climb(out.size + 1, distanceM[lo], distanceM[peak], gain, gain / length * 100, maxGrade)
+                }
+            }
+        }
+        for (i in 1 until e.size) {
+            if (peak < 0) {
+                // <=: bei flachem Stueck den letzten tiefsten Punkt nehmen - dort beginnt der Anstieg.
+                if (e[i] <= e[lo]) lo = i
+                else if (e[i] - e[lo] >= 10) peak = i
+            } else {
+                if (e[i] >= e[peak]) peak = i
+                else if (e[peak] - e[i] >= max(10.0, (e[peak] - e[lo]) * 0.2)) {
+                    finish()
+                    lo = i
+                    peak = -1
+                }
+            }
+        }
+        if (peak >= 0) finish()
+        return out
+    }
+
     fun ascentRemainingM(doneM: Double): Double = (totalAscentM - ascentAt(doneM)).coerceAtLeast(0.0)
 
     private fun ascentAt(d: Double): Double = interpolate(ascentTo, d)
@@ -67,8 +117,23 @@ class RouteProfile(
         return values[i] + (values[i + 1] - values[i]) * t.coerceIn(0.0, 1.0)
     }
 
+    /** Ein Anstieg auf der Route. [number] zaehlt ab 1. */
+    data class Climb(
+        val number: Int,
+        val startM: Double,
+        val endM: Double,
+        val gainM: Double,
+        val avgGrade: Double,
+        val maxGrade: Double,
+    ) {
+        val lengthM: Double get() = endM - startM
+    }
+
     companion object {
         const val STEP_M = 50.0
+        const val MIN_CLIMB_GAIN_M = 25.0
+        const val MIN_CLIMB_LENGTH_M = 400.0
+        const val MIN_CLIMB_GRADE = 3.0
         private const val GRADE_SPAN_M = 200.0
         private const val ASCENT_THRESHOLD_M = 3.0
 

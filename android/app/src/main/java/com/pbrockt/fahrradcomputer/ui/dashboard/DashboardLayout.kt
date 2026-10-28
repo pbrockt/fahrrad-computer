@@ -1,34 +1,70 @@
 package com.pbrockt.fahrradcomputer.ui.dashboard
 
-/** Was eine Kachel anzeigen kann. */
-enum class TileType(val label: String) {
-    SPEED("Geschwindigkeit"),
-    HEART_RATE("Puls"),
-    CADENCE("Trittfrequenz"),
+/** Gruppen im Kachel-Auswahldialog. */
+enum class TileCategory(val label: String) {
+    SPEED("Tempo"),
+    TIME("Distanz & Zeit"),
+    HEART("Puls"),
     POWER("Leistung"),
-    CALORIES("Kalorien"),
-    DISTANCE("Distanz"),
-    MOVING_TIME("Fahrzeit"),
-    AVG_SPEED("Ø Geschwindigkeit"),
-    MAX_SPEED("Max. Geschwindigkeit"),
-    AVG_HR("Ø Puls"),
-    MAX_HR("Max. Puls"),
-    AVG_CADENCE("Ø Trittfrequenz"),
-    AVG_POWER("Ø Leistung"),
-    ALTITUDE("Höhe"),
-    CLOCK("Uhrzeit"),
-    ROUTE("Karte / Navigation"),
-    ROUTE_REMAINING("Rest der Route"),
-    TURN("Abbiegehinweis"),
-    TRAINING_GOAL("Trainingsziel heute"),
-    CONTROLS("Start / Pause / Stopp"),
-    GRADE("Steigung"),
-    ASCENT("Höhenmeter (gefahren)"),
-    ROUTE_ASCENT_LEFT("Rest-Höhenmeter der Route"),
-    ELEVATION_PROFILE("Höhenprofil der Route"),
-    HR_CHART("Pulsverlauf (10 min)"),
-    WIND("Wind"),
-    TEMPERATURE("Temperatur & Wetter"),
+    CADENCE("Trittfrequenz"),
+    ELEVATION("Höhe & Anstiege"),
+    NAVIGATION("Karte & Navigation"),
+    WEATHER("Wetter & Umgebung"),
+    OTHER("Sonstiges"),
+}
+
+/** Was eine Kachel anzeigen kann. Die Reihenfolge hier ist egal - gespeichert wird der Name. */
+enum class TileType(val label: String, val category: TileCategory) {
+    SPEED("Tempo", TileCategory.SPEED),
+    AVG_SPEED("Ø Tempo", TileCategory.SPEED),
+    MAX_SPEED("Max. Tempo", TileCategory.SPEED),
+    SPEED_CHART("Tempoverlauf (10 min)", TileCategory.SPEED),
+
+    DISTANCE("Distanz", TileCategory.TIME),
+    MOVING_TIME("Fahrzeit", TileCategory.TIME),
+    ELAPSED_TIME("Gesamtzeit (mit Pausen)", TileCategory.TIME),
+    CLOCK("Uhrzeit", TileCategory.TIME),
+    CALORIES("Kalorien", TileCategory.TIME),
+
+    HEART_RATE("Puls", TileCategory.HEART),
+    AVG_HR("Ø Puls", TileCategory.HEART),
+    MAX_HR("Max. Puls", TileCategory.HEART),
+    HR_CHART("Pulsverlauf (10 min)", TileCategory.HEART),
+    HR_ZONE_CHART("Pulszonen-Diagramm", TileCategory.HEART),
+
+    POWER("Leistung", TileCategory.POWER),
+    AVG_POWER("Ø Leistung", TileCategory.POWER),
+    POWER_KG("Leistung pro kg", TileCategory.POWER),
+    POWER_FTP("Leistung in % FTP", TileCategory.POWER),
+    POWER_CHART("Leistungsverlauf (10 min)", TileCategory.POWER),
+    POWER_ZONE_CHART("Leistungszonen-Diagramm", TileCategory.POWER),
+
+    CADENCE("Trittfrequenz", TileCategory.CADENCE),
+    AVG_CADENCE("Ø Trittfrequenz", TileCategory.CADENCE),
+
+    ALTITUDE("Höhe", TileCategory.ELEVATION),
+    GRADE("Steigung", TileCategory.ELEVATION),
+    ASCENT("Anstieg (gefahren)", TileCategory.ELEVATION),
+    DESCENT("Abstieg (gefahren)", TileCategory.ELEVATION),
+    VAM("VAM (Höhenmeter pro Stunde)", TileCategory.ELEVATION),
+    CLIMB("Anstieg: aktuell / nächster", TileCategory.ELEVATION),
+    ELEVATION_PROFILE("Höhenprofil der Route", TileCategory.ELEVATION),
+    ROUTE_ASCENT_LEFT("Rest-Höhenmeter der Route", TileCategory.ELEVATION),
+
+    ROUTE("Karte", TileCategory.NAVIGATION),
+    TURN("Abbiegehinweis", TileCategory.NAVIGATION),
+    ROUTE_REMAINING("Rest der Route", TileCategory.NAVIGATION),
+    ETA("Ankunft (Uhrzeit & Restzeit)", TileCategory.NAVIGATION),
+    HEADING("Fahrtrichtung", TileCategory.NAVIGATION),
+
+    WIND("Wind", TileCategory.WEATHER),
+    HEADWIND("Gegenwind", TileCategory.WEATHER),
+    TEMPERATURE("Temperatur & Wetter", TileCategory.WEATHER),
+    SUNSET("Sonnenuntergang", TileCategory.WEATHER),
+
+    TRAINING_GOAL("Trainingsziel heute", TileCategory.OTHER),
+    PHONE_BATTERY("Handy-Akku", TileCategory.OTHER),
+    CONTROLS("Start / Pause / Stopp", TileCategory.OTHER),
 }
 
 /** Zeilenhoehe als Anteil am Bildschirm. */
@@ -75,7 +111,7 @@ data class DashboardLayout(val pages: List<DashboardPage>) {
                         row(RowHeight.MEDIUM, TileType.DISTANCE, TileType.MOVING_TIME),
                         row(RowHeight.LARGE, TileType.SPEED),
                         row(RowHeight.MEDIUM, TileType.POWER, TileType.HEART_RATE),
-                        row(RowHeight.SMALL, TileType.CADENCE, TileType.CALORIES, TileType.CLOCK),
+                        row(RowHeight.SMALL, TileType.CADENCE, TileType.ASCENT, TileType.CLOCK),
                     ),
                 ),
                 DashboardPage(
@@ -83,37 +119,39 @@ data class DashboardLayout(val pages: List<DashboardPage>) {
                     listOf(
                         row(RowHeight.MEDIUM, TileType.TURN),
                         row(RowHeight.XLARGE, TileType.ROUTE),
-                        row(RowHeight.SMALL, TileType.SPEED, TileType.ROUTE_REMAINING, TileType.CLOCK),
+                        row(RowHeight.SMALL, TileType.ROUTE_REMAINING, TileType.ETA),
+                        row(RowHeight.SMALL, TileType.SPEED, TileType.HEADING, TileType.CLOCK),
                     ),
                 ),
                 DashboardPage(
                     "Berg",
                     listOf(
-                        row(RowHeight.MEDIUM, TileType.DISTANCE, TileType.MOVING_TIME),
-                        row(RowHeight.MEDIUM, TileType.SPEED, TileType.CADENCE),
-                        row(RowHeight.MEDIUM, TileType.POWER, TileType.HR_CHART),
+                        row(RowHeight.LARGE, TileType.CLIMB),
                         row(RowHeight.LARGE, TileType.ELEVATION_PROFILE),
-                        row(RowHeight.MEDIUM, TileType.GRADE, TileType.ASCENT),
+                        row(RowHeight.MEDIUM, TileType.GRADE, TileType.VAM),
+                        row(RowHeight.MEDIUM, TileType.ASCENT, TileType.ROUTE_ASCENT_LEFT),
+                        row(RowHeight.SMALL, TileType.SPEED, TileType.CADENCE, TileType.HEART_RATE),
                     ),
                 ),
                 DashboardPage(
-                    "Puls",
+                    "Leistung & Puls",
                     listOf(
-                        row(RowHeight.LARGE, TileType.HEART_RATE),
-                        row(RowHeight.MEDIUM, TileType.HR_CHART),
-                        row(RowHeight.MEDIUM, TileType.AVG_HR, TileType.MAX_HR),
-                        row(RowHeight.MEDIUM, TileType.TRAINING_GOAL, TileType.MOVING_TIME),
+                        row(RowHeight.MEDIUM, TileType.POWER, TileType.HEART_RATE),
+                        row(RowHeight.MEDIUM, TileType.POWER_CHART, TileType.POWER_ZONE_CHART),
+                        row(RowHeight.MEDIUM, TileType.HR_CHART, TileType.HR_ZONE_CHART),
+                        row(RowHeight.MEDIUM, TileType.AVG_POWER, TileType.POWER_KG),
+                        row(RowHeight.SMALL, TileType.TRAINING_GOAL, TileType.MOVING_TIME),
                     ),
                 ),
                 DashboardPage(
                     "Übersicht",
                     listOf(
-                        row(RowHeight.MEDIUM, TileType.DISTANCE, TileType.MOVING_TIME),
+                        row(RowHeight.MEDIUM, TileType.DISTANCE, TileType.ELAPSED_TIME),
                         row(RowHeight.MEDIUM, TileType.AVG_SPEED, TileType.MAX_SPEED),
-                        row(RowHeight.MEDIUM, TileType.AVG_HR, TileType.MAX_HR),
-                        row(RowHeight.MEDIUM, TileType.AVG_CADENCE, TileType.AVG_POWER),
-                        row(RowHeight.MEDIUM, TileType.WIND, TileType.TEMPERATURE),
-                        row(RowHeight.SMALL, TileType.CALORIES, TileType.ALTITUDE, TileType.ASCENT),
+                        row(RowHeight.MEDIUM, TileType.AVG_HR, TileType.AVG_CADENCE),
+                        row(RowHeight.LARGE, TileType.WIND),
+                        row(RowHeight.MEDIUM, TileType.TEMPERATURE, TileType.HEADWIND, TileType.SUNSET),
+                        row(RowHeight.SMALL, TileType.CALORIES, TileType.DESCENT, TileType.PHONE_BATTERY),
                     ),
                 ),
             )

@@ -70,10 +70,8 @@ fun HomePage(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        // Bedienung
-        if (phase == RidePhase.IDLE) {
-            BigButton("Fahrt starten", AppColors.Go, Modifier.fillMaxWidth().height(80.dp), onStart)
-        } else {
+        // Laufende Fahrt - Start, Pause und Stopp liegen unten in der roten Leiste.
+        if (phase != RidePhase.IDLE) {
             Card(Modifier.fillMaxWidth().clickable(onClick = onShowRide)) {
                 Column(Modifier.padding(16.dp)) {
                     Text(
@@ -83,18 +81,10 @@ fun HomePage(
                     )
                     Text(
                         "${formatDecimal(stats.distanceM / 1000, 2)} km · ${formatDuration(stats.movingTimeMs)}",
-                        fontSize = 28.sp, fontWeight = FontWeight.Bold,
+                        fontSize = 30.sp, fontFamily = Condensed, fontWeight = FontWeight.SemiBold,
                     )
                     Text("Nach rechts wischen oder hier tippen = zum Tacho", color = AppColors.Dim, fontSize = 13.sp)
                 }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (phase == RidePhase.RECORDING) {
-                    BigButton("Pause", AppColors.Accent, Modifier.weight(2f).height(72.dp), vm::pauseRide)
-                } else {
-                    BigButton("Weiter", AppColors.Go, Modifier.weight(2f).height(72.dp), vm::resumeRide)
-                }
-                BigButton("Stopp", AppColors.Stop, Modifier.weight(1f).height(72.dp), onStop)
             }
         }
 

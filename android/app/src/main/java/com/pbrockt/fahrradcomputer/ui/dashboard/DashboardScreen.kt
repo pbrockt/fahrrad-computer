@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.graphics.Color
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Route
 import androidx.compose.ui.input.pointer.pointerInput
 import com.pbrockt.fahrradcomputer.ui.Condensed
 import androidx.compose.foundation.layout.Arrangement
@@ -152,6 +154,9 @@ fun DashboardScreen(
         speedZones = settings.speedZones,
         climb = climb,
         weather = weather,
+        weightKg = settings.weightKg,
+        ftp = settings.ftp,
+        phoneBattery = remember(now / 60_000) { vm.phoneBattery() },
     )
 
     val names = listOf("Start") + layout.pages.map { it.name }
@@ -163,10 +168,20 @@ fun DashboardScreen(
             sensors = listOf(hr, cadence, power),
             onMenu = onMenu,
         )
+        // Rotes Banner mit dem Seitennamen, kurz nach dem Blaettern.
+        var banner by remember { mutableStateOf<Int?>(null) }
+        var firstPage by remember { mutableStateOf(true) }
+        LaunchedEffect(pager.settledPage) {
+            if (firstPage) { firstPage = false; return@LaunchedEffect }
+            banner = pager.settledPage
+            kotlinx.coroutines.delay(1_500)
+            banner = null
+        }
+        Box(Modifier.weight(1f).fillMaxWidth()) {
         HorizontalPager(
             state = pager,
             userScrollEnabled = !editing,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
+            modifier = Modifier.fillMaxSize(),
         ) { index ->
             if (index == 0) {
                 Box(Modifier.fillMaxSize().padding(horizontal = 10.dp)) {
@@ -204,6 +219,8 @@ fun DashboardScreen(
                 )
             }
         }
+        banner?.takeIf { !editing }?.let { b -> PageBanner(names.getOrElse(b) { "" }, b + 1, names.size, Modifier.align(Alignment.TopCenter)) }
+        }
         PageDashes(names.size, pager.currentPage)
         if (editing) {
             Box(Modifier.padding(horizontal = 8.dp)) {
@@ -215,10 +232,12 @@ fun DashboardScreen(
                     onDone = { editing = false },
                 )
             }
-        } else if (pager.currentPage > 0) {
+        } else {
             RideBar(
                 phase = phase,
                 onStart = onStartRequested,
+                onTrainer = { onOpen(AppScreen.TRAINER) },
+                onRoute = { onOpen(AppScreen.MAPS) },
                 onPause = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     vm.pauseRide()
@@ -301,6 +320,19 @@ internal fun PageView(page: DashboardPage, data: TileData, mapId: String, modifi
     }
 }
 
+/** "FAHRT · Seite 2 von 6" in Rot oben ueber dem Tacho. */
+@Composable
+private fun PageBanner(name: String, number: Int, total: Int, modifier: Modifier) {
+    Column(
+        modifier.padding(top = 10.dp).clip(RoundedCornerShape(6.dp)).background(AppColors.Accent)
+            .padding(horizontal = 28.dp, vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(name.uppercase(java.util.Locale.GERMANY), color = Color.White, fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 24.sp, letterSpacing = 1.sp)
+        Text("Seite $number von $total", color = Color.White.copy(alpha = 0.85f), fontFamily = Condensed, fontSize = 16.sp)
+    }
+}
+
 /** Seitenanzeige als kurze Striche; der aktuelle ist hell. */
 @Composable
 internal fun PageDashes(count: Int, current: Int) {
@@ -325,19 +357,53 @@ internal fun PageDashes(count: Int, current: Int) {
 internal fun RideBar(
     phase: RidePhase,
     onStart: () -> Unit,
+    onTrainer: () -> Unit = {},
+    onRoute: () -> Unit = {},
     onPause: () -> Unit,
     onResume: () -> Unit,
     onStop: () -> Unit,
 ) {
     Row(Modifier.fillMaxWidth().height(64.dp), horizontalArrangement = Arrangement.spacedBy(1.dp)) {
         when (phase) {
-            RidePhase.IDLE -> BarButton("Fahrt starten", AppColors.Go, Modifier.weight(1f), onStart)
+            // grosser Start, daneben dunklere Felder fuer Indoor und Route.
+            RidePhase.IDLE -> {
+                Box(
+                    Modifier.weight(2.2f).fillMaxHeight().background(AppColors.Accent).clickable(onClick = onStart),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        BarText("Start")
+                        Text(
+                            "OUTDOOR-FAHRT", color = Color.White.copy(alpha = 0.8f), fontFamily = Condensed,
+                            fontWeight = FontWeight.Medium, fontSize = 14.sp, letterSpacing = 1.sp,
+                        )
+                    }
+                }
+                SquareButton("Heimtrainer", Icons.Filled.FitnessCenter, Modifier.weight(1f), onTrainer)
+                SquareButton("Route", Icons.Filled.Route, Modifier.weight(1f), onRoute)
+            }
             RidePhase.RECORDING -> HoldButton("Halten zum Pausieren", AppColors.Accent, 700, Modifier.weight(1f), onPause)
             RidePhase.PAUSED -> {
                 BarButton("Weiter", AppColors.Go, Modifier.weight(2f), onResume)
                 BarButton("Beenden", AppColors.Accent, Modifier.weight(1f), onStop)
             }
         }
+    }
+}
+
+/** Dunkelrotes Feld mit Symbol und Beschriftung - neben "Start". */
+@Composable
+private fun SquareButton(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier, onClick: () -> Unit) {
+    Column(
+        modifier.fillMaxHeight().background(Color(0xFF8E0B10)).clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp))
+        Text(
+            label.uppercase(java.util.Locale.GERMANY), color = Color.White.copy(alpha = 0.85f), fontFamily = Condensed,
+            fontWeight = FontWeight.Medium, fontSize = 13.sp, letterSpacing = 0.6.sp, maxLines = 1,
+        )
     }
 }
 
@@ -401,13 +467,10 @@ internal fun TopBar(
     onMenu: () -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().height(44.dp).padding(end = 10.dp),
+        Modifier.fillMaxWidth().height(44.dp).padding(start = 14.dp, end = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onMenu, modifier = Modifier.size(44.dp)) {
-            Icon(Icons.Filled.Menu, contentDescription = "Menü", tint = AppColors.Text)
-        }
         Text(
             title.uppercase(java.util.Locale.GERMANY),
             color = AppColors.Text,

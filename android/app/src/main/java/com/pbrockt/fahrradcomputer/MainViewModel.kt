@@ -461,6 +461,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         ctx.startActivity(Intent.createChooser(send, "Live-Link teilen").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
+    /** Akkustand des Handys fuer die Kachel. */
+    fun phoneBattery(): Int? = sms.batteryPercent()
+
     fun setHealthWeightSync(value: Boolean) = viewModelScope.launch { store.setHealthWeightSync(value) }
 
     // --- Sensoren ---

@@ -146,7 +146,13 @@ private fun TileDialog(
         title = { Text("Kachel") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                for (t in TileType.entries) {
+                for ((category, types) in TileType.entries.groupBy { it.category }) {
+                  Text(
+                      category.label.uppercase(java.util.Locale.GERMANY), color = AppColors.Dim, fontSize = 13.sp,
+                      fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                      modifier = Modifier.padding(top = 10.dp, bottom = 2.dp),
+                  )
+                  for (t in types) {
                     Row(
                         Modifier.fillMaxWidth()
                             .selectable(selected = slot.type == t, role = Role.RadioButton) { onType(t) }
@@ -156,6 +162,7 @@ private fun TileDialog(
                         RadioButton(selected = slot.type == t, onClick = null)
                         Text(t.label, Modifier.padding(start = 8.dp))
                     }
+                  }
                 }
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {

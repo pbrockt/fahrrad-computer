@@ -81,14 +81,17 @@ class ScreenshotTest {
         route = track,
         phase = RidePhase.RECORDING,
         activeRoute = route,
-        progress = RouteProgress(5.0, route.lengthM * 0.35, route.lengthM * 0.65),
+        progress = RouteProgress(5.0, route.lengthM * 0.15, route.lengthM * 0.85),
         powerZones = Zones.power(210.0),
         climb = Climb(ascentM = 384.0, gradePct = 4.3),
         weather = Weather(now, 50.0, 7.0, 12.0, 18.0, 250.0, 31.0, 3),
         heading = 20f,
+        weightKg = 80.0,
+        ftp = 210.0,
+        phoneBattery = 57,
     )
 
-    private fun shoot(name: String, page: Int, mode: ThemeMode) {
+    private fun shoot(name: String, page: Int, mode: ThemeMode, phase: RidePhase = RidePhase.RECORDING) {
         val now = track.last().timeMs
         val layout = DashboardLayout.DEFAULT
         compose.setContent {
@@ -100,7 +103,7 @@ class ScreenshotTest {
                     )
                     PageView(layout.pages[page], data(now), "test", Modifier.weight(1f).fillMaxWidth())
                     PageDashes(layout.pages.size + 1, page + 1)
-                    RideBar(RidePhase.RECORDING, {}, {}, {}, {})
+                    RideBar(phase, onStart = {}, onPause = {}, onResume = {}, onStop = {})
                 }
             }
         }
@@ -129,6 +132,18 @@ class ScreenshotTest {
     fun climbPageLight() {
         assumeTrue(outDir != null)
         shoot("berg-hell", 2, ThemeMode.LIGHT)
+    }
+
+    @Test
+    fun powerPageDark() {
+        assumeTrue(outDir != null)
+        shoot("leistung-dunkel", 3, ThemeMode.DARK)
+    }
+
+    @Test
+    fun navPageIdleLight() {
+        assumeTrue(outDir != null)
+        shoot("navi-start-hell", 1, ThemeMode.LIGHT, RidePhase.IDLE)
     }
 
     @Test

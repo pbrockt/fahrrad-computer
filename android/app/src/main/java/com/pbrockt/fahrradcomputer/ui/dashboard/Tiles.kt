@@ -116,6 +116,9 @@ class TileData(
     val speedZones: Zones = Zones.DEFAULT_SPEED,
     val climb: Climb = Climb(),
     val weather: Weather? = null,
+    val weightKg: Double = 0.0,
+    val ftp: Double = 200.0,
+    val phoneBattery: Int? = null,
 ) {
     // Messwerte nur, solange sie frisch sind - sonst zeigt die Kachel "--" statt eines alten Werts.
     val bpm: Int? get() = hr.fresh(now)
@@ -203,14 +206,111 @@ fun Tile(type: TileType, d: TileData, modifier: Modifier, mapId: String = "dash"
             )
         }
         TileType.ELEVATION_PROFILE -> ElevationTile(d, modifier)
-        TileType.HR_CHART -> HrChartTile(d, modifier)
+        TileType.HR_CHART -> {
+            val t = d.zones.thresholds
+            ChartTile(
+                d.bpm?.let { "Puls · $it" } ?: "Pulsverlauf", "bpm", c.Stop, d, modifier,
+                Zones(t), lo = (t[0] - (t[1] - t[0])).toFloat(), hi = (t[3] + (t[3] - t[2])).toFloat(),
+            ) { _, p -> p.heartRate?.toFloat() }
+        }
+        TileType.POWER_CHART -> {
+            val t = d.powerZones.thresholds
+            ChartTile(
+                d.watts?.let { "Leistung · $it" } ?: "Leistungsverlauf", "W", c.Go, d, modifier,
+                d.powerZones, lo = 0f, hi = (t[3] * 1.4f),
+            ) { _, p -> p.power?.toFloat() }
+        }
+        TileType.SPEED_CHART -> {
+            val t = d.speedZones.thresholds
+            ChartTile("Tempoverlauf", "km/h", c.Speed, d, modifier, d.speedZones, lo = 0f, hi = t[3] * 1.3f) { prev, p ->
+                prev?.let { a ->
+                    val dt = (p.timeMs - a.timeMs) / 1000.0
+                    if (dt <= 0) null else (com.pbrockt.fahrradcomputer.recording.RideTracker.distanceMeters(a.lat, a.lon, p.lat, p.lon) / dt * 3.6).toFloat()
+                }
+            }
+        }
+        TileType.HR_ZONE_CHART -> ZoneChartTile(
+            "Pulszonen", d, modifier, d.zones.asZones, d.bpm,
+        ) { it.heartRate }
+        TileType.POWER_ZONE_CHART -> ZoneChartTile(
+            "Leistungszonen", d, modifier, d.powerZones, d.watts,
+        ) { it.power }
+        TileType.POWER_KG -> {
+            val w = d.watts
+            ValueTile(
+                "Leistung pro kg", if (w == null || d.weightKg <= 0) "--" else String.format(Locale.GERMANY, "%.1f", w / d.weightKg),
+                modifier, "W/kg", w?.let { c.zone(d.powerZones.zoneOf(it)) } ?: c.Go,
+            )
+        }
+        TileType.POWER_FTP -> {
+            val w = d.watts
+            ValueTile(
+                "Leistung", w?.let { (it / d.ftp * 100).roundToInt().toString() } ?: "--", modifier, "% FTP",
+                w?.let { c.zone(d.powerZones.zoneOf(it)) } ?: c.Go,
+            )
+        }
+        TileType.ELAPSED_TIME -> {
+            val start = d.route.firstOrNull()?.timeMs
+            ValueTile("Gesamtzeit", if (start == null || idle) "--" else formatDuration(d.now - start), modifier)
+        }
+        TileType.DESCENT -> ValueTile(
+            "Abstieg", if (idle) "--" else d.climb.descentM.roundToInt().toString(), modifier, "m", c.Speed,
+        )
+        TileType.VAM -> ValueTile(
+            "VAM", d.climb.vamMh?.takeIf { !idle }?.roundToInt()?.toString() ?: "--", modifier, "m/h", c.Grade,
+        )
+        TileType.CLIMB -> ClimbTile(d, modifier)
+        TileType.ETA -> {
+            val p = d.progress
+            val kmh = s.avgSpeedKmh.takeIf { it > 5 } ?: 18.0
+            if (d.activeRoute == null || p == null) ValueTile("Ankunft · keine Route", "--", modifier)
+            else {
+                val leftMs = (p.remainingM / 1000 / kmh * 3_600_000).toLong()
+                ValueTile(
+                    "Ankunft · noch ${minutesText(leftMs)}",
+                    CLOCK.format(Instant.ofEpochMilli(d.now + leftMs).atZone(ZoneId.systemDefault())), modifier,
+                )
+            }
+        }
+        TileType.HEADING -> HeadingTile(d, modifier)
+        TileType.HEADWIND -> {
+            val w = d.weather
+            val h = d.heading?.toDouble()?.takeIf { !idle }
+            if (w == null || h == null) ValueTile("Gegenwind", "--", modifier, "km/h", c.Speed)
+            else {
+                val hw = Wind.headwindKmh(w, h)
+                ValueTile(
+                    if (hw >= 0) "Gegenwind" else "Rückenwind", abs(hw).roundToInt().toString(), modifier, "km/h",
+                    if (hw > 3) c.Stop else if (hw < -3) c.Go else c.Speed,
+                )
+            }
+        }
+        TileType.SUNSET -> {
+            val pos = d.lastPoint?.let { it.lat to it.lon } ?: d.weather?.let { it.lat to it.lon }
+            val sun = pos?.let { (la, lo) -> com.pbrockt.fahrradcomputer.recording.Sun.today(d.now, la, lo) }
+            if (sun == null) ValueTile("Sonnenuntergang", "--", modifier, "", c.Calories)
+            else {
+                val left = sun.sunset.toEpochMilli() - d.now
+                ValueTile(
+                    if (left > 0) "Sonne noch ${minutesText(left)}" else "Sonne ist unter",
+                    CLOCK.format(sun.sunset.atZone(ZoneId.systemDefault())), modifier, "", c.Calories,
+                )
+            }
+        }
+        TileType.PHONE_BATTERY -> ValueTile(
+            "Handy-Akku", d.phoneBattery?.toString() ?: "--", modifier, "%",
+            if ((d.phoneBattery ?: 100) < 20) c.Stop else c.Text,
+        )
         TileType.WIND -> WindTile(d, modifier)
         TileType.TEMPERATURE -> {
             val w = d.weather
-            ValueTile(
-                if (w == null) "Temperatur" else "Temperatur · ${w.description}",
-                w?.let { String.format(Locale.GERMANY, "%.0f°", it.temperatureC) } ?: "--", modifier, "C",
-            )
+            // Wetterbeschreibung nur, wenn die Kachel breit genug ist.
+            BoxWithConstraints(modifier) {
+                ValueTile(
+                    if (w == null || maxWidth < 180.dp) "Temperatur" else "Temperatur · ${w.description}",
+                    w?.let { String.format(Locale.GERMANY, "%.0f°", it.temperatureC) } ?: "--", Modifier.fillMaxSize(),
+                )
+            }
         }
         TileType.ROUTE -> when {
             !d.interactive -> ValueTile("Karte", "🗺", modifier)
@@ -253,6 +353,12 @@ fun Tile(type: TileType, d: TileData, modifier: Modifier, mapId: String = "dash"
 }
 
 private val CLOCK = DateTimeFormatter.ofPattern("HH:mm")
+
+/** "15 min" bzw. "1:12 h" - eindeutiger als 14:45 (Minuten oder Uhrzeit?). */
+private fun minutesText(ms: Long): String {
+    val min = ((ms + 30_000) / 60_000).coerceAtLeast(0)
+    return if (min < 60) "$min min" else String.format(Locale.GERMANY, "%d:%02d h", min / 60, min % 60)
+}
 
 /** Ø/max Puls: der Wert in der Farbe seiner Zone. */
 @Composable
@@ -413,42 +519,184 @@ private fun ElevationTile(d: TileData, modifier: Modifier) {
     }
 }
 
-/** Puls der letzten 10 Minuten vor farbigen Zonenbaendern. */
+/**
+ * Verlauf der letzten 10 Minuten vor blassen Zonenbaendern, Linie in der
+ * Farbe der Messgroesse. [value] bekommt den vorigen und den aktuellen Punkt (fuers Tempo).
+ */
 @Composable
-private fun HrChartTile(d: TileData, modifier: Modifier) {
+private fun ChartTile(
+    label: String,
+    unit: String,
+    color: Color,
+    d: TileData,
+    modifier: Modifier,
+    zones: Zones,
+    lo: Float,
+    hi: Float,
+    value: (TrackPoint?, TrackPoint) -> Float?,
+) {
     val zoneColors = AppColors.Zones
-    val line = AppColors.Text
-    val bpm = d.bpm
     BoxWithConstraints(modifier.background(AppColors.Bg)) {
         val labelSize = (maxHeight.value * 0.11f).coerceIn(11f, 17f).sp
         Column(Modifier.fillMaxSize().padding(4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            TileLabel(if (bpm != null) "Puls · $bpm" else "Pulsverlauf", "bpm", AppColors.Text, labelSize)
+            TileLabel(label, unit, color, labelSize)
             val from = d.now - 10 * 60_000L
-            val pts = d.route.filter { it.timeMs >= from && it.heartRate != null }
-            val t = d.zones.thresholds
-            // Darstellung von Z1-Mitte bis Z5: Grenzen plus etwas Rand.
-            val lo = (t[0] - (t[1] - t[0])).toFloat()
-            val hi = (t[3] + (t[3] - t[2])).toFloat()
+            val pts = d.route
             Canvas(Modifier.weight(1f).fillMaxWidth()) {
-                val bounds = listOf(lo) + t.map { it.toFloat() } + hi
+                val bounds = listOf(lo) + zones.thresholds.map { it.toFloat() } + hi
                 fun y(v: Float) = size.height - (v.coerceIn(lo, hi) - lo) / (hi - lo) * size.height
                 for (z in 0 until 5) {
-                    val top = y(bounds[z + 1])
-                    val bottom = y(bounds[z])
-                    drawRect(zoneColors[z].copy(alpha = 0.35f), Offset(0f, top), androidx.compose.ui.geometry.Size(size.width, bottom - top))
-                }
-                if (pts.size >= 2) {
-                    val span = 10 * 60_000f
-                    for (i in 1 until pts.size) {
-                        val a = pts[i - 1]
-                        val b = pts[i]
-                        drawLine(
-                            line,
-                            Offset((a.timeMs - from) / span * size.width, y(a.heartRate!!.toFloat())),
-                            Offset((b.timeMs - from) / span * size.width, y(b.heartRate!!.toFloat())),
-                            strokeWidth = 2.5.dp.toPx(), cap = StrokeCap.Round,
-                        )
+                    val top = y(bounds[z + 1].coerceAtMost(hi))
+                    val bottom = y(bounds[z].coerceAtLeast(lo))
+                    if (bottom > top) {
+                        drawRect(zoneColors[z].copy(alpha = 0.3f), Offset(0f, top), androidx.compose.ui.geometry.Size(size.width, bottom - top))
                     }
+                }
+                val span = 10 * 60_000f
+                var prevPt: TrackPoint? = null
+                var prevOff: Offset? = null
+                for (p in pts) {
+                    val v = value(prevPt, p)
+                    prevPt = p
+                    if (p.timeMs < from || v == null) { prevOff = null; continue }
+                    val off = Offset((p.timeMs - from) / span * size.width, y(v))
+                    prevOff?.let { drawLine(color, it, off, strokeWidth = 2.5.dp.toPx(), cap = StrokeCap.Round) }
+                    prevOff = off
+                }
+            }
+        }
+    }
+}
+
+/** Zeit je Zone seit dem Start - Balken, Pfeil ueber der aktuellen Zone. */
+@Composable
+private fun ZoneChartTile(
+    label: String,
+    d: TileData,
+    modifier: Modifier,
+    zones: Zones,
+    current: Int?,
+    value: (TrackPoint) -> Int?,
+) {
+    val zoneColors = AppColors.Zones
+    val marker = AppColors.Text
+    val seconds = remember(d.route.size, zones) {
+        val sec = LongArray(5)
+        for (i in 1 until d.route.size) {
+            val v = value(d.route[i]) ?: continue
+            val dt = d.route[i].timeMs - d.route[i - 1].timeMs
+            if (dt in 1..30_000) sec[zones.zoneOf(v) - 1] += dt / 1000
+        }
+        sec.toList()
+    }
+    val active = current?.let { zones.zoneOf(it) }
+    BoxWithConstraints(modifier.background(AppColors.Bg)) {
+        val labelSize = (maxHeight.value * 0.11f).coerceIn(11f, 17f).sp
+        Column(Modifier.fillMaxSize().padding(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            TileLabel(label + (active?.let { " · Z$it" } ?: ""), "", AppColors.Text, labelSize)
+            Canvas(Modifier.weight(1f).fillMaxWidth()) {
+                val max = (seconds.maxOrNull() ?: 0L).coerceAtLeast(1L)
+                val gap = 4.dp.toPx()
+                val arrow = 8.dp.toPx()
+                val w = (size.width - gap * 4) / 5
+                val h = size.height - arrow - 2.dp.toPx()
+                seconds.forEachIndexed { i, sec ->
+                    val bh = (sec.toFloat() / max * h).coerceAtLeast(2.dp.toPx())
+                    val x = i * (w + gap)
+                    val alpha = if (active == null || active == i + 1) 1f else 0.55f
+                    drawRect(zoneColors[i].copy(alpha = alpha), Offset(x, size.height - bh), androidx.compose.ui.geometry.Size(w, bh))
+                    if (active == i + 1) {
+                        val top = size.height - bh - 2.dp.toPx()
+                        drawPath(Path().apply {
+                            moveTo(x + w / 2 - arrow * 0.7f, top - arrow)
+                            lineTo(x + w / 2 + arrow * 0.7f, top - arrow)
+                            lineTo(x + w / 2, top)
+                            close()
+                        }, marker)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Anstieg wie ClimbPro: auf einem Anstieg die Rest-Hoehenmeter gross, Rest-Strecke und
+ * Steigung klein, darunter sein Profil mit Position; sonst der naechste Anstieg.
+ */
+@Composable
+private fun ClimbTile(d: TileData, modifier: Modifier) {
+    val profile = d.activeRoute?.profile
+    val pos = d.progress?.doneM ?: 0.0
+    val now = profile?.climbAt(pos)
+    val next = if (now == null) profile?.nextClimb(pos) else null
+    val climb = now ?: next
+    if (d.activeRoute == null || profile == null || climb == null) {
+        ValueTile(
+            when {
+                d.activeRoute == null -> "Anstieg · keine Route"
+                profile == null -> "Anstieg · Profil fehlt"
+                else -> "Keine Anstiege mehr"
+            },
+            "--", modifier, "", AppColors.Grade,
+        )
+        return
+    }
+    val total = profile.climbs.size
+    val color = Color(RouteProfile.GRADE_COLORS[RouteProfile.gradeLevel(climb.avgGrade)])
+    BoxWithConstraints(modifier.background(AppColors.Bg)) {
+        val tall = maxHeight > 150.dp
+        val labelSize = (maxHeight.value * (if (tall) 0.08f else 0.13f)).coerceIn(11f, 17f).sp
+        Column(Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            val title = if (now != null) "Anstieg ${climb.number}/$total" else "Nächster Anstieg in ${formatDecimal((climb.startM - pos) / 1000)} km"
+            TileLabel(title, "", AppColors.Text, labelSize)
+            val leftM = if (now != null) climb.endM - pos else climb.lengthM
+            val leftHm = if (now != null) (profile.elevationAt(climb.endM) - profile.elevationAt(pos)).coerceAtLeast(0.0) else climb.gainM
+            Row(
+                Modifier.fillMaxWidth().weight(if (tall) 0.9f else 1f),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                BoxWithConstraints(Modifier.weight(1.2f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                    val v = leftHm.roundToInt().toString()
+                    val size = with(LocalDensity.current) { min((maxHeight * 0.9f).toPx(), (maxWidth * 0.8f / (v.length.coerceAtLeast(2) * 0.5f)).toPx()).toSp() }
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text(v, color = color, fontSize = size, lineHeight = size, fontFamily = Condensed, fontWeight = FontWeight.SemiBold, style = TIGHT)
+                        Text(" HM", color = color.copy(alpha = 0.7f), fontSize = labelSize, fontFamily = Condensed)
+                    }
+                }
+                Column(Modifier.weight(1f)) {
+                    Text("${formatDecimal(leftM / 1000)} km", color = AppColors.Text, fontSize = labelSize * 1.5f, fontFamily = Condensed, fontWeight = FontWeight.SemiBold)
+                    Text("Ø ${formatDecimal(climb.avgGrade)} % · max ${formatDecimal(climb.maxGrade)} %", color = AppColors.Dim, fontSize = labelSize, fontFamily = Condensed)
+                }
+            }
+            if (tall) {
+                ElevationProfileChart(
+                    profile, Modifier.weight(1.4f).fillMaxWidth(),
+                    positionM = pos.takeIf { now != null }, fromM = climb.startM, toM = climb.endM,
+                )
+            }
+        }
+    }
+}
+
+/** Fahrtrichtung: Pfeil (Norden oben) und Himmelsrichtung. */
+@Composable
+private fun HeadingTile(d: TileData, modifier: Modifier) {
+    val h = d.heading?.takeIf { d.phase != RidePhase.IDLE }
+    if (h == null) {
+        ValueTile("Fahrtrichtung", "--", modifier)
+        return
+    }
+    BoxWithConstraints(modifier.background(AppColors.Bg)) {
+        val labelSize = (maxHeight.value * 0.13f).coerceIn(11f, 18f).sp
+        Column(Modifier.fillMaxSize().padding(4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            TileLabel("Fahrtrichtung", "", AppColors.Text, labelSize)
+            Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                WindArrow(h, AppColors.Text, Modifier.weight(1f).fillMaxHeight())
+                BoxWithConstraints(Modifier.weight(1.3f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                    val v = Wind.compass(h.toDouble())
+                    val size = with(LocalDensity.current) { min((maxHeight * 0.85f).toPx(), (maxWidth * 0.9f / (v.length.coerceAtLeast(2) * 0.55f)).toPx()).toSp() }
+                    Text(v, color = AppColors.Text, fontSize = size, lineHeight = size, fontFamily = Condensed, fontWeight = FontWeight.SemiBold, style = TIGHT)
                 }
             }
         }

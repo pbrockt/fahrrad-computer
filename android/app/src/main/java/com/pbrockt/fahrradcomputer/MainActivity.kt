@@ -48,12 +48,29 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pbrockt.fahrradcomputer.sensors.SensorKind
 import com.pbrockt.fahrradcomputer.ui.AppColors
 import com.pbrockt.fahrradcomputer.ui.AppScreen
+import com.pbrockt.fahrradcomputer.ui.Condensed
+import com.pbrockt.fahrradcomputer.ui.TrainerScreen
+import com.pbrockt.fahrradcomputer.recording.RidePhase
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.Alignment
 import com.pbrockt.fahrradcomputer.ui.FahrradTheme
 import com.pbrockt.fahrradcomputer.ui.MapsScreen
 import com.pbrockt.fahrradcomputer.ui.RidesScreen
 import com.pbrockt.fahrradcomputer.ui.SensorsScreen
 import com.pbrockt.fahrradcomputer.ui.SettingsScreen
-import com.pbrockt.fahrradcomputer.ui.TrainerScreen
 import com.pbrockt.fahrradcomputer.ui.dashboard.DashboardScreen
 import kotlinx.coroutines.launch
 
@@ -108,7 +125,6 @@ private val TRAINER_PERMISSIONS = buildList {
 @Composable
 private fun AppRoot(vm: MainViewModel) {
     var screen by rememberSaveable { mutableStateOf(AppScreen.RIDE) }
-    val drawer = rememberDrawerState(DrawerValue.Closed)
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -170,81 +186,97 @@ private fun AppRoot(vm: MainViewModel) {
         }
     }
 
-    // Zurueck fuehrt aus jedem Bereich zum Fahrt-Bildschirm.
-    BackHandler(enabled = screen != AppScreen.RIDE || drawer.isOpen) {
-        if (drawer.isOpen) scope.launch { drawer.close() } else screen = AppScreen.RIDE
+    val phase by vm.ride.phase.collectAsStateWithLifecycle()
+    // Unterseiten fuehren zurueck zu ihrem Bereich, die Reiter zurueck zum Computer.
+    BackHandler(enabled = screen != AppScreen.RIDE) {
+        screen = screen.parent ?: AppScreen.RIDE
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawer,
-        // Wischen oeffnet das Menue nicht - auf dem Tacho wird zwischen Seiten gewischt.
-        gesturesEnabled = drawer.isOpen,
-        drawerContent = {
-            ModalDrawerSheet {
-                Text(
-                    "Fahrrad-Computer",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 20.dp),
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbar) },
+        topBar = {
+            // Der Computer und die Einstellungen zeichnen ihre Kopfzeile selbst.
+            if (screen != AppScreen.RIDE && screen != AppScreen.SETTINGS) {
+                CenterAlignedTopAppBar(
+                    title = {
+                        Text(
+                            screen.label.uppercase(java.util.Locale.GERMANY),
+                            fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 19.sp, letterSpacing = 0.8.sp,
+                        )
+                    },
+                    navigationIcon = {
+                        screen.parent?.let { parent ->
+                            IconButton(onClick = { screen = parent }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück")
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = AppColors.Bg),
                 )
-                for (item in AppScreen.entries) {
-                    NavigationDrawerItem(
-                        label = { Text(item.label) },
-                        icon = { Icon(item.icon, contentDescription = null) },
-                        selected = screen == item,
-                        onClick = {
-                            screen = item
-                            scope.launch { drawer.close() }
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp),
-                    )
-                }
             }
         },
-    ) {
-        Scaffold(
-            snackbarHost = { SnackbarHost(snackbar) },
-            topBar = {
-                if (screen != AppScreen.RIDE) {
-                    TopAppBar(
-                        title = { Text(screen.label) },
-                        navigationIcon = {
-                            IconButton(onClick = { scope.launch { drawer.open() } }) {
-                                Icon(Icons.Filled.Menu, contentDescription = "Menü")
-                            }
-                        },
-                    )
-                }
-            },
-        ) { padding ->
-            Box(Modifier.padding(padding)) {
-                when (screen) {
-                    AppScreen.RIDE -> DashboardScreen(
-                        vm,
-                        onStartRequested = { locationLauncher.launch(LOCATION_PERMISSIONS) },
-                        onMenu = { scope.launch { drawer.open() } },
-                        onOpen = { screen = it },
-                    )
-                    AppScreen.TRAINER -> TrainerScreen(vm, onStart = {
-                        if (TRAINER_PERMISSIONS.isEmpty()) vm.startTrainer() else trainerLauncher.launch(TRAINER_PERMISSIONS)
-                    })
-                    AppScreen.RIDES -> RidesScreen(vm)
-                    AppScreen.MAPS -> MapsScreen(vm)
-                    AppScreen.SENSORS -> SensorsScreen(vm, onScanRequested = { kind ->
-                        pendingScan = kind
-                        bluetoothLauncher.launch(BLUETOOTH_PERMISSIONS)
-                    })
-                    AppScreen.SETTINGS -> SettingsScreen(
-                        vm,
-                        onConnectHealth = { healthLauncher.launch(vm.healthPermissions) },
-                        onEnableSms = { smsLauncher.launch(Manifest.permission.SEND_SMS) },
-                    )
-                }
+        bottomBar = {
+            // Waehrend der Fahrt gehoert der Platz dem Tacho.
+            if (!(screen == AppScreen.RIDE && phase != RidePhase.IDLE)) {
+                TabBar(current = screen.parent ?: screen, onSelect = { screen = it })
+            }
+        },
+    ) { padding ->
+        Box(Modifier.padding(padding)) {
+            when (screen) {
+                AppScreen.RIDE -> DashboardScreen(
+                    vm,
+                    onStartRequested = { locationLauncher.launch(LOCATION_PERMISSIONS) },
+                    onMenu = {},
+                    onOpen = { screen = it },
+                )
+                AppScreen.TRAINER -> TrainerScreen(vm, onStart = {
+                    if (TRAINER_PERMISSIONS.isEmpty()) vm.startTrainer() else trainerLauncher.launch(TRAINER_PERMISSIONS)
+                })
+                AppScreen.RIDES -> RidesScreen(vm)
+                AppScreen.MAPS -> MapsScreen(vm)
+                AppScreen.SENSORS -> SensorsScreen(vm, onScanRequested = { kind ->
+                    pendingScan = kind
+                    bluetoothLauncher.launch(BLUETOOTH_PERMISSIONS)
+                })
+                AppScreen.SETTINGS -> SettingsScreen(
+                    vm,
+                    onConnectHealth = { healthLauncher.launch(vm.healthPermissions) },
+                    onEnableSms = { smsLauncher.launch(Manifest.permission.SEND_SMS) },
+                    onOpenSensors = { screen = AppScreen.SENSORS },
+                    onOpenTrainer = { screen = AppScreen.TRAINER },
+                )
             }
         }
     }
 
     UpdateDialog(vm)
+}
+
+/** Reiter unten: Symbol und Name in Grossbuchstaben, aktiver Reiter kraeftig. */
+@Composable
+private fun TabBar(current: AppScreen, onSelect: (AppScreen) -> Unit) {
+    Column(Modifier.background(AppColors.Bg)) {
+        HorizontalDivider(color = AppColors.Line)
+        Row(Modifier.fillMaxWidth().navigationBarsPadding().height(62.dp)) {
+            for (tab in AppScreen.entries.filter { it.tab }) {
+                val selected = tab == current
+                val color = if (selected) AppColors.Text else AppColors.Dim
+                Column(
+                    Modifier.weight(1f).fillMaxHeight().clickable { onSelect(tab) },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Icon(tab.icon, contentDescription = null, tint = color, modifier = Modifier.size(26.dp))
+                    Text(
+                        tab.label.uppercase(java.util.Locale.GERMANY), color = color, fontSize = 13.sp,
+                        fontFamily = Condensed, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                        letterSpacing = 0.6.sp,
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable

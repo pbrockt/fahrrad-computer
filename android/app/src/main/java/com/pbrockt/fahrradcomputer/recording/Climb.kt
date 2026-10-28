@@ -1,7 +1,13 @@
 package com.pbrockt.fahrradcomputer.recording
 
-/** Live-Werte fuers Klettern: bisherige Hoehenmeter und aktuelle Steigung. */
-data class Climb(val ascentM: Double = 0.0, val gradePct: Double? = null)
+/** Live-Werte fuers Klettern: Hoehenmeter rauf und runter, Steigung und VAM. */
+data class Climb(
+    val ascentM: Double = 0.0,
+    val gradePct: Double? = null,
+    val descentM: Double = 0.0,
+    /** Hoehenmeter pro Stunde ueber die letzten [Climbs.VAM_WINDOW_MS] - nur bergauf, sonst 0. */
+    val vamMh: Double? = null,
+)
 
 object Climbs {
 
@@ -40,8 +46,35 @@ object Climbs {
         return (num / den * 100).coerceIn(-30.0, 30.0)
     }
 
-    fun of(points: List<TrackPoint>): Climb =
-        Climb(RideSummaries.elevationGain(points), liveGrade(points.takeLast(GRADE_POINTS)))
+    fun of(points: List<TrackPoint>): Climb = Climb(
+        ascentM = RideSummaries.elevationGain(points),
+        gradePct = liveGrade(points.takeLast(GRADE_POINTS)),
+        // Abstieg = Aufstieg der rueckwaerts gefahrenen Strecke - dieselbe Rechnung mit Schwelle.
+        descentM = RideSummaries.elevationGain(points.asReversed()),
+        vamMh = vam(points),
+    )
+
+    const val VAM_WINDOW_MS = 5 * 60_000L
+
+    /** Vertikale Geschwindigkeit (m/h): Ausgleichsgerade der GPS-Hoehe ueber die letzten 5 Minuten. */
+    fun vam(points: List<TrackPoint>): Double? {
+        if (points.size < 10) return null
+        val end = points.last().timeMs
+        val recent = points.takeLastWhile { end - it.timeMs <= VAM_WINDOW_MS }.filter { it.altitude != null }
+        if (recent.size < 10) return null
+        val xs = recent.map { (it.timeMs - end) / 3_600_000.0 }
+        val ys = recent.map { it.altitude!! }
+        val mx = xs.average()
+        val my = ys.average()
+        var num = 0.0
+        var den = 0.0
+        for (k in xs.indices) {
+            num += (xs[k] - mx) * (ys[k] - my)
+            den += (xs[k] - mx) * (xs[k] - mx)
+        }
+        if (den <= 0) return null
+        return (num / den).coerceAtLeast(0.0)
+    }
 
     private const val GRADE_POINTS = 200
 }
