@@ -26,6 +26,8 @@ import kotlinx.coroutines.launch
 data class SensorReading(
     val connection: SensorConnection = SensorConnection.NONE,
     val deviceName: String? = null,
+    /** Akkustand in Prozent, wenn der Sensor ihn meldet. */
+    val battery: Int? = null,
     /** bpm, U/min oder Watt - je nach Sensor. */
     val value: Int? = null,
     /** Zeitpunkt des letzten Messwerts; aeltere Werte zeigt das Dashboard nicht mehr an. */
@@ -74,7 +76,7 @@ class SensorHub(
         for ((kind, sensor) in sensors) {
             scope.launch {
                 sensor.link.collect { l ->
-                    readings.getValue(kind).update { it.copy(connection = l.connection, deviceName = l.deviceName) }
+                    readings.getValue(kind).update { it.copy(connection = l.connection, deviceName = l.deviceName, battery = l.battery) }
                 }
             }
         }

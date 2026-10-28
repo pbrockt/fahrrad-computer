@@ -87,7 +87,8 @@ private fun SensorSection(
                     SensorKind.POWER -> "W"
                 }
                 val status = when (reading.connection) {
-                    SensorConnection.CONNECTED -> "verbunden" + (reading.value?.let { " · $it $unit" } ?: "")
+                    SensorConnection.CONNECTED -> "verbunden" + (reading.value?.let { " · $it $unit" } ?: "") +
+                        (reading.battery?.let { " · Akku $it %" } ?: "")
                     SensorConnection.CONNECTING -> "verbinde …"
                     SensorConnection.NO_PERMISSION -> "Bluetooth-Berechtigung fehlt"
                     SensorConnection.BLUETOOTH_OFF -> "Bluetooth ist ausgeschaltet"

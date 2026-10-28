@@ -73,7 +73,7 @@ fun EditablePage(page: DashboardPage, pageIndex: Int, data: TileData, onEdit: Ed
                     Tile(
                         slot.type, data,
                         Modifier.weight(slot.units.toFloat()).fillMaxSize()
-                            .border(2.dp, AppColors.Accent, RoundedCornerShape(10.dp))
+                            .border(2.dp, AppColors.Accent)
                             .clickable { tileDialog = r to c },
                     )
                 }

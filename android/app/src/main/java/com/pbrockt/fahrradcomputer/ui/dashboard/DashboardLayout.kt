@@ -22,6 +22,13 @@ enum class TileType(val label: String) {
     TURN("Abbiegehinweis"),
     TRAINING_GOAL("Trainingsziel heute"),
     CONTROLS("Start / Pause / Stopp"),
+    GRADE("Steigung"),
+    ASCENT("Höhenmeter (gefahren)"),
+    ROUTE_ASCENT_LEFT("Rest-Höhenmeter der Route"),
+    ELEVATION_PROFILE("Höhenprofil der Route"),
+    HR_CHART("Pulsverlauf (10 min)"),
+    WIND("Wind"),
+    TEMPERATURE("Temperatur & Wetter"),
 }
 
 /** Zeilenhoehe als Anteil am Bildschirm. */
@@ -60,32 +67,41 @@ data class DashboardLayout(val pages: List<DashboardPage>) {
 
         val DEFAULT = DashboardLayout(
             listOf(
+                // Wie das Standardlayout: Karte oben, darunter die wichtigsten Zahlen.
                 DashboardPage(
                     "Fahrt",
                     listOf(
-                        row(RowHeight.LARGE, TileType.SPEED),
-                        row(RowHeight.MEDIUM, TileType.HEART_RATE, TileType.CADENCE),
-                        row(RowHeight.MEDIUM, TileType.DISTANCE, TileType.MOVING_TIME),
-                        row(RowHeight.SMALL, TileType.AVG_SPEED, TileType.CALORIES, TileType.CLOCK),
-                        // Platzhalter fuer die Navigation: bis zur Karte (Phase 6) die Streckenskizze.
                         row(RowHeight.LARGE, TileType.ROUTE),
+                        row(RowHeight.MEDIUM, TileType.DISTANCE, TileType.MOVING_TIME),
+                        row(RowHeight.LARGE, TileType.SPEED),
+                        row(RowHeight.MEDIUM, TileType.POWER, TileType.HEART_RATE),
+                        row(RowHeight.SMALL, TileType.CADENCE, TileType.CALORIES, TileType.CLOCK),
                     ),
                 ),
-                // Fuer Fahrten mit Route: Abbiegehinweis gross, darunter die Karte.
                 DashboardPage(
                     "Navi",
                     listOf(
-                        row(RowHeight.LARGE, TileType.TURN),
+                        row(RowHeight.MEDIUM, TileType.TURN),
                         row(RowHeight.XLARGE, TileType.ROUTE),
                         row(RowHeight.SMALL, TileType.SPEED, TileType.ROUTE_REMAINING, TileType.CLOCK),
+                    ),
+                ),
+                DashboardPage(
+                    "Berg",
+                    listOf(
+                        row(RowHeight.MEDIUM, TileType.DISTANCE, TileType.MOVING_TIME),
+                        row(RowHeight.MEDIUM, TileType.SPEED, TileType.CADENCE),
+                        row(RowHeight.MEDIUM, TileType.POWER, TileType.HR_CHART),
+                        row(RowHeight.LARGE, TileType.ELEVATION_PROFILE),
+                        row(RowHeight.MEDIUM, TileType.GRADE, TileType.ASCENT),
                     ),
                 ),
                 DashboardPage(
                     "Puls",
                     listOf(
                         row(RowHeight.LARGE, TileType.HEART_RATE),
+                        row(RowHeight.MEDIUM, TileType.HR_CHART),
                         row(RowHeight.MEDIUM, TileType.AVG_HR, TileType.MAX_HR),
-                        row(RowHeight.MEDIUM, TileType.CADENCE, TileType.POWER),
                         row(RowHeight.MEDIUM, TileType.TRAINING_GOAL, TileType.MOVING_TIME),
                     ),
                 ),
@@ -96,7 +112,8 @@ data class DashboardLayout(val pages: List<DashboardPage>) {
                         row(RowHeight.MEDIUM, TileType.AVG_SPEED, TileType.MAX_SPEED),
                         row(RowHeight.MEDIUM, TileType.AVG_HR, TileType.MAX_HR),
                         row(RowHeight.MEDIUM, TileType.AVG_CADENCE, TileType.AVG_POWER),
-                        row(RowHeight.MEDIUM, TileType.CALORIES, TileType.ALTITUDE, TileType.CLOCK),
+                        row(RowHeight.MEDIUM, TileType.WIND, TileType.TEMPERATURE),
+                        row(RowHeight.SMALL, TileType.CALORIES, TileType.ALTITUDE, TileType.ASCENT),
                     ),
                 ),
             )

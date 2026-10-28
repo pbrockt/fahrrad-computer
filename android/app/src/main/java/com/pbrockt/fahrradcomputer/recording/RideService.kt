@@ -89,7 +89,19 @@ class RideService : Service() {
                 notificationManager().notify(NOTIFICATION_ID, buildNotification())
             }
         }
-        // Benachrichtigung und GPS-Status regelmaessig auffrischen.
+        // Abseits der Route: einmal melden, wenn man abkommt - nicht bei jedem GPS-Punkt.
+        scope.launch {
+            var wasOff = false
+            session.progress.collect { p ->
+                val off = p?.offRoute == true
+                if (off && !wasOff && session.phase.value == RidePhase.RECORDING) {
+                    val s = app.currentSettings.value
+                    if (s.navOffRouteBeep) signals.offRoute(s.navVibrate, s.navSound)
+                }
+                wasOff = off
+            }
+        }
+                // Benachrichtigung und GPS-Status regelmaessig auffrischen.
         scope.launch {
             while (true) {
                 delay(5_000)

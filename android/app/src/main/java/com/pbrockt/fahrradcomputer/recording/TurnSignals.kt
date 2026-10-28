@@ -10,8 +10,10 @@ import android.os.VibratorManager
 import com.pbrockt.fahrradcomputer.routes.TurnAlert
 
 /**
- * Spuerbare Ansagen fuers Abbiegen - am Lenker schaut man nicht staendig aufs Display.
- * Weit vorher einmal kurz, kurz davor zweimal, am Ziel dreimal lang.
+ * Spuerbare und hoerbare Hinweise fuers Abbiegen - am Lenker schaut man nicht staendig aufs
+ * Display. Vibration: weit vorher einmal kurz, kurz davor zweimal, am Ziel dreimal lang.
+ * Gepiepst wird nur, wenn man reagieren soll: jetzt abbiegen (zwei Pieptoene), abseits der
+ * Route (ein langer tiefer Ton) und am Ziel (drei). Lautstaerke = Medienlautstaerke.
  */
 class TurnSignals(context: Context) {
 
@@ -23,7 +25,8 @@ class TurnSignals(context: Context) {
     }
 
     // ToneGenerator kann auf manchen Geraeten fehlschlagen (Audio belegt) - dann eben ohne Ton.
-    private val tone = runCatching { ToneGenerator(AudioManager.STREAM_NOTIFICATION, 90) }.getOrNull()
+    private val tone = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, 100) }.getOrNull()
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
 
     fun signal(alert: TurnAlert, vibrate: Boolean, sound: Boolean) {
         if (vibrate) {
@@ -35,8 +38,26 @@ class TurnSignals(context: Context) {
             runCatching { vibrator?.vibrate(VibrationEffect.createWaveform(pattern, -1)) }
         }
         if (sound) {
-            val t = if (alert == TurnAlert.FAR) ToneGenerator.TONE_PROP_BEEP else ToneGenerator.TONE_PROP_BEEP2
-            runCatching { tone?.startTone(t, 300) }
+            when (alert) {
+                TurnAlert.FAR -> Unit
+                TurnAlert.NOW -> beeps(2)
+                TurnAlert.ARRIVED -> beeps(3)
+            }
+        }
+    }
+
+    /** Von der Route abgekommen: ein langer, tiefer Ton und eine lange Vibration. */
+    fun offRoute(vibrate: Boolean, sound: Boolean) {
+        if (vibrate) runCatching { vibrator?.vibrate(VibrationEffect.createOneShot(700, VibrationEffect.DEFAULT_AMPLITUDE)) }
+        if (sound) runCatching { tone?.startTone(ToneGenerator.TONE_CDMA_LOW_L, 900) }
+    }
+
+    /** Zum Ausprobieren in den Einstellungen. */
+    fun test() = beeps(2)
+
+    private fun beeps(count: Int) {
+        for (i in 0 until count) {
+            handler.postDelayed({ runCatching { tone?.startTone(ToneGenerator.TONE_PROP_BEEP, 180) } }, i * 280L)
         }
     }
 

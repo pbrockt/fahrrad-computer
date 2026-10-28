@@ -15,18 +15,35 @@ import java.io.File
  * Bundesland als eine Datei, woechentlich aktualisiert, ausdruecklich zum Herunterladen
  * gedacht (anders als die Kartenbilder von openstreetmap.org).
  */
-data class MapRegion(val id: String, val name: String, val sizeMb: Int) {
-    val url: String get() = "https://download.mapsforge.org/maps/v5/europe/germany/$id.map"
+data class MapRegion(val id: String, val name: String, val sizeMb: Int, private val path: String = "germany/$id") {
+    val url: String get() = "https://download.mapsforge.org/maps/v5/europe/$path.map"
 }
 
 object MapRegions {
+    /** Erst die Bundeslaender, dann die Nachbarlaender. Groessen laut Server (Okt. 2026). */
     val ALL = listOf(
         MapRegion("rheinland-pfalz", "Rheinland-Pfalz", 183),
-        MapRegion("saarland", "Saarland", 35),
-        MapRegion("hessen", "Hessen", 219),
-        MapRegion("baden-wuerttemberg", "Baden-Württemberg", 406),
+        MapRegion("niedersachsen", "Niedersachsen", 349),
+        MapRegion("bremen", "Bremen", 13),
+        MapRegion("hamburg", "Hamburg", 28),
+        MapRegion("schleswig-holstein", "Schleswig-Holstein", 110),
+        MapRegion("mecklenburg-vorpommern", "Mecklenburg-Vorpommern", 96),
         MapRegion("nordrhein-westfalen", "Nordrhein-Westfalen", 586),
+        MapRegion("hessen", "Hessen", 219),
+        MapRegion("saarland", "Saarland", 35),
+        MapRegion("baden-wuerttemberg", "Baden-Württemberg", 406),
         MapRegion("bayern", "Bayern", 551),
+        MapRegion("thueringen", "Thüringen", 111),
+        MapRegion("sachsen", "Sachsen", 165),
+        MapRegion("sachsen-anhalt", "Sachsen-Anhalt", 123),
+        MapRegion("brandenburg", "Brandenburg", 188),
+        MapRegion("berlin", "Berlin", 51),
+        MapRegion("netherlands", "Niederlande", 902, "netherlands"),
+        MapRegion("belgium", "Belgien", 493, "belgium"),
+        MapRegion("luxembourg", "Luxemburg", 32, "luxembourg"),
+        MapRegion("denmark", "Dänemark", 321, "denmark"),
+        MapRegion("austria", "Österreich", 528, "austria"),
+        MapRegion("switzerland", "Schweiz", 318, "switzerland"),
     )
 }
 

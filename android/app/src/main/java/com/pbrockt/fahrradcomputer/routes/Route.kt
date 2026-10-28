@@ -10,7 +10,13 @@ import kotlin.math.sqrt
 data class RoutePoint(val lat: Double, val lon: Double, val ele: Double? = null)
 
 /** Eine geplante Strecke, z. B. aus Komoot, Strava oder BRouter als GPX exportiert. */
-data class Route(val id: String, val name: String, val points: List<RoutePoint>) {
+data class Route(
+    val id: String,
+    val name: String,
+    val points: List<RoutePoint>,
+    /** Nachgeladenes Hoehenprofil fuer GPX-Dateien ohne Hoehe ([ElevationApi]). */
+    val externalProfile: RouteProfile? = null,
+) {
 
     /** Strecke vom Start bis zu jedem Punkt in Metern. */
     val cumulative: DoubleArray by lazy {
@@ -24,6 +30,11 @@ data class Route(val id: String, val name: String, val points: List<RoutePoint>)
     }
 
     val lengthM: Double get() = cumulative.lastOrNull() ?: 0.0
+
+    /** Hoehenprofil aus der Datei, sonst das nachgeladene; null = (noch) keins. */
+    val profile: RouteProfile? by lazy {
+        externalProfile ?: RouteProfile.fromPoints(cumulative, points.map { it.ele })
+    }
 }
 
 /**

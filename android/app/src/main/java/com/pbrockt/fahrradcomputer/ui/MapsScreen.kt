@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -109,7 +110,10 @@ fun MapsScreen(vm: MainViewModel) {
                 Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(r.name)
-                        Text("${formatDecimal(r.lengthM / 1000)} km", color = AppColors.Dim, fontSize = 13.sp)
+                        Text(
+                            "${formatDecimal(r.lengthM / 1000)} km" + (r.profile?.let { " · ${it.totalAscentM.toInt()} Hm" } ?: ""),
+                            color = AppColors.Dim, fontSize = 13.sp,
+                        )
                     }
                     if (r.id == settings.activeRouteId) Text("aktiv", color = AppColors.Go, fontSize = 13.sp)
                 }
@@ -122,13 +126,19 @@ fun MapsScreen(vm: MainViewModel) {
             Switch(checked = settings.navVibrate, onCheckedChange = vm::setNavVibrate)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Ton", Modifier.weight(1f))
+            Text("Piepsen, wenn du reagieren sollst", Modifier.weight(1f))
             Switch(checked = settings.navSound, onCheckedChange = vm::setNavSound)
         }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Warnen, wenn du von der Route abkommst", Modifier.weight(1f))
+            Switch(checked = settings.navOffRouteBeep, onCheckedChange = vm::setNavOffRouteBeep)
+        }
+        OutlinedButton(onClick = vm::testNavBeep, modifier = Modifier.fillMaxWidth()) { Text("Piepton testen") }
         Text(
-            "Die App erkennt Abbiegungen aus der Form der Route und meldet sich 150 m vorher (einmal) " +
-                "und kurz davor (zweimal), am Ziel dreimal. Die Seite „Navi“ im Fahrt-Bildschirm zeigt " +
-                "Pfeil und Entfernung. Straßennamen kennt die App dabei nicht.",
+            "Die App erkennt Abbiegungen aus der Form der Route. Vibration 150 m vorher (einmal) und " +
+                "kurz davor (zweimal), am Ziel dreimal. Gepiepst wird nur, wenn du reagieren sollst: " +
+                "jetzt abbiegen (zwei Töne), abseits der Route (ein langer tiefer Ton), am Ziel (drei). " +
+                "Lautstärke = Medienlautstärke. Straßennamen kennt die App nicht.",
             color = AppColors.Dim, fontSize = 13.sp,
         )
 
@@ -223,7 +233,12 @@ private fun RoutePreview(vm: MainViewModel, route: Route, active: Boolean, onBac
             Column {
                 Text(route.name, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 val turnCount = remember(route) { TurnDetector.detect(route).size }
-                Text("${formatDecimal(route.lengthM / 1000)} km · $turnCount Abbiegungen erkannt", color = AppColors.Dim, fontSize = 13.sp)
+                Text(
+                    "${formatDecimal(route.lengthM / 1000)} km" +
+                        (route.profile?.let { " · ${it.totalAscentM.toInt()} Hm" } ?: "") +
+                        " · $turnCount Abbiegungen erkannt",
+                    color = AppColors.Dim, fontSize = 13.sp,
+                )
             }
         }
         val mapModifier = Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(10.dp))
@@ -233,6 +248,27 @@ private fun RoutePreview(vm: MainViewModel, route: Route, active: Boolean, onBac
             Column(mapModifier, verticalArrangement = Arrangement.Center) {
                 Text("Keine Karte – oben eine Offline-Karte laden oder die Online-Karte einschalten.", color = AppColors.Dim)
             }
+        }
+        val profile = route.profile
+        if (profile != null) {
+            Text(
+                "HÖHENPROFIL · ${profile.minM.toInt()}–${profile.maxM.toInt()} m",
+                fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, modifier = Modifier.padding(top = 8.dp),
+            )
+            ElevationProfileChart(profile, Modifier.fillMaxWidth().height(140.dp).padding(top = 4.dp))
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                com.pbrockt.fahrradcomputer.routes.RouteProfile.GRADE_COLORS.forEachIndexed { i, c ->
+                    Text(
+                        "■ ${com.pbrockt.fahrradcomputer.routes.RouteProfile.GRADE_LABELS[i]}",
+                        color = androidx.compose.ui.graphics.Color(c), fontSize = 10.sp,
+                    )
+                }
+            }
+        } else {
+            Text(
+                "Diese GPX-Datei hat keine Höhenangaben – das Profil wird geladen, sobald Internet da ist.",
+                color = AppColors.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp),
+            )
         }
         Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (active) {

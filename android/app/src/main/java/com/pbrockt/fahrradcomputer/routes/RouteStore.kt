@@ -51,11 +51,41 @@ class RouteStore(private val context: Context) {
 
     suspend fun delete(id: String) = withContext(Dispatchers.IO) {
         File(dir, "$id.gpx").delete()
+        profileFile(id).delete()
         refresh()
     }
 
+    /**
+     * Holt fuer Routen ohne Hoehen in der GPX-Datei das Hoehenprofil aus dem Netz und legt
+     * es neben die Datei. Ohne Internet passiert nichts - beim naechsten Mal wieder.
+     */
+    suspend fun fillMissingProfiles() = withContext(Dispatchers.IO) {
+        var changed = false
+        for (r in _routes.value) {
+            if (r.profile != null) continue
+            val profile = runCatching { ElevationApi.profileFor(r) }.getOrNull() ?: continue
+            profileFile(r.id).writeText(
+                profile.distanceM.indices.joinToString("\n") { "${profile.distanceM[it]};${profile.elevationM[it]}" }
+            )
+            changed = true
+        }
+        if (changed) refresh()
+    }
+
+    private fun profileFile(id: String) = File(dir, "$id.hoehe")
+
     private fun load(file: File): Route? = runCatching {
-        file.inputStream().buffered().use { GpxRouteParser.parse(it, file.nameWithoutExtension, file.nameWithoutExtension) }
+        val route = file.inputStream().buffered().use {
+            GpxRouteParser.parse(it, file.nameWithoutExtension, file.nameWithoutExtension)
+        } ?: return@runCatching null
+        val extra = profileFile(route.id).takeIf { it.exists() }?.let { f ->
+            val rows = f.readLines().mapNotNull { line ->
+                val (d, e) = line.split(';').takeIf { it.size == 2 } ?: return@mapNotNull null
+                (d.toDoubleOrNull() ?: return@mapNotNull null) to (e.toDoubleOrNull() ?: return@mapNotNull null)
+            }
+            runCatching { RouteProfile(rows.map { it.first }.toDoubleArray(), rows.map { it.second }.toDoubleArray()) }.getOrNull()
+        }
+        if (extra != null) route.copy(externalProfile = extra) else route
     }.getOrNull()
 
     private fun displayName(uri: Uri): String? =

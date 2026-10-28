@@ -132,6 +132,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun stopRide() = ride.stop()
     fun dismissFinished() = ride.dismissFinished()
 
+    // --- Wetter ---
+
+    val weather = fahrradApp.weather.weather
+    fun setWeatherEnabled(value: Boolean) = viewModelScope.launch { store.setWeatherEnabled(value) }
+
+    /** Ohne Fahrt: Wetter am letzten bekannten Standort (Start-Seite). */
+    @android.annotation.SuppressLint("MissingPermission")
+    fun refreshWeather() {
+        if (!settings.value.weatherEnabled) return
+        val ctx = getApplication<Application>()
+        if (ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.ACCESS_COARSE_LOCATION) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) return
+        val lm = ctx.getSystemService(android.location.LocationManager::class.java) ?: return
+        val loc = listOf(android.location.LocationManager.GPS_PROVIDER, android.location.LocationManager.NETWORK_PROVIDER)
+            .mapNotNull { runCatching { lm.getLastKnownLocation(it) }.getOrNull() }
+            .maxByOrNull { it.time } ?: return
+        viewModelScope.launch { fahrradApp.weather.update(loc.latitude, loc.longitude) }
+    }
+
     // --- Heimtrainer ---
 
     val trainerStats = fahrradApp.trainer.stats
@@ -262,6 +282,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             routeStore.import(uri)
                 .onSuccess { r ->
                     store.setActiveRoute(r.id)
+                    if (r.profile == null) launch { routeStore.fillMissingProfiles() }
                     _message.value = "Route „${r.name}“ importiert (${formatDecimal(r.lengthM / 1000)} km) und aktiviert."
                 }
                 .onFailure { _message.value = it.message ?: "Import fehlgeschlagen." }
@@ -288,6 +309,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setMapOnline(value: Boolean) = viewModelScope.launch { store.setMapOnline(value) }
     fun setNavVibrate(value: Boolean) = viewModelScope.launch { store.setNavVibrate(value) }
     fun setNavSound(value: Boolean) = viewModelScope.launch { store.setNavSound(value) }
+    fun setNavOffRouteBeep(value: Boolean) = viewModelScope.launch { store.setNavOffRouteBeep(value) }
+    private val navSignals by lazy { com.pbrockt.fahrradcomputer.recording.TurnSignals(getApplication()) }
+    fun testNavBeep() = navSignals.test()
+    fun setCadenceZones(text: String) = com.pbrockt.fahrradcomputer.data.Zones.parse(text)?.let { z -> viewModelScope.launch { store.setCadenceZones(z) } }
+    fun setSpeedZones(text: String) = com.pbrockt.fahrradcomputer.data.Zones.parse(text)?.let { z -> viewModelScope.launch { store.setSpeedZones(z) } }
     val guidance = ride.guidance
     val heading = ride.heading
     fun toggleMapOrientation() = viewModelScope.launch { store.setMapHeadingUp(!settings.value.mapHeadingUp) }
@@ -313,6 +339,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         bell.release()
+        navSignals.release()
     }
 
     // --- Trainingsplan ---

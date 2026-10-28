@@ -14,6 +14,9 @@ class HrZones(val maxHr: Int) {
     /** Zone 1 bis 5. */
     fun zoneOf(bpm: Int): Int = 1 + thresholds.count { bpm >= it }
 
+    /** Dieselben Grenzen als allgemeine [Zones] - fuer die Zonenleiste. */
+    val asZones: Zones get() = Zones(thresholds)
+
     companion object {
         const val DEFAULT_MAX_HR = 180
     }

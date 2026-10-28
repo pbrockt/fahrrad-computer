@@ -61,6 +61,10 @@ class RideSession(
     val finished: StateFlow<FinishedRide?> = _finished.asStateFlow()
 
     /** Fahrtrichtung in Grad (0 = Nord); null, solange man steht. Fuer "Fahrtrichtung oben". */
+    private val _climb = MutableStateFlow(Climb())
+    /** Hoehenmeter bisher und aktuelle Steigung - alle paar Punkte neu berechnet. */
+    val climb: StateFlow<Climb> = _climb.asStateFlow()
+
     private val _heading = MutableStateFlow<Float?>(null)
     val heading: StateFlow<Float?> = _heading.asStateFlow()
 
@@ -102,6 +106,7 @@ class RideSession(
         tracker = RideTracker(settings().body)
         _stats.value = RideStats()
         _route.value = emptyList()
+        _climb.value = Climb()
         _finished.value = null
         _lastPoint.value = null
         // Frisch zuordnen - sonst sucht der Tracker dort weiter, wo die letzte Fahrt endete.
@@ -171,7 +176,10 @@ class RideSession(
                 _activeRoute.value?.let { r -> _guidance.value = Navigator.next(_turns.value, p.doneM, r.lengthM) }
             }
         }
-        if (points.size % ROUTE_EVERY == 1) _route.value = points.filterIndexed { i, _ -> i % ROUTE_EVERY == 0 }
+        if (points.size % ROUTE_EVERY == 1) {
+            _route.value = points.filterIndexed { i, _ -> i % ROUTE_EVERY == 0 }
+            _climb.value = Climbs.of(points)
+        }
 
         // Zwischenspeichern, damit bei einem Absturz nicht die ganze Fahrt verloren ist.
         if (sample.timeMs - lastSaveMs >= AUTOSAVE_MS) {

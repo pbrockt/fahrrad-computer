@@ -61,7 +61,8 @@ fun RideDetailScreen(vm: MainViewModel, ride: RideSummary, onBack: () -> Unit) {
     var colorMode by remember { mutableStateOf(ColorMode.PLAIN) }
 
     LaunchedEffect(ride.id) { track = vm.loadTrack(ride.id) }
-    val series = remember(track) { track?.let { TrackSeries.from(it) } }
+    val series = remember(track) { track?.let { TrackSeries.from(it, maxPoints = 1500) } }
+    val zoom = remember(ride.id) { ChartZoom() }
     val zones = settings.zones
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
@@ -98,18 +99,27 @@ fun RideDetailScreen(vm: MainViewModel, ride: RideSummary, onBack: () -> Unit) {
             }
         }
 
-        if (ride.zoneSeconds.size == 5 && ride.zoneSeconds.sum() > 0) ZoneBar(ride.zoneSeconds)
-
         series?.let { s ->
-            Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                LineChart("Geschwindigkeit", "km/h", s.minutes, s.speedKmh)
-                if (s.hasHeartRate) {
-                    val zoneColors = AppColors
-                    LineChart("Puls", "bpm", s.minutes, s.heartRate) { zoneColors.zone(zones.zoneOf(it.toInt())) }
-                }
-                if (s.hasCadence) LineChart("Trittfrequenz", "U/min", s.minutes, s.cadence)
-                if (s.hasPower) LineChart("Leistung", "W", s.minutes, s.power)
-                if (s.hasAltitude) LineChart("Höhe", "m", s.minutes, s.altitude, minRange = Altitude.MIN_PROFILE_RANGE_M.toFloat())
+            val c = AppColors
+            Column(Modifier.padding(top = 10.dp)) {
+                if (ride.zoneSeconds.size == 5) ZoneTimeBar("Zeit in Pulszonen", ride.zoneSeconds)
+                if (s.hasPower) ZoneTimeBar("Zeit in Leistungszonen", zoneSeconds(s.minutes, s.power, settings.powerZones))
+                if (s.hasCadence) ZoneTimeBar(
+                    "Zeit in Trittfrequenz-Zonen", zoneSeconds(s.minutes, s.cadence, settings.cadenceZones) { it < 1f },
+                )
+                ZoneTimeBar("Zeit in Tempozonen", zoneSeconds(s.minutes, s.speedKmh, settings.speedZones) { it < 3f })
+                Text(
+                    if (zoom.zoomed) "Gezoomt – doppelt tippen zeigt wieder alles." else "Mit zwei Fingern in die Verläufe zoomen.",
+                    color = AppColors.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp),
+                )
+                LineChart("Tempo", "km/h", s.minutes, s.speedKmh, zoom, color = c.Speed, zones = settings.speedZones)
+                if (s.hasHeartRate) LineChart("Puls", "bpm", s.minutes, s.heartRate, zoom, color = c.Stop, zones = zones.asZones)
+                if (s.hasCadence) LineChart("Trittfrequenz", "U/min", s.minutes, s.cadence, zoom, color = c.Cadence, zones = settings.cadenceZones)
+                if (s.hasPower) LineChart("Leistung", "W", s.minutes, s.power, zoom, color = c.Go, zones = settings.powerZones)
+                if (s.hasAltitude) LineChart(
+                    "Höhe", "m", s.minutes, s.altitude, zoom, color = c.Altitude,
+                    minRange = Altitude.MIN_PROFILE_RANGE_M.toFloat(),
+                )
             }
         }
 
@@ -180,53 +190,34 @@ private fun Legend(mode: ColorMode, track: List<TrackPoint>) {
 
 @Composable
 private fun StatGrid(r: RideSummary) {
+    val c = AppColors
     val items = buildList {
-        add("Distanz" to "${formatDecimal(r.distanceM / 1000, 2)} km")
-        add("Fahrzeit" to formatDuration(r.movingTimeMs))
-        add("Ø / max" to "${formatDecimal(r.avgSpeedKmh)} / ${formatDecimal(r.maxSpeedKmh)} km/h")
-        add("Höhenmeter" to "${"%.0f".format(r.elevationGainM)} m")
-        r.avgHr?.let { add("Ø / max Puls" to "$it / ${r.maxHr} bpm") }
-        r.avgCadence?.let { add("Ø Trittfrequenz" to "$it U/min") }
-        r.avgPower?.let { add("Ø / max Leistung" to "$it / ${r.maxPower} W") }
-        if (r.calories > 0) add("Kalorien" to "${"%.0f".format(r.calories)} kcal (${r.calorieSource.label})")
+        add(Triple("Distanz", "${formatDecimal(r.distanceM / 1000, 2)} km", c.Distance))
+        add(Triple("Fahrzeit", formatDuration(r.movingTimeMs), c.Text))
+        add(Triple("Ø / max Tempo", "${formatDecimal(r.avgSpeedKmh)} / ${formatDecimal(r.maxSpeedKmh)}", c.Speed))
+        add(Triple("Höhenmeter", "${"%.0f".format(r.elevationGainM)} m", c.Distance))
+        r.avgHr?.let { add(Triple("Ø / max Puls", "$it / ${r.maxHr}", c.Stop)) }
+        r.avgCadence?.let { add(Triple("Ø Trittfrequenz", "$it", c.Cadence)) }
+        r.avgPower?.let { add(Triple("Ø / max Leistung", "$it / ${r.maxPower} W", c.Go)) }
+        if (r.calories > 0) add(Triple("Kalorien · ${r.calorieSource.label}", "${"%.0f".format(r.calories)}", c.Calories))
     }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    // Kacheln wie auf dem Tacho: feine Linien statt Karten.
+    Column(Modifier.background(c.Line), verticalArrangement = Arrangement.spacedBy(1.dp)) {
         items.chunked(2).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                row.forEach { (label, value) ->
+            Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                row.forEach { (label, value, color) ->
                     Column(
-                        Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(AppColors.Panel).padding(10.dp)
+                        Modifier.weight(1f).background(c.Bg).padding(vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        Text(label, color = AppColors.Dim, fontSize = 12.sp)
-                        Text(value, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(
+                            label.uppercase(Locale.GERMANY), color = color, fontSize = 13.sp,
+                            fontFamily = Condensed, fontWeight = FontWeight.Medium, letterSpacing = 0.5.sp,
+                        )
+                        Text(value, color = color, fontSize = 30.sp, fontFamily = Condensed, fontWeight = FontWeight.SemiBold)
                     }
                 }
-                if (row.size == 1) Box(Modifier.weight(1f))
-            }
-        }
-    }
-}
-
-/** Zeit je Pulszone als gestapelter Balken mit Prozentangaben. */
-@Composable
-private fun ZoneBar(seconds: List<Long>) {
-    val total = seconds.sum().toFloat()
-    Column(
-        Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(10.dp))
-            .background(AppColors.Panel).padding(12.dp)
-    ) {
-        Text("Zeit in Pulszonen", fontWeight = FontWeight.Bold)
-        Row(Modifier.fillMaxWidth().height(22.dp).padding(top = 6.dp).clip(RoundedCornerShape(6.dp))) {
-            seconds.forEachIndexed { i, s ->
-                if (s > 0) Box(Modifier.weight(s / total).fillMaxHeight().background(AppColors.zone(i + 1)))
-            }
-        }
-        Row(Modifier.fillMaxWidth().padding(top = 6.dp)) {
-            seconds.forEachIndexed { i, s ->
-                Text(
-                    "Z${i + 1} ${String.format(Locale.GERMANY, "%.0f", s / total * 100)} %",
-                    color = AppColors.zone(i + 1), fontSize = 12.sp, modifier = Modifier.weight(1f),
-                )
+                if (row.size == 1) Box(Modifier.weight(1f).background(c.Bg))
             }
         }
     }

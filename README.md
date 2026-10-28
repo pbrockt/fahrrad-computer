@@ -6,14 +6,18 @@ Kalorienberechnung, Streckenaufzeichnung, Health Connect, Live-Standort und KI-T
 
 Die geplante Vorgehensweise steht in [KONZEPT.md](KONZEPT.md).
 
-## Stand: 0.0.14-alpha.1
+## Stand: 0.0.15-alpha.1
 
 | Bereich | Stand |
 |---|---|
 | Bedienung | Kein Menü unten mehr: Fahrten & Training, Karten & Routen, Sensoren und Einstellungen im Menü links (☰). Fahrt-Bildschirm: ganz links die Start-Seite (großer Start-Knopf, während der Fahrt Pause/Stopp; Übersicht Woche/Monat, Training heute, Route, Sensoren, letzte Fahrt), rechts die Tacho-Seiten. Nach Start blättert die App zum Tacho. Oben eine schmale Leiste mit kleinem ▶/⏸. Kachel „Start / Pause / Stopp“. Doppeltippen = Fahrradklingel (abschaltbar). Editor erst nach einstellbarer Haltedauer (0,5–3 s, Standard 1 s). |
 | Dashboard | Mehrere Seiten zum Wischen (Standard: Fahrt, Puls, Übersicht). Lange auf eine Kachel drücken öffnet den Editor: Kachel antippen = Inhalt wählen oder doppelte Breite; Zeilenmenü = Höhe, Kachel hinzufügen, verschieben, löschen; Seiten anlegen, umbenennen, löschen, auf Standard zurücksetzen. Gespeichert als JSON. Puls in Zonenfarbe (Z1–Z5), Ø/max Puls in Zonenfarbe, Streckenskizze als Platzhalter für die Navi. Display bleibt an. |
-| Darstellung | Dunkel, Hell (für pralle Sonne) oder wie System. |
-| Sensoren | Bluetooth-Standardprofile: Puls (Brustgurt, Uhren mit „HF senden“), Trittfrequenz/Speed (CSC), Leistung (Cycling Power). Liefert der Leistungsmesser Kurbeldaten, kommt die Trittfrequenz daraus. Bosch Smart System erscheint, sofern es diese Profile sendet (noch nicht am Rad geprüft). Automatisches Wiederverbinden. |
+| Darstellung | schmale Schrift (Barlow Condensed, SIL OFL), Tacho-Kacheln ohne Abstand mit feinen Trennlinien, Bezeichnung in Großbuchstaben und Wert in der Farbe der Messgröße (Tempo blau, Distanz grün, Trittfrequenz orange …), Puls und Leistung als in Zonenfarbe gefüllte Kacheln, Zonenleiste unter Tempo und Trittfrequenz, rote Leiste unten „Halten zum Pausieren“ (in der Pause Weiter/Beenden), Seitenanzeige als Striche, GPS-Kästchen. Dunkel (Schwarz), Hell (Weiß) oder wie System. Neues Standard-Layout mit Seite „Berg“ – bestehende Layouts bleiben, „Auf Standard zurücksetzen“ im Editor holt das neue. |
+| Zonen | Puls (Max-Puls), Leistung (FTP, eingegeben oder aus Gewicht/Alter/Geschlecht geschätzt; 55/75/90/105 %), Trittfrequenz und Tempo (Grenzen einstellbar, Standard 60/75/90/105 U/min und 10/18/25/32 km/h). Fahrt-Ansicht: Zeit in Zonen für alle vier. |
+| Höhenprofil | Aus der Route: Höhen aus der GPX-Datei, sonst einmalig vom Höhenmodell (Open-Meteo, Copernicus 90 m). Profil nach Steigung eingefärbt mit Position, ganze Route oder nächste 5 km; Kacheln Steigung (auf der Route aus dem Profil, sonst Ausgleichsgerade über die letzten 200 m GPS-Höhe), gefahrene Höhenmeter, Rest-Höhenmeter. Profil auch in Routenvorschau und auf der Start-Seite. |
+| Wetter | Kacheln Wind (Pfeil relativ zur Fahrtrichtung, Gegen-/Rücken-/Seitenwind, Böen) und Temperatur; Wetterkarte auf der Start-Seite. Open-Meteo, Standort auf ~1 km gerundet, höchstens alle 15 min bzw. 5 km; abschaltbar. |
+| Diagramme | Fahrt-Ansicht: Verläufe mit zwei Fingern zoomen, mit einem Finger verschieben, doppelt tippen = alles; alle Diagramme zoomen gemeinsam. Linien in Zonenfarben vor blassen Zonenbändern. Kachel „Pulsverlauf“ (10 min) mit Zonenbändern. |
+| Sensoren | Akkustand (Battery-Service) beim Verbinden und alle 10 min; unter 20 % rot in der Leiste oben. Bluetooth-Standardprofile: Puls (Brustgurt, Uhren mit „HF senden“), Trittfrequenz/Speed (CSC), Leistung (Cycling Power). Liefert der Leistungsmesser Kurbeldaten, kommt die Trittfrequenz daraus. Bosch Smart System erscheint, sofern es diese Profile sendet (noch nicht am Rad geprüft). Automatisches Wiederverbinden. |
 | Heimtrainer | Menü „Heimtrainer“: virtuelle Watt für einen Heimtrainer ohne Leistungsmesser (wie HR2VP). Trittfrequenz × Widerstandsstufe (1–10, in der App mitstellen) gibt sofortige Änderungen, der Puls (Herzfrequenzreserve aus Ruhe-/Maxpuls, auf die FTP abgebildet) legt das Niveau fest; die App lernt daraus, wie schwer der Trainer ist, und merkt es sich. FTP eigene oder geschätzt (Gewicht, Alter, Geschlecht), Korrektur 50–150 %. Das Handy bietet sich per Bluetooth als Leistungsmesser (Cycling Power mit Kurbeldaten → Trittfrequenz) und Pulsgurt an: in Zwift, Rouvy, MyWhoosh auf PC/Tablet koppeln. Läuft im Vordergrunddienst auch bei gesperrtem Handy. Anzeige Watt, Puls, Trittfrequenz, kcal, Zeit, Ø/max Watt. Wird nicht als Fahrt gespeichert (das macht Zwift). |
 | Kalorien | Aus Fahrerleistung (kcal ≈ kJ), sonst Puls (Keytel: Gewicht, Alter, Geschlecht), sonst MET-Schätzung nach Geschwindigkeit (E-Bike). Die Kachel zeigt die Quelle. |
 | Höhe | GPS-Höhe wird geglättet (Median gegen Ausreißer, gleitender Mittelwert über 15 s); Höhenmeter zählen erst ab 8 m Anstieg, dann vom Tal bis zum Gipfel. Profile zeigen mindestens 60 m Spanne. Ab Android 14 Höhe über dem Meeresspiegel. Ältere Fahrten werden beim Öffnen nachgerechnet. |
@@ -25,13 +29,21 @@ Die geplante Vorgehensweise steht in [KONZEPT.md](KONZEPT.md).
 | Health Connect | Fahrten als Training „Radfahren“ mit Strecke, Puls, Geschwindigkeit, Trittfrequenz, Leistung, Distanz, Höhenmetern und Kalorien – nur per Knopf (nach der Fahrt im Dialog oder in der Fahrt-Ansicht), nie automatisch. Gewicht wird von dort übernommen. Feste IDs: erneutes Senden überschreibt statt zu verdoppeln. |
 | Einstellungen | Max. Herzfrequenz (Zonen), Gewicht, Geburtsjahr, Geschlecht, Update-Kanal Release/Alpha, optional GitHub-Token. |
 | Live-Standort | Per SMS an eingetragene Nummern, alle 1–60 Minuten (Standard 10), optional „losgefahren“/„angekommen“. Text mit Uhrzeit, km, Geschwindigkeit, Rest der Route, Akku und Google-Maps-Link; passt in eine SMS. Test-SMS in den Einstellungen. |
-| Karte & Route | Tab „Karten“: GPX-Routen importieren (Komoot, Strava, BRouter …), Vorschau, aktivieren. Dashboard-Kachel „Karte“ mit Route, gefahrener Strecke und Position (folgt mit), Hinweis bei mehr als 50 m Abweichung; Kachel „Rest der Route“. Offline-Karten von mapsforge.org (u. a. Rheinland-Pfalz, 183 MB) per Download, Fahrrad-Kartenstil; ohne Offline-Karte optional Online-Karte von openstreetmap.org. |
+| Karte & Route | Tab „Karten“: GPX-Routen importieren (Komoot, Strava, BRouter …), Vorschau, aktivieren. Dashboard-Kachel „Karte“ mit Route, gefahrener Strecke und Position (folgt mit), Hinweis bei mehr als 50 m Abweichung; Kachel „Rest der Route“. Offline-Karten von mapsforge.org (alle Bundesländer und die Nachbarländer NL, BE, LU, DK, AT, CH) per Download, Fahrrad-Kartenstil; ohne Offline-Karte optional Online-Karte von openstreetmap.org. |
 | Karte bedienen | Tacho-Karte frei verschiebbar; Knopf oben rechts: Norden oben ↔ Fahrtrichtung oben, nach dem Verschieben zurück zur Position. In der Fahrt-Ansicht Strecke einfärbbar nach Tempo (5 Stufen) oder Puls (Zonenfarben) mit Legende. |
-| Abbiegehinweise | Aus der Form der Route erkannt (Douglas-Peucker, Winkel ab 35°, nahe Knicke zusammengefasst): leicht/normal/scharf links/rechts, wenden. Seite „Navi“ mit großem Pfeil und Entfernung, Hinweis auch auf der Karte und in der Benachrichtigung (Sperrbildschirm). Vibration 150 m vorher und kurz davor, am Ziel; Ton optional. Ohne Straßennamen. |
+| Abbiegehinweise | Aus der Form der Route erkannt (Douglas-Peucker, Winkel ab 35°, nahe Knicke zusammengefasst): leicht/normal/scharf links/rechts, wenden. Seite „Navi“ mit großem Pfeil und Entfernung, Hinweis auch auf der Karte und in der Benachrichtigung (Sperrbildschirm). Vibration 150 m vorher und kurz davor, am Ziel. Piepen (Standard an, Medienlautstärke) nur, wenn man reagieren soll: jetzt abbiegen (2 Töne), von der Route abgekommen (langer tiefer Ton), Ziel (3). Ohne Straßennamen. |
 | Trainingsplan | Tab „Fahrten“ → Reiter „Training“: Ziel, Trainingstage, Hinweise; Wochenplan ab heute über die Claude-API (Claude Opus 5.5, strukturierte JSON-Ausgabe, automatisches Ausweichen bei Fehl-Ablehnungen). Gesendet werden nur Trainingswerte der letzten 6 Wochen, Alter, Gewicht, Ziel – Vorschau „Was wird gesendet?“. Eigener API-Key, im Android Keystore verschlüsselt; Anleitung und Key-Prüfung in der App. Einheiten werden mit Fahrten abgeglichen (erledigt/ausgelassen); Kachel „Trainingsziel heute“. |
 | Updates | Kanal Release ignoriert Alphas, Kanal Alpha nimmt die höchste Version. Workflow `release.yml` baut bei Tag `x.y.z` bzw. `x.y.z-alpha.N`. |
 
 Noch nicht enthalten: Bosch-Unterstützungsstufe/Akku (braucht den nRF-Connect-Scan), Straßennamen bei Abbiegehinweisen, Live-Tracker, Karte, KI – siehe Phasen im Konzept.
+
+## Design prüfen ohne Handy
+
+```bash
+cd android
+./gradlew testDebugUnitTest --tests '*ScreenshotTest*' -Dscreenshots=/tmp/tacho
+# PNGs der Standard-Seiten (hell/dunkel) mit Beispielwerten
+```
 
 ## Bauen
 

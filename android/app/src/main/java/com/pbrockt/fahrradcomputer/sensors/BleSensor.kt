@@ -35,6 +35,8 @@ enum class SensorConnection { NONE, NO_PERMISSION, BLUETOOTH_OFF, CONNECTING, CO
 data class SensorLink(
     val connection: SensorConnection = SensorConnection.NONE,
     val deviceName: String? = null,
+    /** Akkustand in Prozent, falls der Sensor den Battery-Service (0x180F) anbietet. */
+    val battery: Int? = null,
 )
 
 /**
@@ -59,6 +61,7 @@ class BleSensor(
     private var targetName: String? = null
     private var gatt: BluetoothGatt? = null
     private var reconnectJob: Job? = null
+    private var batteryJob: Job? = null
 
     val hasTarget: Boolean get() = targetAddress != null
 
@@ -107,6 +110,7 @@ class BleSensor(
     }
 
     private fun closeGatt() {
+        batteryJob?.cancel()
         gatt?.let {
             runCatching { it.disconnect() }
             runCatching { it.close() }
@@ -154,6 +158,39 @@ class BleSensor(
             _link.value = SensorLink(SensorConnection.CONNECTED, targetName ?: g.device.address)
         }
 
+        // Erst wenn die Benachrichtigung eingeschaltet ist, den Akku lesen - Android kann
+        // immer nur einen Bluetooth-Auftrag gleichzeitig.
+        override fun onDescriptorWrite(g: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
+            if (g != gatt) return
+            readBattery(g)
+            batteryJob?.cancel()
+            batteryJob = scope.launch {
+                while (true) {
+                    delay(BATTERY_INTERVAL_MS)
+                    gatt?.let(::readBattery)
+                }
+            }
+        }
+
+        override fun onCharacteristicRead(
+            g: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            value: ByteArray,
+            status: Int,
+        ) = onBattery(characteristic, value, status)
+
+        @Deprecated("Bis Android 12")
+        override fun onCharacteristicRead(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
+            @Suppress("DEPRECATION")
+            onBattery(characteristic, characteristic.value ?: return, status)
+        }
+
+        private fun onBattery(characteristic: BluetoothGattCharacteristic, value: ByteArray, status: Int) {
+            if (characteristic.uuid != BATTERY_LEVEL || status != BluetoothGatt.GATT_SUCCESS || value.isEmpty()) return
+            val percent = value[0].toInt() and 0xFF
+            if (percent in 0..100) _link.value = _link.value.copy(battery = percent)
+        }
+
         // Ab Android 13 kommt der Wert als Parameter. Nicht super aufrufen - das wuerde
         // zusaetzlich die alte Variante unten ausloesen und jeden Wert doppelt melden.
         override fun onCharacteristicChanged(
@@ -174,8 +211,16 @@ class BleSensor(
         }
     }
 
+    private fun readBattery(g: BluetoothGatt) {
+        val ch = g.getService(BATTERY_SERVICE)?.getCharacteristic(BATTERY_LEVEL) ?: return
+        runCatching { g.readCharacteristic(ch) }
+    }
+
     companion object {
         val CCCD: UUID = uuid16(0x2902)
+        val BATTERY_SERVICE: UUID = uuid16(0x180F)
+        val BATTERY_LEVEL: UUID = uuid16(0x2A19)
+        const val BATTERY_INTERVAL_MS = 10 * 60_000L
         const val RECONNECT_DELAY_MS = 2_000L
     }
 }

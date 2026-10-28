@@ -1,5 +1,11 @@
 package com.pbrockt.fahrradcomputer.ui
 
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.LaunchedEffect
+import com.pbrockt.fahrradcomputer.ui.dashboard.WindArrow
+import com.pbrockt.fahrradcomputer.weather.Wind
+import kotlin.math.roundToInt
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -57,6 +63,8 @@ fun HomePage(
     val cadence by vm.cadence.collectAsStateWithLifecycle()
     val power by vm.power.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val weather by vm.weather.collectAsStateWithLifecycle()
+    LaunchedEffect(settings.weatherEnabled) { vm.refreshWeather() }
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 4.dp),
@@ -117,11 +125,36 @@ fun HomePage(
             TotalsCard("Dieser Monat", Totals.month(day, zone).let { (a, b) -> Totals.of(rides, a, b) }, Modifier.weight(1f))
         }
 
+        // Wetter
+        weather?.let { w ->
+            InfoCard("Wetter", onClick = {}) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    WindArrow(Wind.arrowDeg(w, null), AppColors.Speed, Modifier.size(44.dp))
+                    Column(Modifier.weight(1f).padding(start = 8.dp)) {
+                        Text(
+                            "${"%.0f".format(w.temperatureC)}° · ${w.description}",
+                            fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 22.sp,
+                        )
+                        Text(
+                            "Wind aus ${Wind.compass(w.windFromDeg)} ${"%.0f".format(w.windKmh)} km/h, Böen ${"%.0f".format(w.gustKmh)}",
+                            color = AppColors.Dim, fontSize = 14.sp,
+                        )
+                    }
+                }
+            }
+        }
+
         // Route
         InfoCard("Route", onClick = { onOpen(AppScreen.MAPS) }) {
             val r = route
             if (r == null) Text("Keine Route aktiv – antippen zum Auswählen.", color = AppColors.Dim)
-            else Text("${r.name} · ${formatDecimal(r.lengthM / 1000)} km", fontWeight = FontWeight.Bold)
+            else {
+                Text("${r.name} · ${formatDecimal(r.lengthM / 1000)} km" +
+                    (r.profile?.let { " · ${it.totalAscentM.roundToInt()} Hm" } ?: ""), fontWeight = FontWeight.Bold)
+                r.profile?.let { p ->
+                    ElevationProfileChart(p, Modifier.fillMaxWidth().height(90.dp).padding(top = 4.dp))
+                }
+            }
         }
 
         // Sensoren
@@ -137,6 +170,9 @@ fun HomePage(
                     Column {
                         Text(label, color = AppColors.Dim, fontSize = 12.sp)
                         Text(text, color = color, fontWeight = FontWeight.Bold)
+                        r.battery?.let { b ->
+                            Text("Akku $b %", color = if (b < 20) AppColors.Stop else AppColors.Dim, fontSize = 12.sp)
+                        }
                     }
                 }
             }
@@ -161,16 +197,24 @@ private fun BigButton(text: String, color: Color, modifier: Modifier, onClick: (
     Button(
         onClick = onClick,
         colors = ButtonDefaults.buttonColors(containerColor = color, contentColor = AppColors.OnZone),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(4.dp),
         modifier = modifier,
-    ) { Text(text, fontSize = 22.sp, fontWeight = FontWeight.Bold) }
+    ) {
+        Text(
+            text.uppercase(java.util.Locale.GERMANY), fontSize = 24.sp, fontFamily = Condensed,
+            fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp,
+        )
+    }
 }
 
 @Composable
 private fun InfoCard(title: String, onClick: () -> Unit, content: @Composable () -> Unit) {
     Card(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, color = AppColors.Dim, fontSize = 13.sp)
+            Text(
+                title.uppercase(java.util.Locale.GERMANY), color = AppColors.Dim, fontSize = 14.sp,
+                fontFamily = Condensed, fontWeight = FontWeight.Medium, letterSpacing = 0.6.sp,
+            )
             content()
         }
     }

@@ -1,6 +1,18 @@
 package com.pbrockt.fahrradcomputer.ui.dashboard
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import com.pbrockt.fahrradcomputer.ui.Condensed
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -87,6 +99,8 @@ fun DashboardScreen(
     val offlineMaps by vm.offlineMaps.collectAsStateWithLifecycle()
     val heading by vm.heading.collectAsStateWithLifecycle()
     val health by vm.healthState.collectAsStateWithLifecycle()
+    val climb by vm.ride.climb.collectAsStateWithLifecycle()
+    val weather by vm.weather.collectAsStateWithLifecycle()
 
     // Display anlassen, solange der Fahrt-Bildschirm zu sehen ist.
     val view = LocalView.current
@@ -133,53 +147,49 @@ fun DashboardScreen(
         heading = heading,
         mapHeadingUp = settings.mapHeadingUp,
         onToggleMapOrientation = vm::toggleMapOrientation,
+        powerZones = settings.powerZones,
+        cadenceZones = settings.cadenceZones,
+        speedZones = settings.speedZones,
+        climb = climb,
+        weather = weather,
     )
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
+    val names = listOf("Start") + layout.pages.map { it.name }
+    Column(Modifier.fillMaxSize().background(AppColors.Bg)) {
         TopBar(
             phase = phase,
             gps = gps,
+            title = if (editing) "Bearbeiten" else names.getOrElse(pager.currentPage) { "" },
             sensors = listOf(hr, cadence, power),
             onMenu = onMenu,
-            onPlayPause = {
-                when (phase) {
-                    RidePhase.IDLE -> onStartRequested()
-                    RidePhase.RECORDING -> vm.pauseRide()
-                    RidePhase.PAUSED -> vm.resumeRide()
-                }
-            },
-        )
-        PageHeader(
-            names = listOf("Start") + layout.pages.map { it.name },
-            current = pager.currentPage,
-            hint = when {
-                editing -> "Bearbeiten"
-                pager.currentPage == 0 -> "→ Tacho"
-                else -> "halten = anpassen"
-            },
         )
         HorizontalPager(
             state = pager,
             userScrollEnabled = !editing,
-            pageSpacing = 8.dp,
             modifier = Modifier.weight(1f).fillMaxWidth(),
         ) { index ->
             if (index == 0) {
-                HomePage(
-                    vm,
-                    onStart = onStartRequested,
-                    onStop = { confirmStop = true },
-                    onShowRide = { scope.launch { pager.animateScrollToPage(1) } },
-                    onOpen = onOpen,
-                )
+                Box(Modifier.fillMaxSize().padding(horizontal = 10.dp)) {
+                    HomePage(
+                        vm,
+                        onStart = onStartRequested,
+                        onStop = { confirmStop = true },
+                        onShowRide = { scope.launch { pager.animateScrollToPage(1) } },
+                        onOpen = onOpen,
+                    )
+                }
                 return@HorizontalPager
             }
             val pageIndex = index - 1
             val page = layout.pages.getOrNull(pageIndex) ?: return@HorizontalPager
             if (editing) {
-                EditablePage(page, pageIndex, TileData(
-                    stats, hr, cadence, power, settings.zones, now, route, phase, interactive = false,
-                ), onEdit = vm::editDashboard)
+                Box(Modifier.fillMaxSize().padding(horizontal = 6.dp)) {
+                    EditablePage(page, pageIndex, TileData(
+                        stats, hr, cadence, power, settings.zones, now, route, phase, interactive = false,
+                        powerZones = settings.powerZones, cadenceZones = settings.cadenceZones,
+                        speedZones = settings.speedZones, climb = climb, weather = weather,
+                    ), onEdit = vm::editDashboard)
+                }
             } else {
                 PageView(
                     page, data, mapId = "dash-$pageIndex",
@@ -194,13 +204,27 @@ fun DashboardScreen(
                 )
             }
         }
+        PageDashes(names.size, pager.currentPage)
         if (editing) {
-            EditBar(
-                layout,
-                page = (pager.currentPage - 1).coerceAtLeast(0),
-                scrollToPage = { pager.scrollToPage(it + 1) },
-                vm = vm,
-                onDone = { editing = false },
+            Box(Modifier.padding(horizontal = 8.dp)) {
+                EditBar(
+                    layout,
+                    page = (pager.currentPage - 1).coerceAtLeast(0),
+                    scrollToPage = { pager.scrollToPage(it + 1) },
+                    vm = vm,
+                    onDone = { editing = false },
+                )
+            }
+        } else if (pager.currentPage > 0) {
+            RideBar(
+                phase = phase,
+                onStart = onStartRequested,
+                onPause = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    vm.pauseRide()
+                },
+                onResume = vm::resumeRide,
+                onStop = { confirmStop = true },
             )
         }
     }
@@ -248,9 +272,12 @@ fun DashboardScreen(
     }
 }
 
-/** Eine Tacho-Seite: Zeilen nach Hoehe, Kacheln nach Breite verteilt. */
+/**
+ * Eine Tacho-Seite: Kacheln ohne Abstand, nur durch feine Linien getrennt
+ * (der Hintergrund in Linienfarbe scheint durch 1 dp breite Fugen).
+ */
 @Composable
-private fun PageView(page: DashboardPage, data: TileData, mapId: String, modifier: Modifier = Modifier) {
+internal fun PageView(page: DashboardPage, data: TileData, mapId: String, modifier: Modifier = Modifier) {
     if (page.rows.isEmpty()) {
         Box(Modifier.fillMaxSize().then(modifier), contentAlignment = Alignment.Center) {
             Text("Leere Seite – gedrückt halten, um Kacheln hinzuzufügen.", color = AppColors.Dim, textAlign = TextAlign.Center)
@@ -258,13 +285,13 @@ private fun PageView(page: DashboardPage, data: TileData, mapId: String, modifie
         return
     }
     Column(
-        Modifier.fillMaxSize().then(modifier),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        Modifier.fillMaxSize().background(AppColors.Line).then(modifier),
+        verticalArrangement = Arrangement.spacedBy(1.dp),
     ) {
         for (row in page.rows) {
             Row(
                 Modifier.weight(row.height.weight).fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(1.dp),
             ) {
                 for (slot in row.tiles) {
                     Tile(slot.type, data, Modifier.weight(slot.units.toFloat()).fillMaxSize(), mapId)
@@ -274,94 +301,151 @@ private fun PageView(page: DashboardPage, data: TileData, mapId: String, modifie
     }
 }
 
-/** Name der Seite und Punkte fuer die Seitenzahl. */
+/** Seitenanzeige als kurze Striche; der aktuelle ist hell. */
 @Composable
-private fun PageHeader(names: List<String>, current: Int, hint: String) {
+internal fun PageDashes(count: Int, current: Int) {
     Row(
-        Modifier.fillMaxWidth().padding(bottom = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        Modifier.fillMaxWidth().padding(vertical = 5.dp),
+        horizontalArrangement = Arrangement.Center,
     ) {
-        Text(
-            names.getOrElse(current) { "" },
-            fontWeight = FontWeight.Bold,
-            fontSize = 14.sp,
-            modifier = Modifier.weight(1f),
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            names.indices.forEach { i ->
-                Box(
-                    Modifier.size(if (i == 0) 6.dp else 8.dp).clip(CircleShape)
-                        .background(if (i == current) AppColors.Text else AppColors.Line)
-                )
-            }
+        for (i in 0 until count) {
+            Box(
+                Modifier.padding(horizontal = 2.dp).size(width = if (i == 0) 10.dp else 16.dp, height = 3.dp)
+                    .background(if (i == current) AppColors.Text else AppColors.Line)
+            )
         }
-        Text(
-            hint,
-            color = AppColors.Dim,
-            fontSize = 12.sp,
-            textAlign = TextAlign.End,
-            modifier = Modifier.weight(1f),
-        )
     }
 }
 
 /**
- * Schmale Leiste oben: Menue, GPS, Sensoren und ein kleiner Start/Pause-Knopf in der
- * Ecke. Stopp gibt es bewusst nur auf der Start-Seite und als Kachel - nicht aus Versehen.
+ * Die rote Leiste unten. Waehrend der Fahrt: "Halten zum Pausieren" -
+ * ein versehentliches Antippen pausiert nicht. In der Pause: Weiter oder Beenden.
  */
 @Composable
-private fun TopBar(
+internal fun RideBar(
+    phase: RidePhase,
+    onStart: () -> Unit,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onStop: () -> Unit,
+) {
+    Row(Modifier.fillMaxWidth().height(64.dp), horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+        when (phase) {
+            RidePhase.IDLE -> BarButton("Fahrt starten", AppColors.Go, Modifier.weight(1f), onStart)
+            RidePhase.RECORDING -> HoldButton("Halten zum Pausieren", AppColors.Accent, 700, Modifier.weight(1f), onPause)
+            RidePhase.PAUSED -> {
+                BarButton("Weiter", AppColors.Go, Modifier.weight(2f), onResume)
+                BarButton("Beenden", AppColors.Accent, Modifier.weight(1f), onStop)
+            }
+        }
+    }
+}
+
+@Composable
+private fun BarButton(text: String, color: Color, modifier: Modifier, onClick: () -> Unit) {
+    Box(modifier.fillMaxHeight().background(color).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+        BarText(text)
+    }
+}
+
+@Composable
+private fun BarText(text: String) {
+    Text(
+        text.uppercase(java.util.Locale.GERMANY),
+        color = Color.White,
+        fontFamily = Condensed,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 21.sp,
+        letterSpacing = 1.sp,
+    )
+}
+
+/** Knopf, der erst nach [holdMs] gedrueckt halten ausloest; ein Balken zeigt den Fortschritt. */
+@Composable
+private fun HoldButton(text: String, color: Color, holdMs: Int, modifier: Modifier, onDone: () -> Unit) {
+    val progress = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+    val done by rememberUpdatedState(onDone)
+    Box(
+        modifier.fillMaxHeight().background(color).pointerInput(Unit) {
+            detectTapGestures(onPress = {
+                val job = scope.launch {
+                    progress.animateTo(1f, tween(holdMs, easing = LinearEasing))
+                    done()
+                    progress.snapTo(0f)
+                }
+                tryAwaitRelease()
+                if (job.isActive) {
+                    job.cancel()
+                    scope.launch { progress.animateTo(0f, tween(150)) }
+                }
+            })
+        },
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Box(Modifier.fillMaxHeight().fillMaxWidth(progress.value).background(Color.Black.copy(alpha = 0.3f)))
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { BarText(text) }
+    }
+}
+
+/**
+ * Schmale Leiste oben: Menue, Seitenname, GPS und Sensoren (mit Warnung bei schwachem
+ * Akku). Start, Pause und Stopp liegen unten in der roten Leiste bzw. auf der Start-Seite.
+ */
+@Composable
+internal fun TopBar(
     phase: RidePhase,
     gps: GpsStatus,
+    title: String,
     sensors: List<SensorReading>,
     onMenu: () -> Unit,
-    onPlayPause: () -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth(),
+        Modifier.fillMaxWidth().height(44.dp).padding(end = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onMenu, modifier = Modifier.size(40.dp)) {
-            Icon(Icons.Filled.Menu, contentDescription = "Menü")
+        IconButton(onClick = onMenu, modifier = Modifier.size(44.dp)) {
+            Icon(Icons.Filled.Menu, contentDescription = "Menü", tint = AppColors.Text)
         }
-        val (gpsText, gpsColor) = when {
-            phase == RidePhase.IDLE -> "GPS ab Start" to AppColors.Dim
-            gps == GpsStatus.OK -> "GPS ok" to AppColors.Go
-            gps == GpsStatus.SEARCHING -> "GPS sucht …" to AppColors.Zones[3]
-            else -> "GPS aus!" to AppColors.Stop
-        }
-        Text(gpsText, color = gpsColor, fontSize = 13.sp)
+        Text(
+            title.uppercase(java.util.Locale.GERMANY),
+            color = AppColors.Text,
+            fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, letterSpacing = 0.8.sp,
+            maxLines = 1,
+        )
         if (phase == RidePhase.PAUSED) {
-            Text("PAUSE", color = AppColors.Zones[3], fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text("PAUSE", color = Color.White, fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
+                modifier = Modifier.background(AppColors.Zones[3]).padding(horizontal = 6.dp, vertical = 1.dp))
         }
         Box(Modifier.weight(1f))
-        // Ein Symbol je Sensorart: gruen = verbunden, gelb = verbindet, rot = Fehler, grau = keiner.
+        // Ein Symbol je Sensorart: gruen = verbunden, gelb = verbindet, rot = Fehler oder Akku < 20 %.
         sensors.zip(listOf("♥", "⟳", "⚡")).forEach { (r, symbol) ->
-            val color = when (r.connection) {
-                SensorConnection.CONNECTED -> AppColors.Go
-                SensorConnection.CONNECTING -> AppColors.Zones[3]
-                SensorConnection.NO_PERMISSION, SensorConnection.BLUETOOTH_OFF -> AppColors.Stop
-                SensorConnection.NONE -> AppColors.Line
+            val lowBattery = (r.battery ?: 100) < 20
+            val color = when {
+                r.connection == SensorConnection.CONNECTED && lowBattery -> AppColors.Stop
+                r.connection == SensorConnection.CONNECTED -> AppColors.Go
+                r.connection == SensorConnection.CONNECTING -> AppColors.Zones[3]
+                r.connection == SensorConnection.NO_PERMISSION || r.connection == SensorConnection.BLUETOOTH_OFF -> AppColors.Stop
+                else -> AppColors.Line
             }
-            Text(symbol, color = color, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(symbol, color = color, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                if (lowBattery && r.connection == SensorConnection.CONNECTED) {
+                    Text("${r.battery}%", color = color, fontSize = 11.sp, fontFamily = Condensed)
+                }
+            }
         }
-        FilledIconButton(
-            onClick = onPlayPause,
-            modifier = Modifier.size(40.dp),
-            colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = if (phase == RidePhase.RECORDING) AppColors.Accent else AppColors.Go,
-                contentColor = AppColors.OnZone,
-            ),
-        ) {
-            Icon(
-                if (phase == RidePhase.RECORDING) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                contentDescription = when (phase) {
-                    RidePhase.IDLE -> "Fahrt starten"
-                    RidePhase.RECORDING -> "Pause"
-                    RidePhase.PAUSED -> "Weiter"
-                },
-            )
+        // GPS-Kaestchen.
+        val gpsColor = when {
+            phase == RidePhase.IDLE -> AppColors.Line
+            gps == GpsStatus.OK -> AppColors.Go
+            gps == GpsStatus.SEARCHING -> AppColors.Zones[3]
+            else -> AppColors.Stop
         }
+        Text(
+            "GPS", color = Color.White, fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
+            modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(gpsColor).padding(horizontal = 6.dp, vertical = 2.dp),
+        )
     }
 }

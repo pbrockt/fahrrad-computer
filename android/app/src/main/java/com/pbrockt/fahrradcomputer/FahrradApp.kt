@@ -56,6 +56,7 @@ class FahrradApp : Application() {
         private set
     lateinit var trainer: TrainerSession
         private set
+    val weather = com.pbrockt.fahrradcomputer.weather.WeatherRepository()
     lateinit var broadcaster: PowerBroadcaster
         private set
 
@@ -79,10 +80,18 @@ class FahrradApp : Application() {
 
         scope.launch {
             routes.refresh()
+            // Fehlende Hoehenprofile im Hintergrund nachladen (braucht Internet).
+            launch { routes.fillMissingProfiles() }
             // Aktive Route an die Fahrt geben - auch wenn sie spaeter gewechselt wird.
             combine(settings.settings.map { it.activeRouteId }.distinctUntilChanged(), routes.routes) { id, _ ->
                 routes.byId(id)
             }.collect { ride.setRoute(it) }
+        }
+        // Wetter am aktuellen Standort, waehrend der Fahrt (laedt hoechstens alle 15 min / 5 km neu).
+        scope.launch {
+            ride.lastPoint.collect { p ->
+                if (p != null && currentSettings.value.weatherEnabled) weather.update(p.lat, p.lon)
+            }
         }
         // Downloads, die im Hintergrund fertig wurden, uebernehmen.
         scope.launch { offlineMaps.refresh() }

@@ -18,8 +18,8 @@ android {
         // versionCode steigt bei jedem veroeffentlichten Build, auch bei Alphas - sonst
         // verweigert Android das Update. versionName folgt SemVer: "x.y.z" ist ein
         // Release, "x.y.z-alpha.N" eine Alpha. release.yml prueft, dass der Tag passt.
-        versionCode = 14
-        versionName = "0.0.14-alpha.1"
+        versionCode = 15
+        versionName = "0.0.15-alpha.1"
 
         buildConfigField("String", "UPDATE_REPO", "\"pbrockt/fahrrad-computer\"")
     }
@@ -79,6 +79,14 @@ android {
         buildConfig = true
     }
 
+    testOptions {
+        unitTests {
+            // Fuer die Bildschirmfotos der Tacho-Seiten (Robolectric): Ressourcen wie Schriften laden.
+            isIncludeAndroidResources = true
+            all { it.systemProperty("screenshots", System.getProperty("screenshots") ?: "") }
+        }
+    }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -109,8 +117,13 @@ dependencies {
     implementation(libs.garmin.fit)
 
     debugImplementation(libs.androidx.ui.tooling)
+    debugImplementation(libs.androidx.ui.test.manifest)
 
     testImplementation(libs.junit)
     // XmlPullParser fuer die JVM-Tests - auf dem Handy liefert Android ihn mit.
     testImplementation(libs.kxml2)
+    // Bildschirmfotos der Tacho-Seiten ohne Handy - nur mit -Dscreenshots=pfad (siehe ScreenshotTest).
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.ui.test.junit4)
+    testImplementation(libs.robolectric)
 }

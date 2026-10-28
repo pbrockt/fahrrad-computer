@@ -76,6 +76,27 @@ fun SettingsScreen(vm: MainViewModel, onConnectHealth: () -> Unit, onEnableSms: 
             color = AppColors.Dim,
         )
 
+        Text("Zonen", fontWeight = FontWeight.Bold)
+        val estFtp = com.pbrockt.fahrradcomputer.trainer.VirtualPower.estimateFtp(s.body).roundToInt()
+        NumberField("FTP in Watt (leer = geschätzt: $estFtp W)", if (s.trainerFtp > 0) s.trainerFtp.toString() else "") { text ->
+            val v = text.toIntOrNull() ?: if (text.isBlank()) 0 else return@NumberField
+            if (v == 0 || v in 50..600) vm.setTrainerFtp(v)
+        }
+        Text("Leistung: ${s.powerZones.format("W")}", color = AppColors.Dim, fontSize = 13.sp)
+        TextSetting(
+            "Trittfrequenz: Grenzen Z2–Z5 (U/min)", s.cadenceZones.thresholds.joinToString(", "), KeyboardType.Text,
+        ) { vm.setCadenceZones(it) }
+        Text(s.cadenceZones.format("U/min"), color = AppColors.Dim, fontSize = 13.sp)
+        TextSetting(
+            "Tempo: Grenzen Z2–Z5 (km/h)", s.speedZones.thresholds.joinToString(", "), KeyboardType.Text,
+        ) { vm.setSpeedZones(it) }
+        Text(s.speedZones.format("km/h"), color = AppColors.Dim, fontSize = 13.sp)
+        Text(
+            "Puls- und Leistungskacheln werden in der Farbe ihrer Zone gefüllt, Tempo und Trittfrequenz " +
+                "zeigen unten eine Zonenleiste. Die FTP gilt auch für den Heimtrainer.",
+            color = AppColors.Dim,
+        )
+
         Text("Bedienung", fontWeight = FontWeight.Bold)
         Text("Tacho anpassen: so lange gedrückt halten")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -91,6 +112,19 @@ fun SettingsScreen(vm: MainViewModel, onConnectHealth: () -> Unit, onEnableSms: 
             Switch(checked = s.bellOnDoubleTap, onCheckedChange = vm::setBellOnDoubleTap)
         }
         OutlinedButton(onClick = vm::ringBellNow, modifier = Modifier.fillMaxWidth()) { Text("Klingel testen") }
+
+        Text("Wetter", fontWeight = FontWeight.Bold)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Wetter und Wind laden")
+                Text(
+                    "Von Open-Meteo (kostenlos, ohne Konto). Gesendet wird nur der auf ~1 km gerundete Standort, " +
+                        "während der Fahrt höchstens alle 15 Minuten. Für die Kacheln „Wind“ und „Temperatur“.",
+                    color = AppColors.Dim, fontSize = 13.sp,
+                )
+            }
+            Switch(checked = s.weatherEnabled, onCheckedChange = vm::setWeatherEnabled)
+        }
 
         Text("Tacho-Layout", fontWeight = FontWeight.Bold)
         val layoutImporter = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->

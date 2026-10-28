@@ -11,6 +11,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.pbrockt.fahrradcomputer.recording.BodyProfile
 import com.pbrockt.fahrradcomputer.recording.Sex
 import com.pbrockt.fahrradcomputer.sensors.SensorKind
+import com.pbrockt.fahrradcomputer.trainer.VirtualPower
 import com.pbrockt.fahrradcomputer.ui.ThemeMode
 import com.pbrockt.fahrradcomputer.ui.dashboard.DashboardLayout
 import com.pbrockt.fahrradcomputer.ui.dashboard.LayoutCodec
@@ -58,7 +59,7 @@ data class AppSettings(
     val mapOnline: Boolean = true,
     /** Abbiegehinweise per Vibration bzw. Ton ankuendigen. */
     val navVibrate: Boolean = true,
-    val navSound: Boolean = false,
+    val navSound: Boolean = true,
     /** Tacho-Karte in Fahrtrichtung drehen statt Norden oben. */
     val mapHeadingUp: Boolean = false,
     /** Trainingsplan: Ziel, Wochentage, freie Hinweise (z. B. Beschwerden). */
@@ -80,8 +81,20 @@ data class AppSettings(
     val trainerCalibration: Int = 100,
     /** Gelernter Zusammenhang Trittfrequenz -> Watt, 0 = noch nichts gelernt. */
     val trainerGain: Double = 0.0,
+    /** Grenzen von Z2 bis Z5 fuer Trittfrequenz (U/min) und Tempo (km/h). */
+    val cadenceZones: Zones = Zones.DEFAULT_CADENCE,
+    val speedZones: Zones = Zones.DEFAULT_SPEED,
+    /** Abbiegehinweise: auch bei "abseits der Route" piepsen. */
+    val navOffRouteBeep: Boolean = true,
+    /** Wetter und Wind von Open-Meteo laden (Standort auf ~1 km gerundet). */
+    val weatherEnabled: Boolean = true,
 ) {
     val zones: HrZones get() = HrZones(maxHr)
+
+    /** Eigene FTP oder - ohne Angabe - aus Gewicht, Alter und Geschlecht geschaetzt. */
+    val ftp: Double get() = if (trainerFtp > 0) trainerFtp.toDouble() else VirtualPower.estimateFtp(body)
+
+    val powerZones: Zones get() = Zones.power(ftp)
 
     fun device(kind: SensorKind): SavedDevice? = devices[kind]
 
@@ -137,6 +150,10 @@ class SettingsStore(private val context: Context) {
         val TRAINER_LEVEL = intPreferencesKey("trainer_level")
         val TRAINER_CALIBRATION = intPreferencesKey("trainer_calibration")
         val TRAINER_GAIN = doublePreferencesKey("trainer_gain")
+        val CADENCE_ZONES = stringPreferencesKey("cadence_zones")
+        val SPEED_ZONES = stringPreferencesKey("speed_zones")
+        val NAV_OFF_ROUTE_BEEP = booleanPreferencesKey("nav_off_route_beep")
+        val WEATHER = booleanPreferencesKey("weather")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { p ->
@@ -163,7 +180,7 @@ class SettingsStore(private val context: Context) {
             mapsWifiOnly = p[Keys.MAPS_WIFI_ONLY] ?: true,
             mapOnline = p[Keys.MAP_ONLINE] ?: true,
             navVibrate = p[Keys.NAV_VIBRATE] ?: true,
-            navSound = p[Keys.NAV_SOUND] ?: false,
+            navSound = p[Keys.NAV_SOUND] ?: true,
             mapHeadingUp = p[Keys.MAP_HEADING_UP] ?: false,
             coachGoal = p[Keys.COACH_GOAL] ?: "",
             coachDays = p[Keys.COACH_DAYS]
@@ -182,6 +199,10 @@ class SettingsStore(private val context: Context) {
             trainerLevel = p[Keys.TRAINER_LEVEL] ?: 5,
             trainerCalibration = p[Keys.TRAINER_CALIBRATION] ?: 100,
             trainerGain = p[Keys.TRAINER_GAIN] ?: 0.0,
+            cadenceZones = p[Keys.CADENCE_ZONES]?.let(Zones::parse) ?: Zones.DEFAULT_CADENCE,
+            speedZones = p[Keys.SPEED_ZONES]?.let(Zones::parse) ?: Zones.DEFAULT_SPEED,
+            navOffRouteBeep = p[Keys.NAV_OFF_ROUTE_BEEP] ?: true,
+            weatherEnabled = p[Keys.WEATHER] ?: true,
         )
     }
 
@@ -236,6 +257,10 @@ class SettingsStore(private val context: Context) {
     suspend fun setTrainerFtp(value: Int) = set(Keys.TRAINER_FTP, value.coerceIn(0, 600))
     suspend fun setTrainerLevel(value: Int) = set(Keys.TRAINER_LEVEL, value.coerceIn(1, 10))
     suspend fun setTrainerCalibration(value: Int) = set(Keys.TRAINER_CALIBRATION, value.coerceIn(50, 150))
+    suspend fun setCadenceZones(value: Zones) = set(Keys.CADENCE_ZONES, value.thresholds.joinToString(","))
+    suspend fun setSpeedZones(value: Zones) = set(Keys.SPEED_ZONES, value.thresholds.joinToString(","))
+    suspend fun setWeatherEnabled(value: Boolean) = set(Keys.WEATHER, value)
+    suspend fun setNavOffRouteBeep(value: Boolean) = set(Keys.NAV_OFF_ROUTE_BEEP, value)
     suspend fun setTrainerGain(value: Double) = set(Keys.TRAINER_GAIN, value.coerceAtLeast(0.0))
 
     suspend fun setActiveRoute(id: String?) {

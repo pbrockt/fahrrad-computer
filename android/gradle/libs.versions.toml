@@ -1,4 +1,5 @@
 [versions]
+robolectric = "4.14.1"
 garminFit = "21.218.0"
 agp = "8.6.0"
 kotlin = "2.0.20"
@@ -16,6 +17,9 @@ anthropic = "2.71.0"
 junit = "4.13.2"
 
 [libraries]
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 garmin-fit = { group = "com.garmin", name = "fit", version.ref = "garminFit" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
