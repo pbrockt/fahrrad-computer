@@ -28,7 +28,10 @@ fun ElevationProfileChart(
     positionM: Double? = null,
     fromM: Double = 0.0,
     toM: Double = profile.lengthM,
+    /** Schon gefahrenen Teil (vor [positionM]) grau zeichnen - farbig bleibt, was noch kommt. */
+    dimDone: Boolean = false,
 ) {
+    val doneColor = AppColors.Line
     val axis = AppColors.Dim
     val grid = AppColors.Line
     val marker = AppColors.Text
@@ -80,7 +83,8 @@ fun ElevationProfileChart(
                 lineTo(x(d1), bottom)
                 close()
             }
-            drawPath(path, gradeColors[RouteProfile.gradeLevel(grades[i])])
+            val done = dimDone && positionM != null && d1 <= positionM
+            drawPath(path, if (done) doneColor else gradeColors[RouteProfile.gradeLevel(grades[i])])
         }
 
         // km-Beschriftung: 4-6 Striche, in runden Schritten

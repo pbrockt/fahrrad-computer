@@ -494,26 +494,34 @@ fun ZoneBar(position: Float, marker: Color, modifier: Modifier) {
 private fun ElevationTile(d: TileData, modifier: Modifier, options: Map<String, String>) {
     val profile = d.activeRoute?.profile
     // Ausschnitt aus der Kachel-Einstellung; der Knopf schaltet unterwegs zwischen "ganz" und "nah".
-    val nearKm = options.opt(TileOptions.PROFILE_ZOOM).toIntOrNull() ?: 5
-    var all by rememberSaveable(options) { mutableStateOf(options.opt(TileOptions.PROFILE_ZOOM) == "all") }
+    val zoom = options.opt(TileOptions.PROFILE_ZOOM)
+    val nearKm = zoom.toIntOrNull()
+    var all by rememberSaveable(options) { mutableStateOf(zoom == "all") }
     BoxWithConstraints(modifier.background(AppColors.Bg)) {
         val labelSize = (maxHeight.value * 0.09f).coerceIn(11f, 16f).sp
         Column(Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            val doneM = d.progress?.doneM
+            // Was noch vor einem liegt - das will man unterwegs wissen.
             val title = when {
                 d.activeRoute == null -> "Höhenprofil · keine Route"
                 profile == null -> "Höhenprofil · wird geladen"
-                else -> "Höhenprofil · ${profile.totalAscentM.roundToInt()} Hm"
+                doneM != null -> "Noch ${formatDecimal((profile.lengthM - doneM).coerceAtLeast(0.0) / 1000)} km · " +
+                    "${profile.ascentRemainingM(doneM).roundToInt()} Hm"
+                else -> "Höhenprofil · ${formatDecimal(profile.lengthM / 1000)} km · ${profile.totalAscentM.roundToInt()} Hm"
             }
             TileLabel(title, "", AppColors.Text, labelSize)
             if (profile != null) {
                 val pos = d.progress?.doneM
-                val (from, to) = if (all || pos == null) 0.0 to profile.lengthM
-                else (pos - nearKm * 100.0).coerceAtLeast(0.0).let { f -> f to (f + nearKm * 1000.0).coerceAtMost(profile.lengthM) }
+                val (from, to) = when {
+                    all || pos == null -> 0.0 to profile.lengthM
+                    nearKm == null -> (pos - 200).coerceAtLeast(0.0) to profile.lengthM // "rest": bis zum Ziel
+                    else -> (pos - nearKm * 100.0).coerceAtLeast(0.0).let { f -> f to (f + nearKm * 1000.0).coerceAtMost(profile.lengthM) }
+                }
                 Box(Modifier.weight(1f).fillMaxWidth()) {
-                    ElevationProfileChart(profile, Modifier.fillMaxSize(), positionM = pos, fromM = from, toM = to)
+                    ElevationProfileChart(profile, Modifier.fillMaxSize(), positionM = pos, fromM = from, toM = to, dimDone = true)
                     if (d.interactive) {
                         Text(
-                            if (all) "ALLE" else "$nearKm KM",
+                            if (all) "ALLE" else nearKm?.let { "$it KM" } ?: "REST",
                             color = Color.White,
                             fontFamily = Condensed,
                             fontWeight = FontWeight.SemiBold,
@@ -692,7 +700,7 @@ private fun ClimbTile(d: TileData, modifier: Modifier) {
             if (tall) {
                 ElevationProfileChart(
                     profile, Modifier.weight(1.4f).fillMaxWidth(),
-                    positionM = pos.takeIf { now != null }, fromM = climb.startM, toM = climb.endM,
+                    positionM = pos.takeIf { now != null }, fromM = climb.startM, toM = climb.endM, dimDone = true,
                 )
             }
         }

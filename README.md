@@ -6,7 +6,7 @@ Kalorienberechnung, Streckenaufzeichnung, Health Connect, Live-Standort und KI-T
 
 Die geplante Vorgehensweise steht in [KONZEPT.md](KONZEPT.md).
 
-## Stand: 0.0.18-alpha.2
+## Stand: 0.0.18-alpha.3
 
 | Bereich | Stand |
 |---|---|
@@ -17,7 +17,7 @@ Die geplante Vorgehensweise steht in [KONZEPT.md](KONZEPT.md).
 | Dashboard | Mehrere Seiten zum Wischen (Standard: Fahrt, Puls, Übersicht). Lange auf eine Kachel drücken öffnet den Editor: Kachel antippen = Inhalt wählen oder doppelte Breite; Zeilenmenü = Höhe, Kachel hinzufügen, verschieben, löschen; Seiten anlegen, umbenennen, löschen, auf Standard zurücksetzen. Gespeichert als JSON. Puls in Zonenfarbe (Z1–Z5), Ø/max Puls in Zonenfarbe, Streckenskizze als Platzhalter für die Navi. Display bleibt an. |
 | Darstellung | schmale Schrift (Barlow Condensed, SIL OFL), Tacho-Kacheln ohne Abstand mit feinen Trennlinien, Bezeichnung in Großbuchstaben und Wert in der Farbe der Messgröße (Tempo blau, Distanz grün, Trittfrequenz orange …), Puls und Leistung als in Zonenfarbe gefüllte Kacheln, Zonenleiste unter Tempo und Trittfrequenz, rote Leiste unten „Halten zum Pausieren“ (in der Pause Weiter/Beenden), Seitenanzeige als Striche, GPS-Kästchen. Dunkel (Schwarz), Hell (Weiß) oder wie System. Neues Standard-Layout mit Seite „Berg“ – bestehende Layouts bleiben, „Auf Standard zurücksetzen“ im Editor holt das neue. |
 | Zonen | Puls (Max-Puls), Leistung (FTP, eingegeben oder aus Gewicht/Alter/Geschlecht geschätzt; 55/75/90/105 %), Trittfrequenz und Tempo (Grenzen einstellbar, Standard 60/75/90/105 U/min und 10/18/25/32 km/h). Fahrt-Ansicht: Zeit in Zonen für alle vier. |
-| Höhenprofil | Aus der Route: Höhen aus der GPX-Datei, sonst einmalig vom Höhenmodell (Open-Meteo, Copernicus 90 m). Profil nach Steigung eingefärbt mit Position, ganze Route oder nächste 5 km; Kacheln Steigung (auf der Route aus dem Profil, sonst Ausgleichsgerade über die letzten 200 m GPS-Höhe), gefahrene Höhenmeter, Rest-Höhenmeter. Profil auch in Routenvorschau und auf der Start-Seite. |
+| Höhenprofil | Aus der Route: Höhen aus der GPX-Datei, sonst einmalig vom Höhenmodell (Open-Meteo, Copernicus 90 m). Profil nach Steigung eingefärbt mit Position, schon Gefahrenes grau, Überschrift „noch x km · y Hm“, Ausschnitt ganze Route, von hier bis zum Ziel, nächste 5 oder 2 km; Kacheln Steigung (auf der Route aus dem Profil, sonst Ausgleichsgerade über die letzten 200 m GPS-Höhe), gefahrene Höhenmeter, Rest-Höhenmeter. Profil auch in Routenvorschau und auf der Start-Seite. |
 | Wetter | Kacheln Wind (Pfeil relativ zur Fahrtrichtung, Gegen-/Rücken-/Seitenwind, Böen) und Temperatur; Wetterkarte auf der Start-Seite. Open-Meteo, Standort auf ~1 km gerundet, höchstens alle 15 min bzw. 5 km; abschaltbar. |
 | Diagramme | Fahrt-Ansicht: Verläufe mit zwei Fingern zoomen, mit einem Finger verschieben, doppelt tippen = alles; alle Diagramme zoomen gemeinsam. Linien in Zonenfarben vor blassen Zonenbändern. Kachel „Pulsverlauf“ (10 min) mit Zonenbändern. |
 | Sensoren | Akkustand (Battery-Service) beim Verbinden und alle 10 min; unter 20 % rot in der Leiste oben. Bluetooth-Standardprofile: Puls (Brustgurt, Uhren mit „HF senden“), Trittfrequenz/Speed (CSC), Leistung (Cycling Power). Liefert der Leistungsmesser Kurbeldaten, kommt die Trittfrequenz daraus. Bosch Smart System erscheint, sofern es diese Profile sendet (noch nicht am Rad geprüft). Automatisches Wiederverbinden. |

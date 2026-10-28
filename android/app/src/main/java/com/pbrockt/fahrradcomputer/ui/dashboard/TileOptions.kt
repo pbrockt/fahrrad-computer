@@ -14,7 +14,7 @@ object TileOptions {
     val WIND_DIRECTION = TileOption("dir", "Richtung", listOf("rel" to "Relativ zur Fahrtrichtung", "abs" to "Absolut (Norden oben)"))
     val WIND_UNIT = TileOption("unit", "Stärke", listOf("kmh" to "km/h", "bft" to "Beaufort"))
     val HEADING_STYLE = TileOption("style", "Anzeige", listOf("arrow" to "Pfeil + Himmelsrichtung", "cardinal" to "Himmelsrichtung", "deg" to "Grad"))
-    val PROFILE_ZOOM = TileOption("zoom", "Ausschnitt", listOf("all" to "Ganze Route", "5" to "Nächste 5 km", "2" to "Nächste 2 km"))
+    val PROFILE_ZOOM = TileOption("zoom", "Ausschnitt", listOf("all" to "Ganze Route", "rest" to "Von hier bis zum Ziel", "5" to "Nächste 5 km", "2" to "Nächste 2 km"))
     val ZONE_FILL = TileOption("fill", "Zonenfarbe", listOf("fill" to "Kachel füllen", "text" to "Nur die Zahl", "off" to "Keine"))
     val ZONE_BAR = TileOption("bar", "Zonenleiste", listOf("on" to "Anzeigen", "off" to "Ausblenden"))
     val MAP_ORIENTATION = TileOption("orient", "Ausrichtung", listOf("button" to "Wie der Kartenknopf", "north" to "Immer Norden oben", "heading" to "Immer Fahrtrichtung oben"))
