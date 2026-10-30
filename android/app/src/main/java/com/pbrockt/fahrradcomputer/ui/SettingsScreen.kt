@@ -377,6 +377,8 @@ private fun DashboardPage(vm: MainViewModel) {
     Hint("Export sichert alle Seiten als Datei. Import und Zurücksetzen ersetzen die aktuellen Seiten.")
 
     Group("Klingel")
+    SwitchRow("Auto-Pause", s.autoPause, "Nach 5 s Stillstand pausieren, beim Losrollen weiter. Eine Pause per Knopf bleibt, bis du weiterdrückst.", vm::setAutoPause)
+    SwitchRow("Seiten mit Lautstärketasten blättern", s.volumeKeyPaging, "Nur während der Fahrt: leiser = nächste Seite, lauter = vorige.", vm::setVolumeKeyPaging)
     SwitchRow("Klingel bei Doppeltippen", s.bellOnDoubleTap, "Zweimal auf den Tacho tippen. Lautstärke = Medienlautstärke.", vm::setBellOnDoubleTap)
     OutlinedButton(onClick = vm::ringBellNow, modifier = Modifier.fillMaxWidth()) { Text("Klingel testen") }
 
@@ -398,6 +400,7 @@ private fun NavigationPage(vm: MainViewModel) {
     SwitchRow("Vibrieren", s.navVibrate, "150 m vorher einmal, kurz davor zweimal, am Ziel dreimal.", vm::setNavVibrate)
     SwitchRow("Piepen, wenn du reagieren sollst", s.navSound, "Jetzt abbiegen: 2 Töne · Ziel: 3 Töne.", vm::setNavSound)
     SwitchRow("Warnen bei Abweichung von der Route", s.navOffRouteBeep, "Ein langer tiefer Ton ab 50 m abseits.", vm::setNavOffRouteBeep)
+    SwitchRow("Anstiege ankündigen", s.climbAlert, "500 m vorher: Hinweis mit Länge, Steigung und Höhenmetern, dazu ein Ton.", vm::setClimbAlert)
     OutlinedButton(onClick = vm::testNavBeep, modifier = Modifier.fillMaxWidth()) { Text("Piepton testen") }
     Hint("Lautstärke = Medienlautstärke. Abbiegungen erkennt die App aus der Form der Route, Straßennamen kennt sie nicht.")
 
@@ -588,7 +591,7 @@ private fun UpdatesPage(vm: MainViewModel) {
  * gespeichert wird jeder lesbare Wert (der Store begrenzt ihn auf einen sinnvollen Bereich).
  */
 @Composable
-private fun NumberField(label: String, value: String, onValid: (String) -> Unit) {
+internal fun NumberField(label: String, value: String, onValid: (String) -> Unit) {
     var text by remember { mutableStateOf(value) }
     LaunchedEffect(value) { if (text.isEmpty()) text = value }
     OutlinedTextField(

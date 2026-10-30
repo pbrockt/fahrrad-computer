@@ -52,6 +52,14 @@ class TurnSignals(context: Context) {
         if (sound) runCatching { tone?.startTone(ToneGenerator.TONE_CDMA_LOW_L, 900) }
     }
 
+    /** Gleich kommt ein Anstieg: ein kurzer hoher Doppelton, zweimal kurz vibrieren. */
+    fun climb(vibrate: Boolean, sound: Boolean) {
+        if (vibrate) runCatching { vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 120, 100, 120), -1)) }
+        if (sound) {
+            runCatching { tone?.startTone(ToneGenerator.TONE_PROP_ACK, 300) }
+        }
+    }
+
     /** Zum Ausprobieren in den Einstellungen. */
     fun test() = beeps(2)
 

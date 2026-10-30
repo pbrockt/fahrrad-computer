@@ -25,6 +25,9 @@ import java.time.format.DateTimeFormatter
 
 enum class RidePhase { IDLE, RECORDING, PAUSED }
 
+/** Ein Anstieg liegt [aheadM] voraus; gemeldet zur Zeit [timeMs]. */
+data class ClimbNotice(val climb: com.pbrockt.fahrradcomputer.routes.RouteProfile.Climb, val aheadM: Double, val timeMs: Long)
+
 enum class GpsStatus { OFF, SEARCHING, OK }
 
 /** Ergebnis einer beendeten Fahrt fuer die Zusammenfassung; [file] null = nichts gespeichert. */
@@ -46,6 +49,14 @@ class RideSession(
 ) {
     private val _phase = MutableStateFlow(RidePhase.IDLE)
     val phase: StateFlow<RidePhase> = _phase.asStateFlow()
+    /** true, wenn die Pause von selbst kam (Stillstand) - dann geht es beim Losrollen weiter. */
+    private val _autoPaused = MutableStateFlow(false)
+    val autoPaused: StateFlow<Boolean> = _autoPaused.asStateFlow()
+    private val autoPause = AutoPause()
+    /** Hinweis "gleich kommt ein Anstieg" - der Tacho zeigt ihn kurz, der Dienst piept. */
+    private val _climbNotice = MutableStateFlow<ClimbNotice?>(null)
+    val climbNotice: StateFlow<ClimbNotice?> = _climbNotice.asStateFlow()
+    private val announcedClimbs = mutableSetOf<Int>()
 
     private val _stats = MutableStateFlow(RideStats())
     val stats: StateFlow<RideStats> = _stats.asStateFlow()
@@ -93,6 +104,8 @@ class RideSession(
         _turns.value = route?.let(TurnDetector::detect).orEmpty()
         _progress.value = null
         _guidance.value = null
+        announcedClimbs.clear()
+        _climbNotice.value = null
     }
 
     private var tracker = RideTracker()
@@ -111,30 +124,41 @@ class RideSession(
         _lastPoint.value = null
         // Frisch zuordnen - sonst sucht der Tracker dort weiter, wo die letzte Fahrt endete.
         routeTracker = _activeRoute.value?.let(::RouteTracker)
+        announcedClimbs.clear()
+        _climbNotice.value = null
         _progress.value = null
         _guidance.value = null
         file = File(ridesDir, "${LocalDateTime.now().format(FILE_NAME)}.gpx")
         lastSaveMs = System.currentTimeMillis()
         _phase.value = RidePhase.RECORDING
+        _autoPaused.value = false
+        autoPause.reset()
         ContextCompat.startForegroundService(context, Intent(context, RideService::class.java))
     }
 
-    fun pause() {
+    /** Pause per Knopf - geht nur per Knopf weiter. */
+    fun pause() = pause(auto = false)
+
+    private fun pause(auto: Boolean) {
         if (_phase.value != RidePhase.RECORDING) return
         tracker.pause()
         _stats.value = tracker.snapshot
+        _autoPaused.value = auto
         _phase.value = RidePhase.PAUSED
     }
 
     fun resume() {
         if (_phase.value != RidePhase.PAUSED) return
         tracker.resume()
+        _autoPaused.value = false
+        autoPause.reset()
         _phase.value = RidePhase.RECORDING
     }
 
     fun stop() {
         if (_phase.value == RidePhase.IDLE) return
         _phase.value = RidePhase.IDLE
+        _autoPaused.value = false
         _gps.value = GpsStatus.OFF
         context.stopService(Intent(context, RideService::class.java))
         val points = tracker.trackPoints.toList()
@@ -162,6 +186,18 @@ class RideSession(
 
     fun onLocation(sample: LocationSample) {
         if (_phase.value == RidePhase.IDLE) return
+        // Auto-Pause: im Stand pausieren, beim Losrollen weiter. Eine Pause per Knopf bleibt.
+        if (settings().autoPause) {
+            when (_phase.value) {
+                RidePhase.RECORDING -> if (autoPause.shouldPause(sample)) pause(auto = true)
+                RidePhase.PAUSED -> if (_autoPaused.value) {
+                    if (autoPause.shouldResume(sample)) resume()
+                } else {
+                    autoPause.speedKmh(sample) // nur den letzten Punkt merken
+                }
+                RidePhase.IDLE -> Unit
+            }
+        }
         tracker.onLocation(sample)
         _stats.value = tracker.snapshot
         val points = tracker.trackPoints
@@ -173,7 +209,10 @@ class RideSession(
             routeTracker?.let { tracker ->
                 val p = tracker.update(last.lat, last.lon)
                 _progress.value = p
-                _activeRoute.value?.let { r -> _guidance.value = Navigator.next(_turns.value, p.doneM, r.lengthM) }
+                _activeRoute.value?.let { r ->
+                    _guidance.value = Navigator.next(_turns.value, p.doneM, r.lengthM)
+                    if (!p.offRoute && settings().climbAlert) announceClimb(r, p.doneM, sample.timeMs)
+                }
             }
         }
         if (points.size % ROUTE_EVERY == 1) {
@@ -187,6 +226,14 @@ class RideSession(
             val snapshot = points.toList()
             file?.let { f -> scope.launch { save(partFile(f), snapshot) } }
         }
+    }
+
+    /** Liegt der Anfang des naechsten Anstiegs weniger als [CLIMB_ALERT_M] voraus: einmal melden. */
+    private fun announceClimb(route: Route, doneM: Double, timeMs: Long) {
+        val next = route.profile?.nextClimb(doneM) ?: return
+        val ahead = next.startM - doneM
+        if (ahead > CLIMB_ALERT_M || !announcedClimbs.add(next.number)) return
+        _climbNotice.value = ClimbNotice(next, ahead, timeMs)
     }
 
     fun onHeartRate(bpm: Int, timeMs: Long) {
@@ -225,5 +272,6 @@ class RideSession(
         private val FILE_NAME = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm")
         private const val ROUTE_EVERY = 5
         private const val AUTOSAVE_MS = 60_000L
+        const val CLIMB_ALERT_M = 500.0
     }
 }

@@ -73,6 +73,16 @@ data class AppSettings(
     val coachNotes: String = "",
     /** So lange muss man auf dem Tacho halten, bis der Editor aufgeht. */
     val editHoldMs: Int = 1000,
+    /** false, bis die Werte aus dem Speicher da sind - sonst blitzt die Einrichtung kurz auf. */
+    val loaded: Boolean = false,
+    /** Einrichtung beim ersten Start erledigt (oder uebersprungen). */
+    val setupDone: Boolean = true,
+    /** Im Stand von selbst pausieren und beim Losrollen weiterzeichnen. */
+    val autoPause: Boolean = true,
+    /** Lautstaerketasten blaettern waehrend der Fahrt die Tacho-Seiten. */
+    val volumeKeyPaging: Boolean = true,
+    /** Kurz vor einem Anstieg der Route Hinweis und Ton. */
+    val climbAlert: Boolean = true,
     /** Doppeltippen auf den Tacho laesst die Klingel ertoenen. */
     val bellOnDoubleTap: Boolean = true,
     val dashboard: DashboardLayout = DashboardLayout.DEFAULT,
@@ -160,6 +170,10 @@ class SettingsStore(private val context: Context) {
         val COACH_DAYS = stringPreferencesKey("coach_days")
         val COACH_NOTES = stringPreferencesKey("coach_notes")
         val EDIT_HOLD_MS = intPreferencesKey("edit_hold_ms")
+        val SETUP_DONE = booleanPreferencesKey("setup_done")
+        val AUTO_PAUSE = booleanPreferencesKey("auto_pause")
+        val VOLUME_KEY_PAGING = booleanPreferencesKey("volume_key_paging")
+        val CLIMB_ALERT = booleanPreferencesKey("climb_alert")
         val BELL = booleanPreferencesKey("bell_double_tap")
         val DASHBOARD = stringPreferencesKey("dashboard_layout")
         val REST_HR = intPreferencesKey("rest_hr")
@@ -214,6 +228,12 @@ class SettingsStore(private val context: Context) {
                 ?: AppSettings().coachDays,
             coachNotes = p[Keys.COACH_NOTES] ?: "",
             editHoldMs = p[Keys.EDIT_HOLD_MS] ?: 1000,
+            loaded = true,
+            // Wer schon Gewicht oder Geburtsjahr eingetragen hat, braucht keine Einrichtung mehr.
+            setupDone = p[Keys.SETUP_DONE] ?: (p[Keys.WEIGHT] != null || p[Keys.BIRTH_YEAR] != null),
+            autoPause = p[Keys.AUTO_PAUSE] ?: true,
+            volumeKeyPaging = p[Keys.VOLUME_KEY_PAGING] ?: true,
+            climbAlert = p[Keys.CLIMB_ALERT] ?: true,
             bellOnDoubleTap = p[Keys.BELL] ?: true,
             themeMode = p[Keys.THEME]
                 ?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
@@ -283,6 +303,10 @@ class SettingsStore(private val context: Context) {
     suspend fun setNavSound(value: Boolean) = set(Keys.NAV_SOUND, value)
     suspend fun setMapHeadingUp(value: Boolean) = set(Keys.MAP_HEADING_UP, value)
     suspend fun setEditHoldMs(value: Int) = set(Keys.EDIT_HOLD_MS, value.coerceIn(300, 5000))
+    suspend fun setSetupDone(value: Boolean) = set(Keys.SETUP_DONE, value)
+    suspend fun setAutoPause(value: Boolean) = set(Keys.AUTO_PAUSE, value)
+    suspend fun setVolumeKeyPaging(value: Boolean) = set(Keys.VOLUME_KEY_PAGING, value)
+    suspend fun setClimbAlert(value: Boolean) = set(Keys.CLIMB_ALERT, value)
     suspend fun setBellOnDoubleTap(value: Boolean) = set(Keys.BELL, value)
     suspend fun setCoachGoal(value: String) = set(Keys.COACH_GOAL, value.take(300))
     suspend fun setCoachNotes(value: String) = set(Keys.COACH_NOTES, value.take(500))

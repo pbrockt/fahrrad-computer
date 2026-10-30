@@ -55,6 +55,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pbrockt.fahrradcomputer.MainViewModel
 import com.pbrockt.fahrradcomputer.coach.PlanMatching
 import com.pbrockt.fahrradcomputer.recording.GpsStatus
+import kotlin.math.roundToInt
+import com.pbrockt.fahrradcomputer.routes.RouteProfile
+import com.pbrockt.fahrradcomputer.recording.ClimbNotice
 import com.pbrockt.fahrradcomputer.recording.RidePhase
 import com.pbrockt.fahrradcomputer.sensors.SensorConnection
 import com.pbrockt.fahrradcomputer.sensors.SensorReading
@@ -160,11 +163,31 @@ fun DashboardScreen(
     )
 
     val names = listOf("Start") + layout.pages.map { it.name }
+    val autoPaused by vm.ride.autoPaused.collectAsStateWithLifecycle()
+    val climbNotice by vm.ride.climbNotice.collectAsStateWithLifecycle()
+    var climbDismissed by remember { mutableStateOf<ClimbNotice?>(null) }
+
+    // Lautstaerketasten blaettern - nur waehrend der Fahrt, sonst regeln sie die Lautstaerke.
+    val volumePaging = settings.volumeKeyPaging && phase != RidePhase.IDLE && !editing
+    DisposableEffect(volumePaging) {
+        vm.volumeKeysActive = volumePaging
+        onDispose { vm.volumeKeysActive = false }
+    }
+    LaunchedEffect(Unit) {
+        vm.pageKeys.collect { step ->
+            val target = (pager.currentPage + step).coerceIn(0, pager.pageCount - 1)
+            pager.animateScrollToPage(target)
+        }
+    }
     Column(Modifier.fillMaxSize().background(AppColors.Bg)) {
         TopBar(
             phase = phase,
             gps = gps,
-            title = if (editing) "Bearbeiten" else names.getOrElse(pager.currentPage) { "" },
+            title = when {
+                editing -> "Bearbeiten"
+                autoPaused && phase == RidePhase.PAUSED -> "Auto-Pause"
+                else -> names.getOrElse(pager.currentPage) { "" }
+            },
             sensors = listOf(hr, cadence, power),
             onMenu = onMenu,
             controls = controls.takeIf { !editing },
@@ -223,6 +246,10 @@ fun DashboardScreen(
             }
         }
         banner?.takeIf { !editing }?.let { b -> PageBanner(names.getOrElse(b) { "" }, b + 1, names.size, Modifier.align(Alignment.BottomCenter)) }
+        // Hinweis auf den naechsten Anstieg: 15 s sichtbar, Antippen blendet ihn aus.
+        climbNotice?.takeIf { !editing && it != climbDismissed && now - it.timeMs < CLIMB_NOTICE_MS }?.let { n ->
+            ClimbBanner(n, Modifier.align(Alignment.TopCenter)) { climbDismissed = n }
+        }
         }
         PageDashes(names.size, pager.currentPage)
         if (editing) {
@@ -363,11 +390,11 @@ internal fun TopBar(
     controls: RideControls? = null,
 ) {
     Row(
-        Modifier.fillMaxWidth().height(44.dp).padding(end = 10.dp),
+        Modifier.fillMaxWidth().height(58.dp).padding(end = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onMenu, modifier = Modifier.size(44.dp)) {
+        IconButton(onClick = onMenu, modifier = Modifier.size(52.dp)) {
             Icon(Icons.Filled.Menu, contentDescription = "Menü", tint = AppColors.Text)
         }
         Text(
@@ -426,9 +453,36 @@ internal fun TopBar(
 @Composable
 private fun BarIcon(icon: ImageVector, description: String, bg: Color, fg: Color, onClick: () -> Unit) {
     Box(
-        Modifier.size(36.dp).clip(CircleShape).background(bg).clickable(onClick = onClick),
+        Modifier.size(48.dp).clip(CircleShape).background(bg).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = description, tint = fg, modifier = Modifier.size(22.dp))
+        Icon(icon, contentDescription = description, tint = fg, modifier = Modifier.size(28.dp))
+    }
+}
+
+private const val CLIMB_NOTICE_MS = 15_000L
+
+/** "Anstieg in 480 m" mit Laenge, Steigung und Hoehenmetern in der Farbe der Steigung. */
+@Composable
+private fun ClimbBanner(n: ClimbNotice, modifier: Modifier, onDismiss: () -> Unit) {
+    val c = n.climb
+    val gradeColor = Color(RouteProfile.GRADE_COLORS[RouteProfile.gradeLevel(c.avgGrade)])
+    Row(
+        modifier.padding(top = 10.dp, start = 12.dp, end = 12.dp).clip(RoundedCornerShape(18.dp))
+            .background(AppColors.Panel).clickable(onClick = onDismiss)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(width = 8.dp, height = 46.dp).clip(RoundedCornerShape(4.dp)).background(gradeColor))
+        Column(Modifier.padding(start = 12.dp)) {
+            Text(
+                if (n.aheadM < 50) "Anstieg beginnt" else "Anstieg in ${(n.aheadM / 10).roundToInt() * 10} m",
+                color = AppColors.Text, fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 24.sp,
+            )
+            Text(
+                "${formatDecimal(c.lengthM / 1000)} km · Ø ${formatDecimal(c.avgGrade)} % · ${c.gainM.roundToInt()} Hm",
+                color = gradeColor, fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 19.sp,
+            )
+        }
     }
 }

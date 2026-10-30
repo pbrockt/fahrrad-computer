@@ -4,6 +4,10 @@ import android.Manifest
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import com.pbrockt.fahrradcomputer.ui.SetupScreen
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.activity.viewModels
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -44,7 +48,6 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pbrockt.fahrradcomputer.sensors.SensorKind
 import com.pbrockt.fahrradcomputer.ui.AppColors
 import com.pbrockt.fahrradcomputer.ui.AppScreen
@@ -75,11 +78,23 @@ import com.pbrockt.fahrradcomputer.ui.dashboard.DashboardScreen
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    private val vm: MainViewModel by viewModels()
+
+    /** Waehrend der Fahrt blaettern die Lautstaerketasten die Tacho-Seiten (abschaltbar). */
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
+        if (vm.volumeKeysActive) {
+            when (keyCode) {
+                android.view.KeyEvent.KEYCODE_VOLUME_DOWN -> { vm.pageKeys.tryEmit(1); return true }
+                android.view.KeyEvent.KEYCODE_VOLUME_UP -> { vm.pageKeys.tryEmit(-1); return true }
+            }
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
-            val vm: MainViewModel = viewModel()
             val settings by vm.settings.collectAsStateWithLifecycle()
             FahrradTheme(settings.themeMode, settings.accentColor) {
                 // Statusleisten-Symbole passend zum Modus: dunkle Symbole auf hellem Grund.
@@ -187,6 +202,35 @@ private fun AppRoot(vm: MainViewModel) {
             vm.consumeMessage()
             snackbar.showSnackbar(it)
         }
+    }
+
+    // Einrichtung beim ersten Start - erst, wenn die gespeicherten Werte geladen sind.
+    val settings by vm.settings.collectAsStateWithLifecycle()
+    if (settings.loaded && !settings.setupDone) {
+        val context = androidx.compose.ui.platform.LocalContext.current
+        fun hasLocation() = androidx.core.content.ContextCompat.checkSelfPermission(
+            context, Manifest.permission.ACCESS_FINE_LOCATION,
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        var locationGranted by remember { mutableStateOf(hasLocation()) }
+        val setupLocation = rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions()
+        ) { locationGranted = hasLocation() }
+        // Festhalten, dass die Einrichtung laeuft - sonst gilt sie nach dem ersten
+        // eingetippten Gewicht schon als erledigt.
+        LaunchedEffect(Unit) { vm.setSetupDone(false) }
+        Box(Modifier.fillMaxSize().background(AppColors.Bg).systemBarsPadding()) {
+            SetupScreen(
+                vm,
+                locationGranted = locationGranted,
+                onRequestLocation = { setupLocation.launch(LOCATION_PERMISSIONS) },
+                onScanRequested = { kind ->
+                    pendingScan = kind
+                    bluetoothLauncher.launch(BLUETOOTH_PERMISSIONS)
+                },
+            )
+            SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
+        }
+        return
     }
 
     val drawer = rememberDrawerState(DrawerValue.Closed)

@@ -595,6 +595,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setWeight(value: Double) = viewModelScope.launch { store.setWeight(value) }
     fun setBirthYear(value: Int) = viewModelScope.launch { store.setBirthYear(value) }
     fun setSex(value: Sex) = viewModelScope.launch { store.setSex(value) }
+    fun setSetupDone(value: Boolean) = viewModelScope.launch { store.setSetupDone(value) }
+    fun setAutoPause(value: Boolean) = viewModelScope.launch { store.setAutoPause(value) }
+    fun setVolumeKeyPaging(value: Boolean) = viewModelScope.launch { store.setVolumeKeyPaging(value) }
+    fun setClimbAlert(value: Boolean) = viewModelScope.launch { store.setClimbAlert(value) }
+
+    /** Lautstaerketasten: -1 = Seite zurueck, +1 = Seite vor. Der Tacho blaettert dann. */
+    val pageKeys = kotlinx.coroutines.flow.MutableSharedFlow<Int>(extraBufferCapacity = 4)
+    /** Vom Tacho gesetzt: gerade sichtbar, Fahrt laeuft und die Option ist an. */
+    @Volatile var volumeKeysActive = false
     fun setUpdateChannel(value: UpdateChannel) = viewModelScope.launch { store.setUpdateChannel(value) }
     fun setAutoUpdateCheck(value: Boolean) = viewModelScope.launch { store.setAutoUpdateCheck(value) }
     fun setUpdateToken(value: String) = viewModelScope.launch { store.setUpdateToken(value) }

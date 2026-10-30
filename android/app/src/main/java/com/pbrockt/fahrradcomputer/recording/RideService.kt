@@ -91,6 +91,14 @@ class RideService : Service() {
                 notificationManager().notify(NOTIFICATION_ID, buildNotification())
             }
         }
+        // Gleich kommt ein Anstieg: Ton bzw. Vibration wie bei den Abbiegehinweisen.
+        scope.launch {
+            session.climbNotice.filterNotNull().collect {
+                if (session.phase.value != RidePhase.RECORDING) return@collect
+                val s = app.currentSettings.value
+                signals.climb(s.navVibrate, s.navSound)
+            }
+        }
         // Abseits der Route: einmal melden, wenn man abkommt - nicht bei jedem GPS-Punkt.
         scope.launch {
             var wasOff = false
