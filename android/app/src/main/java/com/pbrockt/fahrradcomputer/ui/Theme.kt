@@ -23,10 +23,11 @@ enum class ThemeMode(val label: String) {
 }
 
 /**
- * Hervorhebungsfarbe: Knoepfe, Leiste unten, Banner,
- * aktiver Menue-Eintrag. [light] fuer hellen, [dark] fuer schwarzen Grund.
+ * Hervorhebungsfarbe: Knoepfe, Leiste unten, Seitenanzeige, aktiver Menue-Eintrag.
+ * [light] fuer hellen, [dark] fuer dunklen Grund. Standard ist Petrol.
  */
 enum class AccentColor(val label: String, val light: Long, val dark: Long) {
+    PETROL("Petrol", 0xFF00796B, 0xFF14A394),
     RED("Rot", 0xFFC8102E, 0xFFE3141B),
     PINK("Pink", 0xFFD81B60, 0xFFF0287A),
     MAGENTA("Magenta", 0xFFAD1AAD, 0xFFCC33CC),
@@ -42,8 +43,8 @@ enum class AccentColor(val label: String, val light: Long, val dark: Long) {
 }
 
 /**
- * Schmale Schrift fuer alles - fuer grosse Ziffern. Barlow Condensed
- * steht unter der SIL Open Font License (assets/OFL-BarlowCondensed.txt).
+ * Schmale Schrift fuer alles - grosse Ziffern passen so auch in kleine Kacheln. Barlow
+ * Condensed steht unter der SIL Open Font License (assets/OFL-BarlowCondensed.txt).
  */
 val Condensed = FontFamily(
     Font(R.font.barlow_condensed_medium, FontWeight.Normal),
@@ -53,18 +54,20 @@ val Condensed = FontFamily(
 )
 
 /**
- * Farben: schwarzer (bzw. weisser) Grund, Kacheln nur durch feine Linien
- * getrennt, ein kraeftiges Rot fuer Bedienung, und jede Messgroesse in ihrer eigenen Farbe.
+ * Farben der App: dunkler (bzw. heller) Grund, darauf abgerundete Kacheln ([Card]), eine
+ * waehlbare Hervorhebungsfarbe fuer die Bedienung, und jede Messgroesse in ihrer eigenen Farbe.
  * Die Zonenfarben bleiben in beiden Modi gleich, damit man eine Zone immer wiedererkennt.
  */
 data class Palette(
     val isDark: Boolean,
     val Bg: Color,
     val Panel: Color,
+    /** Grund einer Tacho-Kachel. */
+    val Card: Color,
     val Line: Color,
     val Text: Color,
     val Dim: Color,
-    /** Die Hervorhebungsfarbe: Knoepfe, Leiste unten, Hervorhebungen. */
+    /** Hervorhebungsfarbe: Knoepfe, Leiste unten, Hervorhebungen. */
     val Accent: Color,
     val Go: Color = Color(0xFF2E9E44),
     val Stop: Color = Color(0xFFD7141A),
@@ -94,12 +97,13 @@ data class Palette(
     companion object {
         val Dark = Palette(
             isDark = true,
-            Bg = Color(0xFF000000),
-            Panel = Color(0xFF161616),
-            Line = Color(0xFF333333),
-            Text = Color(0xFFFFFFFF),
-            Dim = Color(0xFF9A9A9A),
-            Accent = Color(0xFFE3141B),
+            Bg = Color(0xFF0A0C0F),
+            Panel = Color(0xFF181B20),
+            Card = Color(0xFF16191E),
+            Line = Color(0xFF2E333A),
+            Text = Color(0xFFF4F6F8),
+            Dim = Color(0xFF969CA5),
+            Accent = Color(0xFF14A394),
             Speed = Color(0xFF2E9BF0),
             Distance = Color(0xFF3DBB5C),
             Cadence = Color(0xFFF7941D),
@@ -108,12 +112,13 @@ data class Palette(
 
         val Light = Palette(
             isDark = false,
-            Bg = Color(0xFFFFFFFF),
-            Panel = Color(0xFFF2F2F2),
-            Line = Color(0xFFD0D0D0),
-            Text = Color(0xFF000000),
-            Dim = Color(0xFF5E5E5E),
-            Accent = Color(0xFFC8102E),
+            Bg = Color(0xFFE9EDF1),
+            Panel = Color(0xFFF5F7F9),
+            Card = Color(0xFFFFFFFF),
+            Line = Color(0xFFCDD3DA),
+            Text = Color(0xFF0D1014),
+            Dim = Color(0xFF5A626C),
+            Accent = Color(0xFF00796B),
             Speed = Color(0xFF0B7BD0),
             Distance = Color(0xFF2B8A3E),
             Cadence = Color(0xFFE67E00),
@@ -141,7 +146,7 @@ private val AppTypography: Typography = Typography().let { t ->
 }
 
 @Composable
-fun FahrradTheme(mode: ThemeMode = ThemeMode.DARK, accent: AccentColor = AccentColor.RED, content: @Composable () -> Unit) {
+fun FahrradTheme(mode: ThemeMode = ThemeMode.DARK, accent: AccentColor = AccentColor.PETROL, content: @Composable () -> Unit) {
     val dark = when (mode) {
         ThemeMode.DARK -> true
         ThemeMode.LIGHT -> false

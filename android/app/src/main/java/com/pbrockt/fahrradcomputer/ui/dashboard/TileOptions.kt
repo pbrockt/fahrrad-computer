@@ -1,7 +1,7 @@
 package com.pbrockt.fahrradcomputer.ui.dashboard
 
 /**
- * Einstellungen einer einzelnen Kachel: z. B. Wind relativ
+ * Einstellungen einer einzelnen Kachel (je Messwert): z. B. Wind relativ
  * oder absolut, Zeitraum eines Verlaufs. Gespeichert als Text im Layout, unbekannte Werte
  * fallen auf den Standard (= erste Wahl) zurueck.
  */

@@ -168,7 +168,7 @@ fun DashboardScreen(
             sensors = listOf(hr, cadence, power),
             onMenu = onMenu,
         )
-        // Rotes Banner mit dem Seitennamen, kurz nach dem Blaettern.
+        // Seitenname als kleines Schild, kurz nach dem Blaettern.
         var banner by remember { mutableStateOf<Int?>(null) }
         var firstPage by remember { mutableStateOf(true) }
         LaunchedEffect(pager.settledPage) {
@@ -219,7 +219,7 @@ fun DashboardScreen(
                 )
             }
         }
-        banner?.takeIf { !editing }?.let { b -> PageBanner(names.getOrElse(b) { "" }, b + 1, names.size, Modifier.align(Alignment.TopCenter)) }
+        banner?.takeIf { !editing }?.let { b -> PageBanner(names.getOrElse(b) { "" }, b + 1, names.size, Modifier.align(Alignment.BottomCenter)) }
         }
         PageDashes(names.size, pager.currentPage)
         if (editing) {
@@ -291,10 +291,7 @@ fun DashboardScreen(
     }
 }
 
-/**
- * Eine Tacho-Seite: Kacheln ohne Abstand, nur durch feine Linien getrennt
- * (der Hintergrund in Linienfarbe scheint durch 1 dp breite Fugen).
- */
+/** Eine Tacho-Seite: abgerundete Kacheln mit schmalem Abstand auf dunklem Grund. */
 @Composable
 internal fun PageView(page: DashboardPage, data: TileData, mapId: String, modifier: Modifier = Modifier) {
     if (page.rows.isEmpty()) {
@@ -304,53 +301,65 @@ internal fun PageView(page: DashboardPage, data: TileData, mapId: String, modifi
         return
     }
     Column(
-        Modifier.fillMaxSize().background(AppColors.Line).then(modifier),
-        verticalArrangement = Arrangement.spacedBy(1.dp),
+        Modifier.fillMaxSize().background(AppColors.Bg).then(modifier).padding(horizontal = 6.dp, vertical = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(TILE_GAP),
     ) {
         for (row in page.rows) {
             Row(
                 Modifier.weight(row.height.weight).fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(1.dp),
+                horizontalArrangement = Arrangement.spacedBy(TILE_GAP),
             ) {
                 for (slot in row.tiles) {
-                    Tile(slot.type, data, Modifier.weight(slot.units.toFloat()).fillMaxSize(), mapId, slot.options)
+                    Tile(
+                        slot.type, data,
+                        Modifier.weight(slot.units.toFloat()).fillMaxSize().clip(TILE_SHAPE),
+                        mapId, slot.options,
+                    )
                 }
             }
         }
     }
 }
 
-/** "FAHRT · Seite 2 von 6" in Rot oben ueber dem Tacho. */
+internal val TILE_GAP = 5.dp
+internal val TILE_SHAPE = RoundedCornerShape(14.dp)
+
+/** "Fahrt  2/6" als Schild unten ueber dem Tacho: Name in Schrift, Nummer im Farbkreis. */
 @Composable
 private fun PageBanner(name: String, number: Int, total: Int, modifier: Modifier) {
-    Column(
-        modifier.padding(top = 10.dp).clip(RoundedCornerShape(6.dp)).background(AppColors.Accent)
-            .padding(horizontal = 28.dp, vertical = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Row(
+        modifier.padding(bottom = 14.dp).clip(RoundedCornerShape(50)).background(AppColors.Panel)
+            .padding(start = 18.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(name.uppercase(java.util.Locale.GERMANY), color = Color.White, fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 24.sp, letterSpacing = 1.sp)
-        Text("Seite $number von $total", color = Color.White.copy(alpha = 0.85f), fontFamily = Condensed, fontSize = 16.sp)
+        Text(name, color = AppColors.Text, fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 22.sp)
+        Text(
+            "$number/$total", color = Color.White, fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 16.sp,
+            modifier = Modifier.clip(RoundedCornerShape(50)).background(AppColors.Accent).padding(horizontal = 10.dp, vertical = 3.dp),
+        )
     }
 }
 
-/** Seitenanzeige als kurze Striche; der aktuelle ist hell. */
+/** Seitenanzeige als Punkte; der aktuelle ist eine laengliche Pille in der Hervorhebungsfarbe. */
 @Composable
 internal fun PageDashes(count: Int, current: Int) {
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 5.dp),
+        Modifier.fillMaxWidth().padding(vertical = 6.dp),
         horizontalArrangement = Arrangement.Center,
     ) {
         for (i in 0 until count) {
             Box(
-                Modifier.padding(horizontal = 2.dp).size(width = if (i == 0) 10.dp else 16.dp, height = 3.dp)
-                    .background(if (i == current) AppColors.Text else AppColors.Line)
+                Modifier.padding(horizontal = 3.dp).size(width = if (i == current) 18.dp else 6.dp, height = 6.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(if (i == current) AppColors.Accent else AppColors.Line)
             )
         }
     }
 }
 
 /**
- * Die rote Leiste unten. Waehrend der Fahrt: "Halten zum Pausieren" -
+ * Die Leiste unten mit abgerundeten Knoepfen. Waehrend der Fahrt: "Halten zum Pausieren" -
  * ein versehentliches Antippen pausiert nicht. In der Pause: Weiter oder Beenden.
  */
 @Composable
@@ -363,19 +372,24 @@ internal fun RideBar(
     onResume: () -> Unit,
     onStop: () -> Unit,
 ) {
-    Row(Modifier.fillMaxWidth().height(64.dp), horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+    Row(
+        Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, bottom = 8.dp).height(60.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         when (phase) {
-            // grosser Start, daneben dunklere Felder fuer Indoor und Route.
+            // Grosser Start-Knopf, daneben runde Felder fuer Heimtrainer und Route.
             RidePhase.IDLE -> {
-                Box(
-                    Modifier.weight(2.2f).fillMaxHeight().background(AppColors.Accent).clickable(onClick = onStart),
-                    contentAlignment = Alignment.Center,
+                Row(
+                    Modifier.weight(2.2f).fillMaxHeight().clip(BAR_SHAPE).background(AppColors.Accent).clickable(onClick = onStart),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        BarText("Start")
+                    Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(30.dp))
+                    Column(Modifier.padding(start = 6.dp)) {
+                        BarText("Losfahren")
                         Text(
-                            "OUTDOOR-FAHRT", color = Color.White.copy(alpha = 0.8f), fontFamily = Condensed,
-                            fontWeight = FontWeight.Medium, fontSize = 14.sp, letterSpacing = 1.sp,
+                            "Draußen mit GPS", color = Color.White.copy(alpha = 0.8f), fontFamily = Condensed,
+                            fontWeight = FontWeight.Medium, fontSize = 14.sp,
                         )
                     }
                 }
@@ -391,25 +405,27 @@ internal fun RideBar(
     }
 }
 
-/** Dunkelrotes Feld mit Symbol und Beschriftung - neben "Start". */
+private val BAR_SHAPE = RoundedCornerShape(18.dp)
+
+/** Feld mit Symbol in der Hervorhebungsfarbe und Beschriftung - neben "Losfahren". */
 @Composable
 private fun SquareButton(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier, onClick: () -> Unit) {
     Column(
-        modifier.fillMaxHeight().background(AppColors.AccentDark).clickable(onClick = onClick),
+        modifier.fillMaxHeight().clip(BAR_SHAPE).background(AppColors.Panel).clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp))
+        Icon(icon, contentDescription = null, tint = AppColors.Accent, modifier = Modifier.size(24.dp))
         Text(
-            label.uppercase(java.util.Locale.GERMANY), color = Color.White.copy(alpha = 0.85f), fontFamily = Condensed,
-            fontWeight = FontWeight.Medium, fontSize = 13.sp, letterSpacing = 0.6.sp, maxLines = 1,
+            label, color = AppColors.Text, fontFamily = Condensed,
+            fontWeight = FontWeight.Medium, fontSize = 14.sp, maxLines = 1,
         )
     }
 }
 
 @Composable
 private fun BarButton(text: String, color: Color, modifier: Modifier, onClick: () -> Unit) {
-    Box(modifier.fillMaxHeight().background(color).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+    Box(modifier.fillMaxHeight().clip(BAR_SHAPE).background(color).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
         BarText(text)
     }
 }
@@ -417,12 +433,11 @@ private fun BarButton(text: String, color: Color, modifier: Modifier, onClick: (
 @Composable
 private fun BarText(text: String) {
     Text(
-        text.uppercase(java.util.Locale.GERMANY),
+        text,
         color = Color.White,
         fontFamily = Condensed,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 21.sp,
-        letterSpacing = 1.sp,
+        fontSize = 22.sp,
     )
 }
 
@@ -433,7 +448,7 @@ private fun HoldButton(text: String, color: Color, holdMs: Int, modifier: Modifi
     val scope = rememberCoroutineScope()
     val done by rememberUpdatedState(onDone)
     Box(
-        modifier.fillMaxHeight().background(color).pointerInput(Unit) {
+        modifier.fillMaxHeight().clip(BAR_SHAPE).background(color).pointerInput(Unit) {
             detectTapGestures(onPress = {
                 val job = scope.launch {
                     progress.animateTo(1f, tween(holdMs, easing = LinearEasing))
@@ -456,7 +471,7 @@ private fun HoldButton(text: String, color: Color, holdMs: Int, modifier: Modifi
 
 /**
  * Schmale Leiste oben: Menue, Seitenname, GPS und Sensoren (mit Warnung bei schwachem
- * Akku). Start, Pause und Stopp liegen unten in der roten Leiste bzw. auf der Start-Seite.
+ * Akku). Start, Pause und Stopp liegen unten in der Leiste bzw. auf der Start-Seite.
  */
 @Composable
 internal fun TopBar(
@@ -475,14 +490,14 @@ internal fun TopBar(
             Icon(Icons.Filled.Menu, contentDescription = "Menü", tint = AppColors.Text)
         }
         Text(
-            title.uppercase(java.util.Locale.GERMANY),
+            title,
             color = AppColors.Text,
-            fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, letterSpacing = 0.8.sp,
+            fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 19.sp,
             maxLines = 1,
         )
         if (phase == RidePhase.PAUSED) {
-            Text("PAUSE", color = Color.White, fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
-                modifier = Modifier.background(AppColors.Zones[3]).padding(horizontal = 6.dp, vertical = 1.dp))
+            Text("Pause", color = Color.White, fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
+                modifier = Modifier.clip(RoundedCornerShape(50)).background(AppColors.Zones[3]).padding(horizontal = 8.dp, vertical = 1.dp))
         }
         Box(Modifier.weight(1f))
         // Ein Symbol je Sensorart: gruen = verbunden, gelb = verbindet, rot = Fehler oder Akku < 20 %.
@@ -502,16 +517,18 @@ internal fun TopBar(
                 }
             }
         }
-        // GPS-Kaestchen.
+        // GPS als Punkt mit Schrift: grau = aus, gelb = sucht, gruen = gut.
         val gpsColor = when {
             phase == RidePhase.IDLE -> AppColors.Line
             gps == GpsStatus.OK -> AppColors.Go
             gps == GpsStatus.SEARCHING -> AppColors.Zones[3]
             else -> AppColors.Stop
         }
-        Text(
-            "GPS", color = Color.White, fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
-            modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(gpsColor).padding(horizontal = 6.dp, vertical = 2.dp),
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(gpsColor))
+            Text(
+                " GPS", color = AppColors.Dim, fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
+            )
+        }
     }
 }

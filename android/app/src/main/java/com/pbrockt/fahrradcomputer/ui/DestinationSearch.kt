@@ -62,7 +62,7 @@ import com.pbrockt.fahrradcomputer.routes.PlaceCategory
 import java.util.Locale
 
 /**
- * Ziel suchen: rotes Lupenfeld, darunter Treffer mit Symbol, Adresse und
+ * Ziel suchen: Lupenfeld in der Hervorhebungsfarbe, darunter Treffer mit Symbol, Adresse und
  * Entfernung; Antippen plant die Route vom Standort dorthin. Dazu Schnellsuche nach Art
  * (Café, Bäckerei, Trinkwasser ...).
  */

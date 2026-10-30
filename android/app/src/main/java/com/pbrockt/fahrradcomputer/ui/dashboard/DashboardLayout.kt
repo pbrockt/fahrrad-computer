@@ -108,7 +108,7 @@ data class DashboardLayout(val pages: List<DashboardPage>) {
 
         val DEFAULT = DashboardLayout(
             listOf(
-                // Wie das Standardlayout: Karte oben, darunter die wichtigsten Zahlen.
+                // Karte oben, darunter die wichtigsten Zahlen.
                 DashboardPage(
                     "Fahrt",
                     listOf(

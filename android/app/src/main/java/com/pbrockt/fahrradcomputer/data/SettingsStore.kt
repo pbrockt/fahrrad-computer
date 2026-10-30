@@ -45,8 +45,8 @@ data class AppSettings(
     val healthWeightSync: Boolean = true,
     /** Fahrten nach dem Beenden automatisch an Health Connect senden. */
     val healthAutoSync: Boolean = false,
-    /** Hervorhebungsfarbe (Standard Rot). */
-    val accentColor: AccentColor = AccentColor.RED,
+    /** Hervorhebungsfarbe (Standard Petrol). */
+    val accentColor: AccentColor = AccentColor.PETROL,
     /** Live-Standort per SMS waehrend der Fahrt. */
     val liveSmsEnabled: Boolean = false,
     /** Empfaenger als Freitext; gelesen ueber [com.pbrockt.fahrradcomputer.live.LiveSms.parseNumbers]. */
@@ -196,7 +196,7 @@ class SettingsStore(private val context: Context) {
             updateToken = p[Keys.UPDATE_TOKEN] ?: "",
             healthWeightSync = p[Keys.HEALTH_WEIGHT_SYNC] ?: true,
             healthAutoSync = p[Keys.HEALTH_AUTO_SYNC] ?: false,
-            accentColor = p[Keys.ACCENT]?.let { runCatching { AccentColor.valueOf(it) }.getOrNull() } ?: AccentColor.RED,
+            accentColor = p[Keys.ACCENT]?.let { runCatching { AccentColor.valueOf(it) }.getOrNull() } ?: AccentColor.PETROL,
             liveSmsEnabled = p[Keys.LIVE_SMS] ?: false,
             liveSmsNumbers = p[Keys.LIVE_SMS_NUMBERS] ?: "",
             liveSmsIntervalMin = p[Keys.LIVE_SMS_INTERVAL] ?: 10,

@@ -97,7 +97,7 @@ private fun Modifier.zoomable(zoom: ChartZoom) = this
     }
 
 /**
- * Ein Verlauf ueber die Fahrzeit: Titel in Grossbuchstaben, Linie in der
+ * Ein Verlauf ueber die Fahrzeit: Titel oben links, Linie in der
  * Farbe der Messgroesse oder - mit [zones] - je Abschnitt in der Zonenfarbe, dahinter
  * blasse Zonenbaender. Fehlende Werte (null) unterbrechen die Linie.
  */
@@ -134,7 +134,7 @@ fun LineChart(
     Column(modifier.background(AppColors.Bg).padding(vertical = 8.dp)) {
         Row(Modifier.fillMaxWidth()) {
             Text(
-                title.uppercase(Locale.GERMANY), color = color, fontFamily = Condensed, fontWeight = FontWeight.SemiBold,
+                title, color = color, fontFamily = Condensed, fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp, letterSpacing = 0.6.sp, modifier = Modifier.weight(1f),
             )
             Text(

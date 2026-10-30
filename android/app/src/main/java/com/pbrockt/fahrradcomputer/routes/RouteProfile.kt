@@ -6,8 +6,8 @@ import kotlin.math.min
 
 /**
  * Hoehenprofil einer Route: alle [STEP_M] Meter eine Hoehe, leicht geglaettet. Daraus
- * Steigung, Gesamt- und Rest-Hoehenmeter und die Farben fuer das Profil (
- * je steiler, desto roeter; bergab blau).
+ * Steigung, Gesamt- und Rest-Hoehenmeter und die Farben fuer das Profil
+ * (je steiler, desto roeter; bergab blau).
  *
  * Die Hoehen kommen aus der GPX-Datei oder - fehlen sie dort - einmalig aus einem
  * Hoehenmodell ([ElevationApi]).

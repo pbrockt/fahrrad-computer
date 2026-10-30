@@ -386,22 +386,22 @@ private fun HrValueTile(label: String, bpm: Int?, zones: HrZones, modifier: Modi
     }
 }
 
-/** Ueberschrift einer Kachel: Grossbuchstaben, schmal, in der Farbe der Messgroesse. */
+/** Ueberschrift einer Kachel: links oben, schmal, in der Farbe der Messgroesse. */
 @Composable
 fun TileLabel(label: String, unit: String, color: Color, size: TextUnit, modifier: Modifier = Modifier) {
     Row(modifier, verticalAlignment = Alignment.Bottom) {
         Text(
-            label.uppercase(Locale.GERMANY),
+            label,
             color = color,
             fontSize = size,
             fontFamily = Condensed,
-            fontWeight = FontWeight.Medium,
-            letterSpacing = 0.6.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.2.sp,
             maxLines = 1,
         )
         if (unit.isNotEmpty()) {
             Text(
-                " " + unit.uppercase(Locale.GERMANY),
+                " · $unit",
                 color = color.copy(alpha = 0.6f),
                 fontSize = size * 0.85f,
                 fontFamily = Condensed,
@@ -418,8 +418,8 @@ private val TIGHT = TextStyle(
 )
 
 /**
- * Eine Kachel: oben mittig die Bezeichnung, darunter der Wert so gross
- * wie moeglich - beides in der Farbe der Messgroesse. Mit [fill] wird die ganze Kachel
+ * Eine Kachel: links oben die Bezeichnung, darunter mittig der Wert so gross wie
+ * moeglich - beides in der Farbe der Messgroesse. Mit [fill] wird die ganze Kachel
  * eingefaerbt (Zonen), die Schrift ist dann weiss. [zone] (0..1) zeigt unten eine Zonenleiste.
  */
 @Composable
@@ -433,13 +433,13 @@ fun ValueTile(
     zone: Float? = null,
 ) {
     val fg = if (fill != null) Color.White else color
-    BoxWithConstraints(modifier.background(fill ?: AppColors.Bg)) {
+    BoxWithConstraints(modifier.background(fill ?: AppColors.Card)) {
         val labelSize = (maxHeight.value * 0.13f).coerceIn(11f, 18f).sp
         Column(
-            Modifier.fillMaxSize().padding(horizontal = 4.dp, vertical = 4.dp),
+            Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            TileLabel(label, unit, fg, labelSize)
+            TileLabel(label, unit, fg, labelSize, Modifier.align(Alignment.Start))
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 val density = LocalDensity.current
                 // Barlow Condensed: Ziffern sind etwa halb so breit wie hoch.
@@ -497,7 +497,7 @@ private fun ElevationTile(d: TileData, modifier: Modifier, options: Map<String, 
     val zoom = options.opt(TileOptions.PROFILE_ZOOM)
     val nearKm = zoom.toIntOrNull()
     var all by rememberSaveable(options) { mutableStateOf(zoom == "all") }
-    BoxWithConstraints(modifier.background(AppColors.Bg)) {
+    BoxWithConstraints(modifier.background(AppColors.Card)) {
         val labelSize = (maxHeight.value * 0.09f).coerceIn(11f, 16f).sp
         Column(Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             val doneM = d.progress?.doneM
@@ -546,7 +546,7 @@ private fun ElevationTile(d: TileData, modifier: Modifier, options: Map<String, 
 }
 
 /**
- * Verlauf der letzten 10 Minuten vor blassen Zonenbaendern, Linie in der
+ * Verlauf der letzten 10 Minuten vor blassen Zonenbaendern - Linie in der
  * Farbe der Messgroesse. [value] bekommt den vorigen und den aktuellen Punkt (fuers Tempo).
  */
 @Composable
@@ -564,7 +564,7 @@ private fun ChartTile(
     value: (TrackPoint?, TrackPoint) -> Float?,
 ) {
     val zoneColors = AppColors.Zones
-    BoxWithConstraints(modifier.background(AppColors.Bg)) {
+    BoxWithConstraints(modifier.background(AppColors.Card)) {
         val labelSize = (maxHeight.value * 0.11f).coerceIn(11f, 17f).sp
         Column(Modifier.fillMaxSize().padding(4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             TileLabel(label, unit, color, labelSize)
@@ -596,7 +596,7 @@ private fun ChartTile(
     }
 }
 
-/** Zeit je Zone seit dem Start - Balken, Pfeil ueber der aktuellen Zone. */
+/** Zeit je Zone seit dem Start - Balken je Zone, Pfeil ueber der aktuellen Zone. */
 @Composable
 private fun ZoneChartTile(
     label: String,
@@ -618,7 +618,7 @@ private fun ZoneChartTile(
         sec.toList()
     }
     val active = current?.let { zones.zoneOf(it) }
-    BoxWithConstraints(modifier.background(AppColors.Bg)) {
+    BoxWithConstraints(modifier.background(AppColors.Card)) {
         val labelSize = (maxHeight.value * 0.11f).coerceIn(11f, 17f).sp
         Column(Modifier.fillMaxSize().padding(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             TileLabel(label + (active?.let { " · Z$it" } ?: ""), "", AppColors.Text, labelSize)
@@ -672,7 +672,7 @@ private fun ClimbTile(d: TileData, modifier: Modifier) {
     }
     val total = profile.climbs.size
     val color = Color(RouteProfile.GRADE_COLORS[RouteProfile.gradeLevel(climb.avgGrade)])
-    BoxWithConstraints(modifier.background(AppColors.Bg)) {
+    BoxWithConstraints(modifier.background(AppColors.Card)) {
         val tall = maxHeight > 150.dp
         val labelSize = (maxHeight.value * (if (tall) 0.08f else 0.13f)).coerceIn(11f, 17f).sp
         Column(Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -719,7 +719,7 @@ private fun HeadingTile(d: TileData, modifier: Modifier, options: Map<String, St
         "cardinal" -> { ValueTile("Fahrtrichtung", Wind.compass(h.toDouble()), modifier); return }
         "deg" -> { ValueTile("Fahrtrichtung", "${h.roundToInt() % 360}°", modifier); return }
     }
-    BoxWithConstraints(modifier.background(AppColors.Bg)) {
+    BoxWithConstraints(modifier.background(AppColors.Card)) {
         val labelSize = (maxHeight.value * 0.13f).coerceIn(11f, 18f).sp
         Column(Modifier.fillMaxSize().padding(4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             TileLabel("Fahrtrichtung", "", AppColors.Text, labelSize)
@@ -752,7 +752,7 @@ private fun WindTile(d: TileData, modifier: Modifier, options: Map<String, Strin
         Wind.headwindKmh(w, heading) < -w.windKmh * 0.35 -> AppColors.Go
         else -> AppColors.Speed
     }
-    BoxWithConstraints(modifier.background(AppColors.Bg)) {
+    BoxWithConstraints(modifier.background(AppColors.Card)) {
         val labelSize = (maxHeight.value * 0.13f).coerceIn(11f, 18f).sp
         Column(Modifier.fillMaxSize().padding(4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             TileLabel("Wind · ${Wind.label(w, heading)}", if (bft) "Bft" else "km/h", color, labelSize)
@@ -818,9 +818,9 @@ private fun MapTile(d: TileData, modifier: Modifier, mapId: String, options: Map
             },
             onUserPan = { following = false },
         )
-        // Knopf: rotes Quadrat mit weissem Symbol.
+        // Knopf: Feld in der Hervorhebungsfarbe mit weissem Symbol.
         Box(
-            Modifier.align(Alignment.BottomEnd).padding(8.dp).size(44.dp).clip(RoundedCornerShape(6.dp))
+            Modifier.align(Alignment.BottomEnd).padding(8.dp).size(44.dp).clip(RoundedCornerShape(22.dp))
                 .background(AppColors.Accent)
                 .clickable { if (!following) following = true else d.onToggleMapOrientation() },
             contentAlignment = Alignment.Center,
@@ -876,7 +876,7 @@ private fun TurnTile(d: TileData, modifier: Modifier) {
         g == null -> ValueTile("Abbiegen · warte auf GPS", "--", modifier)
         else -> {
             val now = g.distanceM <= TurnAnnouncer.NOW_M
-            val bg = if (now) AppColors.Go else AppColors.Bg
+            val bg = if (now) AppColors.Go else AppColors.Card
             val fg = if (now) Color.White else AppColors.Text
             BoxWithConstraints(modifier.background(bg).padding(6.dp)) {
                 val density = LocalDensity.current
@@ -929,7 +929,7 @@ private fun ControlsTile(phase: RidePhase, c: RideControls, modifier: Modifier) 
 /** Ohne Karte: Skizze der gefahrenen Strecke. */
 @Composable
 private fun RouteTile(route: List<TrackPoint>, modifier: Modifier) {
-    Box(modifier.background(AppColors.Bg).padding(10.dp)) {
+    Box(modifier.background(AppColors.Card).padding(10.dp)) {
         TileLabel("Strecke", "", AppColors.Text, 14.sp, Modifier.align(Alignment.TopCenter))
         if (route.size < 2) {
             Text(

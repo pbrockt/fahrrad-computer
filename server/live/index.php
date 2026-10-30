@@ -48,26 +48,26 @@ $title = htmlspecialchars((string)$c['title']);
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&display=swap" rel="stylesheet">
 <style>
-  /* Im Stil der App: schmale Schrift, Kacheln mit feinen Linien, farbige Werte. */
-  :root { --bg:#fff; --text:#000; --dim:#5e5e5e; --line:#d0d0d0; --red:#c8102e; --speed:#0b7bd0; --dist:#2b8a3e; --alt:#6a4fd8; --hr:#d7141a; }
+  /* Wie die App: schmale Schrift, abgerundete Kacheln, farbige Werte, Petrol als Hervorhebung. */
+  :root { --bg:#e9edf1; --card:#fff; --text:#0d1014; --dim:#5a626c; --line:#cdd3da; --red:#00796b; --speed:#0b7bd0; --dist:#2b8a3e; --alt:#6a4fd8; --hr:#d7141a; }
   @media (prefers-color-scheme: dark) {
-    :root { --bg:#000; --text:#fff; --dim:#9a9a9a; --line:#333; --red:#e3141b; --speed:#2e9bf0; --dist:#3dbb5c; --alt:#a48bf5; --hr:#ff4d4d; }
+    :root { --bg:#0a0c0f; --card:#16191e; --text:#f4f6f8; --dim:#969ca5; --line:#2e333a; --red:#14a394; --speed:#2e9bf0; --dist:#3dbb5c; --alt:#a48bf5; --hr:#ff4d4d; }
   }
   * { box-sizing:border-box; }
   html,body { margin:0; height:100%; background:var(--bg); color:var(--text); font-family:"Barlow Condensed",system-ui,sans-serif; }
   body { display:flex; flex-direction:column; }
   header { display:flex; align-items:center; gap:10px; padding:10px 14px; }
-  header h1 { margin:0; font-size:22px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
-  .badge { color:#fff; font-weight:600; font-size:16px; padding:2px 10px; border-radius:4px; letter-spacing:.05em; text-transform:uppercase; }
+  header h1 { margin:0; font-size:22px; font-weight:600; flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  .badge { color:#fff; font-weight:600; font-size:16px; padding:2px 10px; border-radius:999px; }
   .badge.live { background:var(--red); animation:pulse 1.6s infinite; }
   .badge.paused { background:#f08a00; }
   .badge.finished { background:#2e9e44; }
   .badge.stale, .badge.none { background:#8e8e93; }
   @keyframes pulse { 50% { opacity:.55; } }
   #map { flex:1; min-height:240px; }
-  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line); border-top:1px solid var(--line); }
-  .tile { background:var(--bg); text-align:center; padding:6px 4px 8px; }
-  .tile .l { font-size:14px; font-weight:500; letter-spacing:.06em; text-transform:uppercase; }
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; padding:6px; background:var(--bg); }
+  .tile { background:var(--card); border-radius:14px; text-align:center; padding:8px 10px 10px; }
+  .tile .l { font-size:15px; font-weight:600; text-align:left; }
   .tile .l small { opacity:.6; font-size:12px; }
   .tile .v { font-size:clamp(30px,9vw,52px); font-weight:600; line-height:1.05; }
   footer { color:var(--dim); font-size:14px; text-align:center; padding:6px 10px 10px; font-family:system-ui,sans-serif; }

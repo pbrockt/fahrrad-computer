@@ -83,7 +83,7 @@ private enum class SettingsPage(val title: String) {
 }
 
 /**
- * Einstellungen: eine Liste mit Abschnitten, jede Zeile zeigt rechts
+ * Einstellungen als Liste mit Abschnitten: jede Zeile zeigt rechts
  * den aktuellen Stand und fuehrt auf eine eigene Unterseite. Sensoren und Heimtrainer
  * sind eigene Bildschirme ([onOpenSensors], [onOpenTrainer]).
  */

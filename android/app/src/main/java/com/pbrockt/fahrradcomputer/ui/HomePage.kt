@@ -70,7 +70,7 @@ fun HomePage(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        // Laufende Fahrt - Start, Pause und Stopp liegen unten in der roten Leiste.
+        // Laufende Fahrt - Start, Pause und Stopp liegen unten in der Leiste.
         if (phase != RidePhase.IDLE) {
             Card(Modifier.fillMaxWidth().clickable(onClick = onShowRide)) {
                 Column(Modifier.padding(16.dp)) {

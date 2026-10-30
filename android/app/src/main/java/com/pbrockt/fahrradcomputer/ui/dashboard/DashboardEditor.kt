@@ -39,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -73,7 +74,7 @@ fun EditablePage(page: DashboardPage, pageIndex: Int, data: TileData, onEdit: Ed
                     Tile(
                         slot.type, data,
                         Modifier.weight(slot.units.toFloat()).fillMaxSize()
-                            .border(2.dp, AppColors.Accent)
+                            .clip(TILE_SHAPE).border(2.dp, AppColors.Accent, TILE_SHAPE)
                             .clickable { tileDialog = r to c },
                         options = slot.options,
                     )
