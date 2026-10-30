@@ -29,7 +29,7 @@ import com.pbrockt.fahrradcomputer.ui.ThemeMode
 import com.pbrockt.fahrradcomputer.ui.dashboard.DashboardLayout
 import com.pbrockt.fahrradcomputer.ui.dashboard.PageDashes
 import com.pbrockt.fahrradcomputer.ui.dashboard.PageView
-import com.pbrockt.fahrradcomputer.ui.dashboard.RideBar
+import com.pbrockt.fahrradcomputer.ui.dashboard.RideControls
 import com.pbrockt.fahrradcomputer.ui.dashboard.TileData
 import com.pbrockt.fahrradcomputer.ui.dashboard.TopBar
 import com.pbrockt.fahrradcomputer.weather.Weather
@@ -98,12 +98,12 @@ class ScreenshotTest {
             FahrradTheme(mode) {
                 Column(Modifier.fillMaxSize().background(AppColors.Bg)) {
                     TopBar(
-                        RidePhase.RECORDING, GpsStatus.OK, layout.pages[page].name,
+                        phase, GpsStatus.OK, layout.pages[page].name,
                         listOf(data(now).hr, data(now).cadence, data(now).power), onMenu = {},
+                        controls = RideControls({}, {}, {}, {}),
                     )
                     PageView(layout.pages[page], data(now), "test", Modifier.weight(1f).fillMaxWidth())
                     PageDashes(layout.pages.size + 1, page + 1)
-                    RideBar(phase, onStart = {}, onPause = {}, onResume = {}, onStop = {})
                 }
             }
         }

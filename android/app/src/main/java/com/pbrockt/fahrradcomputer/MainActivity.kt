@@ -125,6 +125,9 @@ private val TRAINER_PERMISSIONS = buildList {
 @Composable
 private fun AppRoot(vm: MainViewModel) {
     var screen by rememberSaveable { mutableStateOf(AppScreen.RIDE) }
+    // Routen von der Start-Seite aus geoeffnet: danach zurueck; ggf. gleich mit Vorschau.
+    var routeFromStart by rememberSaveable { mutableStateOf(false) }
+    var routePreview by rememberSaveable { mutableStateOf<String?>(null) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -189,7 +192,11 @@ private fun AppRoot(vm: MainViewModel) {
     val drawer = rememberDrawerState(DrawerValue.Closed)
     // Zurueck schliesst das Menue bzw. fuehrt aus jedem Bereich zum Computer.
     BackHandler(enabled = screen != AppScreen.RIDE || drawer.isOpen) {
-        if (drawer.isOpen) scope.launch { drawer.close() } else screen = AppScreen.RIDE
+        if (drawer.isOpen) scope.launch { drawer.close() } else {
+            routeFromStart = false
+            routePreview = null
+            screen = AppScreen.RIDE
+        }
     }
     val openMenu: () -> Unit = { scope.launch { drawer.open() } }
 
@@ -209,6 +216,8 @@ private fun AppRoot(vm: MainViewModel) {
                 for (item in AppScreen.entries) {
                     MenuItem(item, selected = screen == item) {
                         screen = item
+                        routeFromStart = false
+                        routePreview = null
                         scope.launch { drawer.close() }
                     }
                 }
@@ -241,13 +250,21 @@ private fun AppRoot(vm: MainViewModel) {
                         vm,
                         onStartRequested = { locationLauncher.launch(LOCATION_PERMISSIONS) },
                         onMenu = openMenu,
-                        onOpen = { screen = it },
+                        onOpen = { routeFromStart = false; routePreview = null; screen = it },
+                        onPickRoute = { routeFromStart = true; routePreview = null; screen = AppScreen.MAPS },
+                        onPreviewRoute = { id -> routeFromStart = true; routePreview = id; screen = AppScreen.MAPS },
                     )
                     AppScreen.TRAINER -> TrainerScreen(vm, onStart = {
                         if (TRAINER_PERMISSIONS.isEmpty()) vm.startTrainer() else trainerLauncher.launch(TRAINER_PERMISSIONS)
                     })
                     AppScreen.RIDES -> RidesScreen(vm)
-                    AppScreen.MAPS -> MapsScreen(vm)
+                    AppScreen.MAPS -> MapsScreen(
+                        vm,
+                        startPreview = routePreview,
+                        onDone = if (routeFromStart) {
+                            { routeFromStart = false; routePreview = null; screen = AppScreen.RIDE }
+                        } else null,
+                    )
                     AppScreen.SENSORS -> SensorsScreen(vm, onScanRequested = { kind ->
                         pendingScan = kind
                         bluetoothLauncher.launch(BLUETOOTH_PERMISSIONS)

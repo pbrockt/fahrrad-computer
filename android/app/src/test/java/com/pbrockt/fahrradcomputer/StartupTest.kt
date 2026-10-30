@@ -27,7 +27,16 @@ class StartupTest {
         try {
             ActivityScenario.launch(MainActivity::class.java).use { scenario ->
                 repeat(20) { ShadowLooper.idleMainLooper(); Thread.sleep(50) }
-                scenario.onActivity { }
+                scenario.onActivity { activity ->
+                    // Mit -Dscreenshots=<ordner> die Start-Seite als Bild ablegen.
+                    System.getProperty("screenshots")?.takeIf { it.isNotBlank() }?.let { dir ->
+                        val view = activity.window.decorView.rootView
+                        val bmp = android.graphics.Bitmap.createBitmap(view.width, view.height, android.graphics.Bitmap.Config.ARGB_8888)
+                        view.draw(android.graphics.Canvas(bmp))
+                        java.io.File(dir).mkdirs()
+                        java.io.File(dir, "start.png").outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+                    }
+                }
             }
         } finally {
             Thread.setDefaultUncaughtExceptionHandler(before)

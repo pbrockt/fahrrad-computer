@@ -301,6 +301,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun activateRoute(id: String?) = viewModelScope.launch { store.setActiveRoute(id) }
 
+    /** Aktive Route rueckwaerts als neue Route speichern und aktivieren (oder die schon umgekehrte nehmen). */
+    fun reverseActiveRoute() {
+        val r = activeRoute.value ?: return
+        viewModelScope.launch {
+            val name = if (r.name.endsWith(REVERSED)) r.name.removeSuffix(REVERSED) else r.name + REVERSED
+            val existing = routes.value.firstOrNull { it.name == name && it.points.size == r.points.size }
+            if (existing != null) {
+                store.setActiveRoute(existing.id)
+                _message.value = "Route „$name“ aktiviert."
+                return@launch
+            }
+            routeStore.importGpxText(name, r.reversedGpx(name))
+                .onSuccess { n ->
+                    store.setActiveRoute(n.id)
+                    _message.value = "Route umgekehrt: „${n.name}“ ist jetzt aktiv."
+                }
+                .onFailure { _message.value = it.message ?: "Route konnte nicht umgekehrt werden." }
+        }
+    }
+
     // --- Zielsuche und Routenplanung ---
 
     private val _places = MutableStateFlow<List<com.pbrockt.fahrradcomputer.routes.Place>>(emptyList())
@@ -421,6 +441,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setBellOnDoubleTap(value: Boolean) = viewModelScope.launch { store.setBellOnDoubleTap(value) }
 
     private companion object {
+        const val REVERSED = " (rückwärts)"
         const val MAX_LAYOUT_BYTES = 200_000
     }
 

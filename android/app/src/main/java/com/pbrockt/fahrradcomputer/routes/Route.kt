@@ -35,6 +35,19 @@ data class Route(
     val profile: RouteProfile? by lazy {
         externalProfile ?: RouteProfile.fromPoints(cumulative, points.map { it.ele })
     }
+
+    /** Die Strecke rueckwaerts als GPX-Text - fuer "Route umkehren". */
+    fun reversedGpx(name: String): String = buildString {
+        append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
+        append("<gpx version=\"1.1\" creator=\"Fahrrad-Computer\" xmlns=\"http://www.topografix.com/GPX/1/1\">\n")
+        append("<trk><name>").append(name.replace("&", "&amp;").replace("<", "&lt;")).append("</name><trkseg>\n")
+        for (p in points.asReversed()) {
+            append("<trkpt lat=\"").append(p.lat).append("\" lon=\"").append(p.lon).append("\">")
+            p.ele?.let { append("<ele>").append(it).append("</ele>") }
+            append("</trkpt>\n")
+        }
+        append("</trkseg></trk>\n</gpx>\n")
+    }
 }
 
 /**

@@ -1,19 +1,11 @@
 package com.pbrockt.fahrradcomputer.ui.dashboard
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.graphics.Color
-import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Route
-import androidx.compose.ui.input.pointer.pointerInput
 import com.pbrockt.fahrradcomputer.ui.Condensed
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,6 +20,9 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
@@ -72,9 +67,9 @@ import com.pbrockt.fahrradcomputer.ui.holdAndDoubleTap
 import kotlinx.coroutines.launch
 
 /**
- * Der Fahrt-Bildschirm: ganz links die Start-Seite (Ueberblick, Start/Pause/Stopp),
- * rechts davon die Tacho-Seiten. Nach "Start" blaettert er von selbst zum Tacho; zum
- * Beenden wischt man zurueck zur Start-Seite.
+ * Der Fahrt-Bildschirm: ganz links die Start-Seite (Losfahren, Route, Ueberblick),
+ * rechts davon die Tacho-Seiten. Nach dem Losfahren blaettert er von selbst zum Tacho.
+ * Pause und Stopp liegen oben in der schmalen Leiste.
  */
 @Composable
 fun DashboardScreen(
@@ -82,6 +77,8 @@ fun DashboardScreen(
     onStartRequested: () -> Unit,
     onMenu: () -> Unit,
     onOpen: (AppScreen) -> Unit,
+    onPickRoute: () -> Unit = { onOpen(AppScreen.MAPS) },
+    onPreviewRoute: (String) -> Unit = { onOpen(AppScreen.MAPS) },
 ) {
     val stats by vm.ride.stats.collectAsStateWithLifecycle()
     val phase by vm.ride.phase.collectAsStateWithLifecycle()
@@ -132,7 +129,10 @@ fun DashboardScreen(
 
     val controls = RideControls(
         onStart = onStartRequested,
-        onPause = vm::pauseRide,
+        onPause = {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            vm.pauseRide()
+        },
         onResume = vm::resumeRide,
         onStop = { confirmStop = true },
     )
@@ -167,6 +167,7 @@ fun DashboardScreen(
             title = if (editing) "Bearbeiten" else names.getOrElse(pager.currentPage) { "" },
             sensors = listOf(hr, cadence, power),
             onMenu = onMenu,
+            controls = controls.takeIf { !editing },
         )
         // Seitenname als kleines Schild, kurz nach dem Blaettern.
         var banner by remember { mutableStateOf<Int?>(null) }
@@ -191,6 +192,8 @@ fun DashboardScreen(
                         onStop = { confirmStop = true },
                         onShowRide = { scope.launch { pager.animateScrollToPage(1) } },
                         onOpen = onOpen,
+                        onPickRoute = onPickRoute,
+                        onPreviewRoute = onPreviewRoute,
                     )
                 }
                 return@HorizontalPager
@@ -232,19 +235,6 @@ fun DashboardScreen(
                     onDone = { editing = false },
                 )
             }
-        } else {
-            RideBar(
-                phase = phase,
-                onStart = onStartRequested,
-                onTrainer = { onOpen(AppScreen.TRAINER) },
-                onRoute = { onOpen(AppScreen.MAPS) },
-                onPause = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    vm.pauseRide()
-                },
-                onResume = vm::resumeRide,
-                onStop = { confirmStop = true },
-            )
         }
     }
 
@@ -359,119 +349,9 @@ internal fun PageDashes(count: Int, current: Int) {
 }
 
 /**
- * Die Leiste unten mit abgerundeten Knoepfen. Waehrend der Fahrt: "Halten zum Pausieren" -
- * ein versehentliches Antippen pausiert nicht. In der Pause: Weiter oder Beenden.
- */
-@Composable
-internal fun RideBar(
-    phase: RidePhase,
-    onStart: () -> Unit,
-    onTrainer: () -> Unit = {},
-    onRoute: () -> Unit = {},
-    onPause: () -> Unit,
-    onResume: () -> Unit,
-    onStop: () -> Unit,
-) {
-    Row(
-        Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, bottom = 8.dp).height(60.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        when (phase) {
-            // Grosser Start-Knopf, daneben runde Felder fuer Heimtrainer und Route.
-            RidePhase.IDLE -> {
-                Row(
-                    Modifier.weight(2.2f).fillMaxHeight().clip(BAR_SHAPE).background(AppColors.Accent).clickable(onClick = onStart),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(30.dp))
-                    Column(Modifier.padding(start = 6.dp)) {
-                        BarText("Losfahren")
-                        Text(
-                            "Draußen mit GPS", color = Color.White.copy(alpha = 0.8f), fontFamily = Condensed,
-                            fontWeight = FontWeight.Medium, fontSize = 14.sp,
-                        )
-                    }
-                }
-                SquareButton("Heimtrainer", Icons.Filled.FitnessCenter, Modifier.weight(1f), onTrainer)
-                SquareButton("Route", Icons.Filled.Route, Modifier.weight(1f), onRoute)
-            }
-            RidePhase.RECORDING -> HoldButton("Halten zum Pausieren", AppColors.Accent, 700, Modifier.weight(1f), onPause)
-            RidePhase.PAUSED -> {
-                BarButton("Weiter", AppColors.Go, Modifier.weight(2f), onResume)
-                BarButton("Beenden", AppColors.Accent, Modifier.weight(1f), onStop)
-            }
-        }
-    }
-}
-
-private val BAR_SHAPE = RoundedCornerShape(18.dp)
-
-/** Feld mit Symbol in der Hervorhebungsfarbe und Beschriftung - neben "Losfahren". */
-@Composable
-private fun SquareButton(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier, onClick: () -> Unit) {
-    Column(
-        modifier.fillMaxHeight().clip(BAR_SHAPE).background(AppColors.Panel).clickable(onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Icon(icon, contentDescription = null, tint = AppColors.Accent, modifier = Modifier.size(24.dp))
-        Text(
-            label, color = AppColors.Text, fontFamily = Condensed,
-            fontWeight = FontWeight.Medium, fontSize = 14.sp, maxLines = 1,
-        )
-    }
-}
-
-@Composable
-private fun BarButton(text: String, color: Color, modifier: Modifier, onClick: () -> Unit) {
-    Box(modifier.fillMaxHeight().clip(BAR_SHAPE).background(color).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
-        BarText(text)
-    }
-}
-
-@Composable
-private fun BarText(text: String) {
-    Text(
-        text,
-        color = Color.White,
-        fontFamily = Condensed,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 22.sp,
-    )
-}
-
-/** Knopf, der erst nach [holdMs] gedrueckt halten ausloest; ein Balken zeigt den Fortschritt. */
-@Composable
-private fun HoldButton(text: String, color: Color, holdMs: Int, modifier: Modifier, onDone: () -> Unit) {
-    val progress = remember { Animatable(0f) }
-    val scope = rememberCoroutineScope()
-    val done by rememberUpdatedState(onDone)
-    Box(
-        modifier.fillMaxHeight().clip(BAR_SHAPE).background(color).pointerInput(Unit) {
-            detectTapGestures(onPress = {
-                val job = scope.launch {
-                    progress.animateTo(1f, tween(holdMs, easing = LinearEasing))
-                    done()
-                    progress.snapTo(0f)
-                }
-                tryAwaitRelease()
-                if (job.isActive) {
-                    job.cancel()
-                    scope.launch { progress.animateTo(0f, tween(150)) }
-                }
-            })
-        },
-        contentAlignment = Alignment.CenterStart,
-    ) {
-        Box(Modifier.fillMaxHeight().fillMaxWidth(progress.value).background(Color.Black.copy(alpha = 0.3f)))
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { BarText(text) }
-    }
-}
-
-/**
- * Schmale Leiste oben: Menue, Seitenname, GPS und Sensoren (mit Warnung bei schwachem
- * Akku). Start, Pause und Stopp liegen unten in der Leiste bzw. auf der Start-Seite.
+ * Schmale Leiste oben: Menue, Seitenname, Sensoren (mit Warnung bei schwachem Akku), GPS
+ * und rechts die Bedienung - vor der Fahrt "Los", waehrend der Fahrt Pause und Stopp,
+ * in der Pause "Weiter" und Stopp.
  */
 @Composable
 internal fun TopBar(
@@ -480,6 +360,7 @@ internal fun TopBar(
     title: String,
     sensors: List<SensorReading>,
     onMenu: () -> Unit,
+    controls: RideControls? = null,
 ) {
     Row(
         Modifier.fillMaxWidth().height(44.dp).padding(end = 10.dp),
@@ -493,13 +374,8 @@ internal fun TopBar(
             title,
             color = AppColors.Text,
             fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 19.sp,
-            maxLines = 1,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
         )
-        if (phase == RidePhase.PAUSED) {
-            Text("Pause", color = Color.White, fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
-                modifier = Modifier.clip(RoundedCornerShape(50)).background(AppColors.Zones[3]).padding(horizontal = 8.dp, vertical = 1.dp))
-        }
-        Box(Modifier.weight(1f))
         // Ein Symbol je Sensorart: gruen = verbunden, gelb = verbindet, rot = Fehler oder Akku < 20 %.
         sensors.zip(listOf("♥", "⟳", "⚡")).forEach { (r, symbol) ->
             val lowBattery = (r.battery ?: 100) < 20
@@ -530,5 +406,42 @@ internal fun TopBar(
                 " GPS", color = AppColors.Dim, fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
             )
         }
+        if (controls != null) {
+            when (phase) {
+                RidePhase.IDLE -> BarPill("Los", Icons.Filled.PlayArrow, AppColors.Accent, controls.onStart)
+                RidePhase.RECORDING -> {
+                    BarIcon(Icons.Filled.Pause, "Pause", AppColors.Panel, AppColors.Text, controls.onPause)
+                    BarIcon(Icons.Filled.Stop, "Beenden", AppColors.Stop, Color.White, controls.onStop)
+                }
+                RidePhase.PAUSED -> {
+                    BarPill("Weiter", Icons.Filled.PlayArrow, AppColors.Go, controls.onResume)
+                    BarIcon(Icons.Filled.Stop, "Beenden", AppColors.Stop, Color.White, controls.onStop)
+                }
+            }
+        }
+    }
+}
+
+/** Runder Knopf mit Symbol in der Leiste oben. */
+@Composable
+private fun BarIcon(icon: ImageVector, description: String, bg: Color, fg: Color, onClick: () -> Unit) {
+    Box(
+        Modifier.size(36.dp).clip(CircleShape).background(bg).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = description, tint = fg, modifier = Modifier.size(22.dp))
+    }
+}
+
+/** Pille mit Symbol und Wort in der Leiste oben, z. B. "▶ Los". */
+@Composable
+private fun BarPill(text: String, icon: ImageVector, bg: Color, onClick: () -> Unit) {
+    Row(
+        Modifier.height(36.dp).clip(RoundedCornerShape(50)).background(bg).clickable(onClick = onClick)
+            .padding(start = 8.dp, end = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+        Text(text, color = Color.White, fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
     }
 }

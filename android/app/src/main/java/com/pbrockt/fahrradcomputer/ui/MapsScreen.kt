@@ -51,12 +51,25 @@ import com.pbrockt.fahrradcomputer.ui.map.BikeMap
 import com.pbrockt.fahrradcomputer.ui.map.mapAvailable
 import kotlinx.coroutines.delay
 
-/** Routen (GPX) und Offline-Karten verwalten. */
+/**
+ * Routen (GPX) verwalten. Von der Start-Seite aus geoeffnet ([onDone] gesetzt) geht es nach
+ * dem Waehlen, Planen oder Importieren einer Route gleich zurueck; [startPreview] oeffnet
+ * direkt die Vorschau einer Route.
+ */
 @Composable
-fun MapsScreen(vm: MainViewModel) {
+fun MapsScreen(vm: MainViewModel, startPreview: String? = null, onDone: (() -> Unit)? = null) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val routes by vm.routes.collectAsStateWithLifecycle()
-    var preview by rememberSaveable { mutableStateOf<String?>(null) }
+    var preview by rememberSaveable { mutableStateOf(startPreview) }
+
+    // Neue aktive Route (gewaehlt, geplant oder importiert) -> zurueck zur Start-Seite.
+    if (onDone != null) {
+        val initialActive = rememberSaveable { settings.activeRouteId ?: "" }
+        LaunchedEffect(settings.activeRouteId) {
+            val id = settings.activeRouteId
+            if (id != null && id != initialActive) { vm.consumePlannedRoute(); onDone() }
+        }
+    }
 
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let(vm::importRoute)
@@ -70,8 +83,9 @@ fun MapsScreen(vm: MainViewModel) {
     }
     val open = preview?.let { id -> routes.firstOrNull { it.id == id } }
     if (open != null) {
-        BackHandler { preview = null }
-        RoutePreview(vm, open, active = settings.activeRouteId == open.id, onBack = { preview = null })
+        val back = { if (onDone != null && open.id == startPreview) onDone() else preview = null }
+        BackHandler(onBack = back)
+        RoutePreview(vm, open, active = settings.activeRouteId == open.id, onBack = back)
         return
     }
 
