@@ -350,7 +350,7 @@ internal fun PageDashes(count: Int, current: Int) {
 
 /**
  * Schmale Leiste oben: Menue, Seitenname, Sensoren (mit Warnung bei schwachem Akku), GPS
- * und rechts die Bedienung - vor der Fahrt "Los", waehrend der Fahrt Pause und Stopp,
+ * und rechts die Bedienung - vor der Fahrt ein Play-Knopf, waehrend der Fahrt Pause und Stopp,
  * in der Pause "Weiter" und Stopp.
  */
 @Composable
@@ -408,7 +408,7 @@ internal fun TopBar(
         }
         if (controls != null) {
             when (phase) {
-                RidePhase.IDLE -> BarPill("Los", Icons.Filled.PlayArrow, AppColors.Accent, controls.onStart)
+                RidePhase.IDLE -> BarIcon(Icons.Filled.PlayArrow, "Losfahren", AppColors.Accent, Color.White, controls.onStart)
                 RidePhase.RECORDING -> {
                     BarIcon(Icons.Filled.Pause, "Pause", AppColors.Panel, AppColors.Text, controls.onPause)
                     BarIcon(Icons.Filled.Stop, "Beenden", AppColors.Stop, Color.White, controls.onStop)
