@@ -105,6 +105,14 @@ class MainActivity : ComponentActivity() {
                     else SystemBarStyle.light(transparent, transparent)
                     enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
                 }
+                // Waehrend der Fahrt den Tacho auch ueber dem Sperrbildschirm zeigen: Display an
+                // (Taste oder Hinweis) und man sieht sofort die Zahlen, ohne zu entsperren.
+                val phase by vm.ride.phase.collectAsStateWithLifecycle()
+                LaunchedEffect(phase) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                        setShowWhenLocked(phase != com.pbrockt.fahrradcomputer.recording.RidePhase.IDLE)
+                    }
+                }
                 AppRoot(vm)
             }
         }

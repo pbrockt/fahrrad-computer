@@ -32,6 +32,7 @@ import com.pbrockt.fahrradcomputer.live.LiveLink
 import com.pbrockt.fahrradcomputer.live.LiveSms
 import com.pbrockt.fahrradcomputer.routes.TurnAnnouncer
 import com.pbrockt.fahrradcomputer.live.SmsSender
+import com.pbrockt.fahrradcomputer.sensors.SensorConnection
 import com.pbrockt.fahrradcomputer.sensors.SensorReading
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChangedBy
@@ -58,6 +59,9 @@ class RideService : Service() {
     private var startSmsSent = false
     private var locationManager: LocationManager? = null
     private var lastFixMs = 0L
+    /** Haelt die CPU wach, solange gefahren wird - auch bei ausgeschaltetem Display. */
+    private var cpuLock: android.os.PowerManager.WakeLock? = null
+    private val batteryWatch = BatteryWatch()
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -70,6 +74,11 @@ class RideService : Service() {
         createChannel()
         startInForeground()
         startLocation()
+        // Bei ausgeschaltetem Display schlaeft sonst die CPU ein: Sensoren, Live-Link und
+        // Hinweise kaemen verspaetet. Das Display selbst braucht viel mehr Strom als das.
+        cpuLock = getSystemService(android.os.PowerManager::class.java)
+            ?.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "FahrradComputer:fahrt")
+            ?.apply { setReferenceCounted(false); acquire(12 * 60 * 60_000L) }
 
         // Jeder neue Sensorwert geht an die Fahrt; doppelte Meldungen (gleicher Zeitstempel) nicht.
         fun forward(flow: StateFlow<SensorReading>, sink: (Int, Long) -> Unit) = scope.launch {
@@ -88,6 +97,7 @@ class RideService : Service() {
                 val alert = announcer.check(g) ?: return@collect
                 val s = app.currentSettings.value
                 signals.signal(alert, s.navVibrate, s.navSound)
+                wakeScreen()
                 notificationManager().notify(NOTIFICATION_ID, buildNotification())
             }
         }
@@ -97,6 +107,25 @@ class RideService : Service() {
                 if (session.phase.value != RidePhase.RECORDING) return@collect
                 val s = app.currentSettings.value
                 signals.climb(s.navVibrate, s.navSound)
+                wakeScreen()
+            }
+        }
+        // Akku von Handy und Sensoren: knapp -> einmal warnen (Ton, Vibration, Hinweis).
+        scope.launch {
+            while (true) {
+                delay(30_000)
+                val s = app.currentSettings.value
+                if (!s.batteryAlert || session.phase.value == RidePhase.IDLE) continue
+                val sensors = mapOf(
+                    "Pulsgurt" to app.sensors.heartRate.value,
+                    "Trittfrequenz-Sensor" to app.sensors.cadence.value,
+                    "Leistungsmesser" to app.sensors.power.value,
+                ).filterValues { it.connection == SensorConnection.CONNECTED }.mapValues { it.value.battery }
+                val warnings = batteryWatch.check(sms.batteryPercent(), sensors)
+                if (warnings.isEmpty()) continue
+                session.showAlert(warnings.joinToString("\n"))
+                signals.warning(s.navVibrate, s.navSound)
+                wakeScreen()
             }
         }
         // Abseits der Route: einmal melden, wenn man abkommt - nicht bei jedem GPS-Punkt.
@@ -205,7 +234,24 @@ class RideService : Service() {
         Thread { LiveLink.post(s.liveLinkUrl, s.liveLinkToken, body) }.start()
     }
 
+    /** Display kurz einschalten, wenn es aus ist und der Display-Modus das so will. */
+    @Suppress("DEPRECATION")
+    private fun wakeScreen() {
+        if (app.currentSettings.value.screenMode != com.pbrockt.fahrradcomputer.data.ScreenMode.WAKE_ON_ALERT) return
+        val pm = getSystemService(android.os.PowerManager::class.java) ?: return
+        if (pm.isInteractive) return
+        // SCREEN_BRIGHT + ACQUIRE_CAUSES_WAKEUP ist veraltet, schaltet das Display aber weiterhin ein.
+        runCatching {
+            pm.newWakeLock(
+                android.os.PowerManager.SCREEN_BRIGHT_WAKE_LOCK or android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP or
+                    android.os.PowerManager.ON_AFTER_RELEASE,
+                "FahrradComputer:hinweis",
+            ).acquire(WAKE_SCREEN_MS)
+        }
+    }
+
     override fun onDestroy() {
+        runCatching { cpuLock?.takeIf { it.isHeld }?.release() }
         // Nur bei einem echten Stopp - wird der Dienst vom System beendet, laeuft die Fahrt
         // noch (Phase != IDLE) und "angekommen" waere falsch.
         if (startSmsSent && session.phase.value == RidePhase.IDLE) {
@@ -360,6 +406,7 @@ class RideService : Service() {
         private const val CHANNEL_ID = "fahrt"
         private const val NOTIFICATION_ID = 1
         private const val GPS_STALE_MS = 10_000L
+        private const val WAKE_SCREEN_MS = 10_000L
         private const val START_FIX_WAIT_MS = 120_000L
     }
 }

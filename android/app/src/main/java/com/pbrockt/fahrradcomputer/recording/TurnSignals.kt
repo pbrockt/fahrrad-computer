@@ -60,6 +60,16 @@ class TurnSignals(context: Context) {
         }
     }
 
+    /** Warnung (z. B. Akku knapp): drei tiefe Toene, lange Vibration. */
+    fun warning(vibrate: Boolean, sound: Boolean) {
+        if (vibrate) runCatching { vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 400, 200, 400), -1)) }
+        if (sound) {
+            for (i in 0 until 3) {
+                handler.postDelayed({ runCatching { tone?.startTone(ToneGenerator.TONE_PROP_NACK, 200) } }, i * 350L)
+            }
+        }
+    }
+
     /** Zum Ausprobieren in den Einstellungen. */
     fun test() = beeps(2)
 

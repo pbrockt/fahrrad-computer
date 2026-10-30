@@ -50,7 +50,7 @@ import com.pbrockt.fahrradcomputer.ui.map.mapAvailable
 import java.util.Locale
 
 @Composable
-fun RideDetailScreen(vm: MainViewModel, ride: RideSummary, onBack: () -> Unit) {
+fun RideDetailScreen(vm: MainViewModel, ride: RideSummary, onBack: () -> Unit, summary: Boolean = false) {
     val context = LocalContext.current
     val settings by vm.settings.collectAsStateWithLifecycle()
     val health by vm.healthState.collectAsStateWithLifecycle()
@@ -66,9 +66,21 @@ fun RideDetailScreen(vm: MainViewModel, ride: RideSummary, onBack: () -> Unit) {
     val zones = settings.zones
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück") }
-            Text(rideTitle(ride), fontWeight = FontWeight.Bold, fontSize = 17.sp)
+        if (summary) {
+            // Direkt nach der Fahrt: grosse Ueberschrift statt Zurueck-Pfeil.
+            Text(
+                "Geschafft!", fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 34.sp,
+                color = AppColors.Accent, modifier = Modifier.padding(top = 12.dp),
+            )
+            Text(
+                rideTitle(ride) + if (ride.healthConnectSynced) " · an Health Connect gesendet" else "",
+                color = AppColors.Dim, fontSize = 14.sp, modifier = Modifier.padding(bottom = 8.dp),
+            )
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück") }
+                Text(rideTitle(ride), fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            }
         }
 
         StatGrid(ride)
@@ -140,6 +152,18 @@ fun RideDetailScreen(vm: MainViewModel, ride: RideSummary, onBack: () -> Unit) {
             Text(
                 "Health Connect ist nicht verbunden – unter Einstellungen einrichten.",
                 color = AppColors.Dim, fontSize = 13.sp, modifier = Modifier.padding(bottom = 12.dp),
+            )
+        }
+        if (summary) {
+            androidx.compose.material3.Button(
+                onClick = onBack,
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = AppColors.Accent, contentColor = Color.White),
+                shape = RoundedCornerShape(18.dp),
+                modifier = Modifier.fillMaxWidth().height(58.dp).padding(bottom = 4.dp),
+            ) { Text("Fertig", fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 22.sp) }
+            Text(
+                "Die Fahrt steht auch später unter Verlauf.",
+                color = AppColors.Dim, fontSize = 13.sp, modifier = Modifier.padding(bottom = 16.dp),
             )
         }
     }

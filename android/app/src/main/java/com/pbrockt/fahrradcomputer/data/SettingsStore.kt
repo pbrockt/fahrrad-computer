@@ -22,6 +22,13 @@ import kotlinx.coroutines.flow.map
 import java.time.DayOfWeek
 import java.time.LocalDate
 
+/** Display waehrend der Fahrt. Die Aufzeichnung laeuft in jedem Fall weiter. */
+enum class ScreenMode(val label: String, val hint: String) {
+    ALWAYS_ON("Immer an", "Braucht am meisten Akku."),
+    WAKE_ON_ALERT("Aus, bei Hinweisen an", "Geht nach der System-Zeit aus; Abbiegen, Anstiege und Warnungen schalten es kurz ein."),
+    OFF("Aus", "Geht nach der System-Zeit aus; Hinweise nur als Ton und Vibration."),
+}
+
 private val Context.dataStore by preferencesDataStore(name = "einstellungen")
 
 data class AppSettings(
@@ -83,6 +90,10 @@ data class AppSettings(
     val volumeKeyPaging: Boolean = true,
     /** Kurz vor einem Anstieg der Route Hinweis und Ton. */
     val climbAlert: Boolean = true,
+    /** Warnen, wenn Handy- oder Sensor-Akku waehrend der Fahrt knapp wird. */
+    val batteryAlert: Boolean = true,
+    /** Display waehrend der Fahrt: immer an, oder aus und bei Hinweisen kurz an. */
+    val screenMode: ScreenMode = ScreenMode.WAKE_ON_ALERT,
     /** Doppeltippen auf den Tacho laesst die Klingel ertoenen. */
     val bellOnDoubleTap: Boolean = true,
     val dashboard: DashboardLayout = DashboardLayout.DEFAULT,
@@ -174,6 +185,8 @@ class SettingsStore(private val context: Context) {
         val AUTO_PAUSE = booleanPreferencesKey("auto_pause")
         val VOLUME_KEY_PAGING = booleanPreferencesKey("volume_key_paging")
         val CLIMB_ALERT = booleanPreferencesKey("climb_alert")
+        val BATTERY_ALERT = booleanPreferencesKey("battery_alert")
+        val SCREEN_MODE = stringPreferencesKey("screen_mode")
         val BELL = booleanPreferencesKey("bell_double_tap")
         val DASHBOARD = stringPreferencesKey("dashboard_layout")
         val REST_HR = intPreferencesKey("rest_hr")
@@ -234,6 +247,8 @@ class SettingsStore(private val context: Context) {
             autoPause = p[Keys.AUTO_PAUSE] ?: true,
             volumeKeyPaging = p[Keys.VOLUME_KEY_PAGING] ?: true,
             climbAlert = p[Keys.CLIMB_ALERT] ?: true,
+            batteryAlert = p[Keys.BATTERY_ALERT] ?: true,
+            screenMode = p[Keys.SCREEN_MODE]?.let { runCatching { ScreenMode.valueOf(it) }.getOrNull() } ?: ScreenMode.WAKE_ON_ALERT,
             bellOnDoubleTap = p[Keys.BELL] ?: true,
             themeMode = p[Keys.THEME]
                 ?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
@@ -307,6 +322,8 @@ class SettingsStore(private val context: Context) {
     suspend fun setAutoPause(value: Boolean) = set(Keys.AUTO_PAUSE, value)
     suspend fun setVolumeKeyPaging(value: Boolean) = set(Keys.VOLUME_KEY_PAGING, value)
     suspend fun setClimbAlert(value: Boolean) = set(Keys.CLIMB_ALERT, value)
+    suspend fun setBatteryAlert(value: Boolean) = set(Keys.BATTERY_ALERT, value)
+    suspend fun setScreenMode(value: ScreenMode) = set(Keys.SCREEN_MODE, value.name)
     suspend fun setBellOnDoubleTap(value: Boolean) = set(Keys.BELL, value)
     suspend fun setCoachGoal(value: String) = set(Keys.COACH_GOAL, value.take(300))
     suspend fun setCoachNotes(value: String) = set(Keys.COACH_NOTES, value.take(500))

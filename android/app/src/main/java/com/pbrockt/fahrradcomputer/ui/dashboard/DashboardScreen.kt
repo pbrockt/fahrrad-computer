@@ -55,6 +55,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pbrockt.fahrradcomputer.MainViewModel
 import com.pbrockt.fahrradcomputer.coach.PlanMatching
 import com.pbrockt.fahrradcomputer.recording.GpsStatus
+import com.pbrockt.fahrradcomputer.ui.RideDetailScreen
+import com.pbrockt.fahrradcomputer.data.ScreenMode
+import com.pbrockt.fahrradcomputer.recording.RideAlert
 import kotlin.math.roundToInt
 import com.pbrockt.fahrradcomputer.routes.RouteProfile
 import com.pbrockt.fahrradcomputer.recording.ClimbNotice
@@ -104,11 +107,22 @@ fun DashboardScreen(
     val climb by vm.ride.climb.collectAsStateWithLifecycle()
     val weather by vm.weather.collectAsStateWithLifecycle()
 
-    // Display anlassen, solange der Fahrt-Bildschirm zu sehen ist.
+    // Display anlassen, solange der Fahrt-Bildschirm zu sehen ist - ausser der Display-Modus
+    // spart Akku; die Aufzeichnung laeuft im Dienst ohnehin weiter.
     val view = LocalView.current
-    DisposableEffect(view) {
-        view.keepScreenOn = true
+    val keepOn = settings.screenMode == ScreenMode.ALWAYS_ON || phase == RidePhase.IDLE
+    DisposableEffect(view, keepOn) {
+        view.keepScreenOn = keepOn
         onDispose { view.keepScreenOn = false }
+    }
+
+    // Nach dem Beenden: Zusammenfassung mit Karte, Zahlen und Zonen statt eines Textfensters.
+    val rides by vm.rides.collectAsStateWithLifecycle()
+    val summary = finished?.id?.let { id -> rides.firstOrNull { it.id == id } }
+    if (summary != null) {
+        androidx.activity.compose.BackHandler(onBack = vm::dismissFinished)
+        RideDetailScreen(vm, summary, onBack = vm::dismissFinished, summary = true)
+        return
     }
 
     var editing by rememberSaveable { mutableStateOf(false) }
@@ -165,6 +179,8 @@ fun DashboardScreen(
     val names = listOf("Start") + layout.pages.map { it.name }
     val autoPaused by vm.ride.autoPaused.collectAsStateWithLifecycle()
     val climbNotice by vm.ride.climbNotice.collectAsStateWithLifecycle()
+    val alert by vm.ride.alert.collectAsStateWithLifecycle()
+    var alertDismissed by remember { mutableStateOf<RideAlert?>(null) }
     var climbDismissed by remember { mutableStateOf<ClimbNotice?>(null) }
 
     // Lautstaerketasten blaettern - nur waehrend der Fahrt, sonst regeln sie die Lautstaerke.
@@ -249,6 +265,10 @@ fun DashboardScreen(
         // Hinweis auf den naechsten Anstieg: 15 s sichtbar, Antippen blendet ihn aus.
         climbNotice?.takeIf { !editing && it != climbDismissed && now - it.timeMs < CLIMB_NOTICE_MS }?.let { n ->
             ClimbBanner(n, Modifier.align(Alignment.TopCenter)) { climbDismissed = n }
+        }
+        // Warnungen (Akku) 20 s lang, ueber dem Anstiegs-Hinweis.
+        alert?.takeIf { !editing && it != alertDismissed && now - it.timeMs < ALERT_MS }?.let { a ->
+            NoticeBanner(AppColors.Stop, "Akku knapp", a.text, AppColors.Text, Modifier.align(Alignment.TopCenter)) { alertDismissed = a }
         }
         }
         PageDashes(names.size, pager.currentPage)
@@ -467,22 +487,29 @@ private const val CLIMB_NOTICE_MS = 15_000L
 private fun ClimbBanner(n: ClimbNotice, modifier: Modifier, onDismiss: () -> Unit) {
     val c = n.climb
     val gradeColor = Color(RouteProfile.GRADE_COLORS[RouteProfile.gradeLevel(c.avgGrade)])
+    NoticeBanner(
+        gradeColor,
+        if (n.aheadM < 50) "Anstieg beginnt" else "Anstieg in ${(n.aheadM / 10).roundToInt() * 10} m",
+        "${formatDecimal(c.lengthM / 1000)} km · Ø ${formatDecimal(c.avgGrade)} % · ${c.gainM.roundToInt()} Hm",
+        gradeColor, modifier, onDismiss,
+    )
+}
+
+private const val ALERT_MS = 20_000L
+
+/** Hinweis oben ueber dem Tacho: farbiger Streifen, Titel, darunter Text. Antippen schliesst. */
+@Composable
+private fun NoticeBanner(stripe: Color, title: String, text: String, textColor: Color, modifier: Modifier, onDismiss: () -> Unit) {
     Row(
         modifier.padding(top = 10.dp, start = 12.dp, end = 12.dp).clip(RoundedCornerShape(18.dp))
             .background(AppColors.Panel).clickable(onClick = onDismiss)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(width = 8.dp, height = 46.dp).clip(RoundedCornerShape(4.dp)).background(gradeColor))
+        Box(Modifier.size(width = 8.dp, height = 46.dp).clip(RoundedCornerShape(4.dp)).background(stripe))
         Column(Modifier.padding(start = 12.dp)) {
-            Text(
-                if (n.aheadM < 50) "Anstieg beginnt" else "Anstieg in ${(n.aheadM / 10).roundToInt() * 10} m",
-                color = AppColors.Text, fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 24.sp,
-            )
-            Text(
-                "${formatDecimal(c.lengthM / 1000)} km · Ø ${formatDecimal(c.avgGrade)} % · ${c.gainM.roundToInt()} Hm",
-                color = gradeColor, fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 19.sp,
-            )
+            Text(title, color = AppColors.Text, fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 24.sp)
+            Text(text, color = textColor, fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 19.sp)
         }
     }
 }

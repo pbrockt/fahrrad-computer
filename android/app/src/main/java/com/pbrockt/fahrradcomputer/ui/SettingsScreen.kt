@@ -377,6 +377,14 @@ private fun DashboardPage(vm: MainViewModel) {
     Hint("Export sichert alle Seiten als Datei. Import und Zurücksetzen ersetzen die aktuellen Seiten.")
 
     Group("Klingel")
+    Group("Display während der Fahrt")
+    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        for (m in com.pbrockt.fahrradcomputer.data.ScreenMode.entries) {
+            FilterChip(selected = s.screenMode == m, onClick = { vm.setScreenMode(m) }, label = { Text(m.label) })
+        }
+    }
+    Hint(s.screenMode.hint + " Die Aufzeichnung läuft immer weiter; ist das Display an, steht der Tacho auch über dem Sperrbildschirm.")
+    SwitchRow("Warnen, wenn der Akku knapp wird", s.batteryAlert, "Handy bei 20 % und 10 %, Sensoren unter 15 % – einmal mit Ton und Vibration.", vm::setBatteryAlert)
     SwitchRow("Auto-Pause", s.autoPause, "Nach 5 s Stillstand pausieren, beim Losrollen weiter. Eine Pause per Knopf bleibt, bis du weiterdrückst.", vm::setAutoPause)
     SwitchRow("Seiten mit Lautstärketasten blättern", s.volumeKeyPaging, "Nur während der Fahrt: leiser = nächste Seite, lauter = vorige.", vm::setVolumeKeyPaging)
     SwitchRow("Klingel bei Doppeltippen", s.bellOnDoubleTap, "Zweimal auf den Tacho tippen. Lautstärke = Medienlautstärke.", vm::setBellOnDoubleTap)

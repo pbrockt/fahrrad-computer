@@ -599,6 +599,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setAutoPause(value: Boolean) = viewModelScope.launch { store.setAutoPause(value) }
     fun setVolumeKeyPaging(value: Boolean) = viewModelScope.launch { store.setVolumeKeyPaging(value) }
     fun setClimbAlert(value: Boolean) = viewModelScope.launch { store.setClimbAlert(value) }
+    fun setBatteryAlert(value: Boolean) = viewModelScope.launch { store.setBatteryAlert(value) }
+    fun setScreenMode(value: com.pbrockt.fahrradcomputer.data.ScreenMode) = viewModelScope.launch { store.setScreenMode(value) }
 
     /** Lautstaerketasten: -1 = Seite zurueck, +1 = Seite vor. Der Tacho blaettert dann. */
     val pageKeys = kotlinx.coroutines.flow.MutableSharedFlow<Int>(extraBufferCapacity = 4)

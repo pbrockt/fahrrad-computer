@@ -25,6 +25,9 @@ import java.time.format.DateTimeFormatter
 
 enum class RidePhase { IDLE, RECORDING, PAUSED }
 
+/** Eine Warnung waehrend der Fahrt, gemeldet zur Zeit [timeMs]. */
+data class RideAlert(val text: String, val timeMs: Long)
+
 /** Ein Anstieg liegt [aheadM] voraus; gemeldet zur Zeit [timeMs]. */
 data class ClimbNotice(val climb: com.pbrockt.fahrradcomputer.routes.RouteProfile.Climb, val aheadM: Double, val timeMs: Long)
 
@@ -57,6 +60,10 @@ class RideSession(
     private val _climbNotice = MutableStateFlow<ClimbNotice?>(null)
     val climbNotice: StateFlow<ClimbNotice?> = _climbNotice.asStateFlow()
     private val announcedClimbs = mutableSetOf<Int>()
+    /** Warnung waehrend der Fahrt (z. B. Akku) - der Tacho zeigt sie kurz an. */
+    private val _alert = MutableStateFlow<RideAlert?>(null)
+    val alert: StateFlow<RideAlert?> = _alert.asStateFlow()
+    fun showAlert(text: String, timeMs: Long = System.currentTimeMillis()) { _alert.value = RideAlert(text, timeMs) }
 
     private val _stats = MutableStateFlow(RideStats())
     val stats: StateFlow<RideStats> = _stats.asStateFlow()
@@ -126,6 +133,7 @@ class RideSession(
         routeTracker = _activeRoute.value?.let(::RouteTracker)
         announcedClimbs.clear()
         _climbNotice.value = null
+        _alert.value = null
         _progress.value = null
         _guidance.value = null
         file = File(ridesDir, "${LocalDateTime.now().format(FILE_NAME)}.gpx")
