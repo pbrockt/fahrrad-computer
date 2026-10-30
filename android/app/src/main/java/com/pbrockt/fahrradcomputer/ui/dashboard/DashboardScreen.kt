@@ -351,7 +351,7 @@ internal fun PageDashes(count: Int, current: Int) {
 /**
  * Schmale Leiste oben: Menue, Seitenname, Sensoren (mit Warnung bei schwachem Akku), GPS
  * und rechts die Bedienung - vor der Fahrt ein Play-Knopf, waehrend der Fahrt Pause und Stopp,
- * in der Pause "Weiter" und Stopp.
+ * in der Pause ein gruener Play-Knopf (weiter) und Stopp.
  */
 @Composable
 internal fun TopBar(
@@ -414,7 +414,7 @@ internal fun TopBar(
                     BarIcon(Icons.Filled.Stop, "Beenden", AppColors.Stop, Color.White, controls.onStop)
                 }
                 RidePhase.PAUSED -> {
-                    BarPill("Weiter", Icons.Filled.PlayArrow, AppColors.Go, controls.onResume)
+                    BarIcon(Icons.Filled.PlayArrow, "Weiter", AppColors.Go, Color.White, controls.onResume)
                     BarIcon(Icons.Filled.Stop, "Beenden", AppColors.Stop, Color.White, controls.onStop)
                 }
             }
@@ -430,18 +430,5 @@ private fun BarIcon(icon: ImageVector, description: String, bg: Color, fg: Color
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = description, tint = fg, modifier = Modifier.size(22.dp))
-    }
-}
-
-/** Pille mit Symbol und Wort in der Leiste oben, z. B. "▶ Los". */
-@Composable
-private fun BarPill(text: String, icon: ImageVector, bg: Color, onClick: () -> Unit) {
-    Row(
-        Modifier.height(36.dp).clip(RoundedCornerShape(50)).background(bg).clickable(onClick = onClick)
-            .padding(start = 8.dp, end = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
-        Text(text, color = Color.White, fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
     }
 }
