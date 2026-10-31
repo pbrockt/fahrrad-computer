@@ -48,6 +48,7 @@ enum class TileType(val label: String, val category: TileCategory) {
     DESCENT("Abstieg (gefahren)", TileCategory.ELEVATION),
     VAM("VAM (Höhenmeter pro Stunde)", TileCategory.ELEVATION),
     CLIMB("Anstieg: aktuell / nächster", TileCategory.ELEVATION),
+    CLIMB_SECTIONS("Anstieg/Abfahrt grafisch: dieser & nächster", TileCategory.ELEVATION),
     ELEVATION_PROFILE("Höhenprofil der Route", TileCategory.ELEVATION),
     ROUTE_ASCENT_LEFT("Rest-Höhenmeter der Route", TileCategory.ELEVATION),
 

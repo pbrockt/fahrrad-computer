@@ -27,6 +27,11 @@ import com.pbrockt.fahrradcomputer.ui.AppColors
 import com.pbrockt.fahrradcomputer.ui.FahrradTheme
 import com.pbrockt.fahrradcomputer.ui.ThemeMode
 import com.pbrockt.fahrradcomputer.ui.dashboard.DashboardLayout
+import com.pbrockt.fahrradcomputer.ui.dashboard.DashboardPage
+import com.pbrockt.fahrradcomputer.ui.dashboard.RowHeight
+import com.pbrockt.fahrradcomputer.ui.dashboard.TileRow
+import com.pbrockt.fahrradcomputer.ui.dashboard.TileSlot
+import com.pbrockt.fahrradcomputer.ui.dashboard.TileType
 import com.pbrockt.fahrradcomputer.ui.dashboard.PageDashes
 import com.pbrockt.fahrradcomputer.ui.dashboard.PageView
 import com.pbrockt.fahrradcomputer.ui.dashboard.RideControls
@@ -91,9 +96,11 @@ class ScreenshotTest {
         phoneBattery = 57,
     )
 
-    private fun shoot(name: String, page: Int, mode: ThemeMode, phase: RidePhase = RidePhase.RECORDING) {
+    private fun shoot(
+        name: String, page: Int, mode: ThemeMode, phase: RidePhase = RidePhase.RECORDING,
+        layout: DashboardLayout = DashboardLayout.DEFAULT,
+    ) {
         val now = track.last().timeMs
-        val layout = DashboardLayout.DEFAULT
         compose.setContent {
             FahrradTheme(mode) {
                 Column(Modifier.fillMaxSize().background(AppColors.Bg)) {
@@ -132,6 +139,20 @@ class ScreenshotTest {
     fun climbPageLight() {
         assumeTrue(outDir != null)
         shoot("berg-hell", 2, ThemeMode.LIGHT)
+    }
+
+    @Test
+    fun sectionsTileDark() {
+        assumeTrue(outDir != null)
+        val page = DashboardPage(
+            "Anstiege",
+            listOf(
+                TileRow(listOf(TileSlot(TileType.CLIMB_SECTIONS)), RowHeight.LARGE),
+                TileRow(listOf(TileSlot(TileType.CLIMB_SECTIONS)), RowHeight.MEDIUM),
+                TileRow(listOf(TileSlot(TileType.CLIMB_SECTIONS), TileSlot(TileType.GRADE)), RowHeight.SMALL),
+            ),
+        )
+        shoot("anstiege-dunkel", 0, ThemeMode.DARK, layout = DashboardLayout(listOf(page)))
     }
 
     @Test

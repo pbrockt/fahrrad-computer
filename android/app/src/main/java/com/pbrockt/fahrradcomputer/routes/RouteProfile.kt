@@ -48,6 +48,13 @@ class RouteProfile(
     /** Naechster Anstieg nach [d]. */
     fun nextClimb(d: Double): Climb? = climbs.firstOrNull { it.startM > d }
 
+    /** Anstiege, Abfahrten und flache Stuecke der ganzen Route, einmal berechnet. */
+    val sections: List<Section> by lazy { RouteSections.of(this) }
+
+    /** Index des Abschnitts bei [d], -1 hinter dem Ziel. */
+    fun sectionIndexAt(d: Double): Int =
+        if (d > lengthM) -1 else sections.indexOfLast { it.startM <= d }.coerceAtLeast(0)
+
     /**
      * Sucht Anstiege: vom tiefsten Punkt seit dem letzten Anstieg bis zum Gipfel. Ein Anstieg
      * endet, wenn es danach deutlich bergab geht (mind. 10 m oder ein Fuenftel des Gewinns).

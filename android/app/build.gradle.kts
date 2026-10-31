@@ -18,8 +18,8 @@ android {
         // versionCode steigt bei jedem veroeffentlichten Build, auch bei Alphas - sonst
         // verweigert Android das Update. versionName folgt SemVer: "x.y.z" ist ein
         // Release, "x.y.z-alpha.N" eine Alpha. release.yml prueft, dass der Tag passt.
-        versionCode = 27
-        versionName = "0.0.21-alpha.1"
+        versionCode = 28
+        versionName = "0.0.22-alpha.1"
 
         buildConfigField("String", "UPDATE_REPO", "\"pbrockt/fahrrad-computer\"")
     }

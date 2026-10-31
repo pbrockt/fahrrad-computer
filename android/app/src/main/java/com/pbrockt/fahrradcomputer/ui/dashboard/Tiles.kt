@@ -274,6 +274,7 @@ fun Tile(type: TileType, d: TileData, modifier: Modifier, mapId: String = "dash"
             "VAM", d.climb.vamMh?.takeIf { !idle }?.roundToInt()?.toString() ?: "--", modifier, "m/h", c.Grade,
         )
         TileType.CLIMB -> ClimbTile(d, modifier)
+        TileType.CLIMB_SECTIONS -> SectionsTile(d, modifier)
         TileType.ETA -> {
             val p = d.progress
             val kmh = s.avgSpeedKmh.takeIf { it > 5 } ?: 18.0
