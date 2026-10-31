@@ -94,6 +94,9 @@ class ScreenshotTest {
         weightKg = 80.0,
         ftp = 210.0,
         phoneBattery = 57,
+        live = com.pbrockt.fahrradcomputer.ui.dashboard.LiveUi(
+            com.pbrockt.fahrradcomputer.live.LiveState.LIVE, true, null, now - 12_000, {}, {}, {}, {}, {},
+        ),
     )
 
     private fun shoot(
@@ -153,6 +156,21 @@ class ScreenshotTest {
             ),
         )
         shoot("anstiege-dunkel", 0, ThemeMode.DARK, layout = DashboardLayout(listOf(page)))
+    }
+
+    @Test
+    fun customTilesLight() {
+        assumeTrue(outDir != null)
+        val custom = { o: Map<String, String> -> TileSlot(TileType.CUSTOM, options = o) }
+        val page = DashboardPage(
+            "Eigene",
+            listOf(
+                TileRow(listOf(TileSlot(TileType.LIVE_CONTROL)), RowHeight.MEDIUM),
+                TileRow(listOf(custom(mapOf("name" to "Berg-Mix", "v1" to "grade", "v2" to "vam", "v3" to "hr", "color" to "red"))), RowHeight.LARGE),
+                TileRow(listOf(custom(mapOf("v1" to "speed", "color" to "blue")), custom(mapOf("v1" to "power", "v2" to "cadence"))), RowHeight.MEDIUM),
+            ),
+        )
+        shoot("eigene-hell", 0, ThemeMode.LIGHT, layout = DashboardLayout(listOf(page)))
     }
 
     @Test

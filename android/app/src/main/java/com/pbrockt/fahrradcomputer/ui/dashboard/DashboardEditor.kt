@@ -88,9 +88,21 @@ fun EditablePage(page: DashboardPage, pageIndex: Int, data: TileData, onEdit: Ed
         // Fehlt die Kachel (gerade entfernt), einfach keinen Dialog zeigen.
         val slot = page.rows.getOrNull(r)?.tiles?.getOrNull(c)
         if (slot != null) {
+            val rowTiles = page.rows[r].tiles.size
             TileDialog(
                 slot = slot,
                 canWiden = LayoutEditor.canWiden(page.rows[r], c),
+                move = TileMoves(
+                    left = if (c > 0) ({ onEdit { LayoutEditor.moveTile(it, pageIndex, r, c, -1) }; tileDialog = r to c - 1 }) else null,
+                    right = if (c < rowTiles - 1) ({ onEdit { LayoutEditor.moveTile(it, pageIndex, r, c, 1) }; tileDialog = r to c + 1 }) else null,
+                    up = (r - 1).takeIf { LayoutEditor.canMoveToRow(layoutOf(page), 0, r, c, it) }?.let { t ->
+                        { val (_, pos) = LayoutEditor.moveTileToRow(layoutOf(page), 0, r, c, t); onEdit { LayoutEditor.moveTileToRow(it, pageIndex, r, c, t).first }; tileDialog = pos }
+                    },
+                    down = (r + 1).takeIf { LayoutEditor.canMoveToRow(layoutOf(page), 0, r, c, it) }?.let { t ->
+                        { val (_, pos) = LayoutEditor.moveTileToRow(layoutOf(page), 0, r, c, t); onEdit { LayoutEditor.moveTileToRow(it, pageIndex, r, c, t).first }; tileDialog = pos }
+                    },
+                    ownRow = if (rowTiles > 1) ({ onEdit { LayoutEditor.moveTileToNewRow(it, pageIndex, r, c) }; tileDialog = r + 1 to 0 }) else null,
+                ),
                 onType = { t -> onEdit { LayoutEditor.setTileType(it, pageIndex, r, c, t) } },
                 onToggleWide = { onEdit { LayoutEditor.toggleWide(it, pageIndex, r, c) } },
                 onOption = { key, value -> onEdit { LayoutEditor.setTileOption(it, pageIndex, r, c, key, value) } },
@@ -103,6 +115,18 @@ fun EditablePage(page: DashboardPage, pageIndex: Int, data: TileData, onEdit: Ed
         }
     }
 }
+
+/** Die Seite allein als Layout - fuer die Berechnung, wo eine verschobene Kachel landet. */
+private fun layoutOf(page: DashboardPage) = DashboardLayout(listOf(page))
+
+/** Wohin sich die Kachel verschieben laesst; null = geht gerade nicht. */
+private class TileMoves(
+    val left: (() -> Unit)?,
+    val right: (() -> Unit)?,
+    val up: (() -> Unit)?,
+    val down: (() -> Unit)?,
+    val ownRow: (() -> Unit)?,
+)
 
 @Composable
 private fun RowMenu(page: DashboardPage, pageIndex: Int, r: Int, onEdit: Edit) {
@@ -140,6 +164,7 @@ private fun RowMenu(page: DashboardPage, pageIndex: Int, r: Int, onEdit: Edit) {
 private fun TileDialog(
     slot: TileSlot,
     canWiden: Boolean,
+    move: TileMoves,
     onType: (TileType) -> Unit,
     onToggleWide: () -> Unit,
     onOption: (String, String) -> Unit,
@@ -151,6 +176,24 @@ private fun TileDialog(
         title = { Text("Kachel") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
+                // Verschieben ganz oben - das braucht man beim Sortieren immer wieder.
+                Text("Verschieben", color = AppColors.Accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    @Composable
+                    fun MoveChip(text: String, action: (() -> Unit)?) {
+                        androidx.compose.material3.AssistChip(onClick = { action?.invoke() }, enabled = action != null, label = { Text(text) })
+                    }
+                    MoveChip("← Links", move.left)
+                    MoveChip("Rechts →", move.right)
+                    MoveChip("↑ Zeile darüber", move.up)
+                    MoveChip("↓ Zeile darunter", move.down)
+                    MoveChip("Eigene Zeile", move.ownRow)
+                }
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                if (slot.type == TileType.CUSTOM) {
+                    CustomTileSettings(slot.options, onOption)
+                    HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                }
                 // Einstellungen der gewaehlten Kachel zuerst - die lange Liste kommt danach.
                 val opts = TileOptions.forType(slot.type)
                 if (opts.isNotEmpty()) {
@@ -209,6 +252,51 @@ private fun TileDialog(
     )
 }
 
+/** Eigene Kachel: Name, bis zu drei Werte, Farbe. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun CustomTileSettings(options: Map<String, String>, onOption: (String, String) -> Unit) {
+    Text("EIGENE KACHEL", color = AppColors.Accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+    var name by remember { mutableStateOf(options[CustomTileKeys.NAME].orEmpty()) }
+    OutlinedTextField(
+        value = name,
+        onValueChange = { name = it.take(30); onOption(CustomTileKeys.NAME, name) },
+        label = { Text("Name (leer = Name des Werts)") },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    CustomTileKeys.VALUES.forEachIndexed { i, key ->
+        Text(if (i == 0) "Wert 1" else "Wert ${i + 1} (optional)", modifier = Modifier.padding(top = 8.dp))
+        var open by remember { mutableStateOf(false) }
+        val current = Metric.of(options[key])
+        Box {
+            OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth()) {
+                Text(current?.label ?: if (i == 0) "Tempo" else "– keiner –")
+            }
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                if (i > 0) DropdownMenuItem(text = { Text("– keiner –") }, onClick = { open = false; onOption(key, "") })
+                for (m in Metric.entries) {
+                    DropdownMenuItem(
+                        text = { Text(m.label + if (m.unit.isNotEmpty()) " (${m.unit})" else "") },
+                        onClick = { open = false; onOption(key, m.key) },
+                    )
+                }
+            }
+        }
+    }
+    Text("Farbe", modifier = Modifier.padding(top = 8.dp))
+    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        val selected = CustomColor.of(options[CustomTileKeys.COLOR])
+        for (c in CustomColor.entries) {
+            androidx.compose.material3.FilterChip(
+                selected = selected == c,
+                onClick = { onOption(CustomTileKeys.COLOR, c.key) },
+                label = { Text(c.label, color = c.color(AppColors)) },
+            )
+        }
+    }
+}
+
 /** Leiste unten im Bearbeiten-Modus - ersetzt dort Start/Pause/Stopp. */
 @Composable
 fun EditBar(
@@ -224,6 +312,12 @@ fun EditBar(
     var confirmDelete by remember { mutableStateOf(false) }
     var confirmReset by remember { mutableStateOf(false) }
     var scrollToLast by remember { mutableStateOf(false) }
+    var choosingTemplate by remember { mutableStateOf(false) }
+    // Nach "Seite verschieben" mitblaettern, sobald das neue Layout da ist.
+    var pendingScroll by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(layout) {
+        pendingScroll?.let { scrollToPage(it); pendingScroll = null }
+    }
 
     // Nach "Neue Seite" dorthin blaettern, sobald sie im gespeicherten Layout angekommen ist.
     LaunchedEffect(layout.pages.size) {
@@ -246,11 +340,17 @@ fun EditBar(
                 Text("Seite …")
             }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                DropdownMenuItem(text = { Text("Neue Seite") }, onClick = {
-                    menu = false
-                    scrollToLast = true
-                    vm.editDashboard { LayoutEditor.addPage(it, "Seite ${it.pages.size + 1}") }
-                })
+                DropdownMenuItem(text = { Text("Neue Seite …") }, onClick = { menu = false; choosingTemplate = true })
+                DropdownMenuItem(
+                    text = { Text("← Seite nach links") },
+                    enabled = page > 0,
+                    onClick = { menu = false; pendingScroll = page - 1; vm.editDashboard { LayoutEditor.movePage(it, page, -1) } },
+                )
+                DropdownMenuItem(
+                    text = { Text("Seite nach rechts →") },
+                    enabled = page < layout.pages.lastIndex,
+                    onClick = { menu = false; pendingScroll = page + 1; vm.editDashboard { LayoutEditor.movePage(it, page, 1) } },
+                )
                 DropdownMenuItem(text = { Text("Umbenennen") }, onClick = { menu = false; renaming = true })
                 DropdownMenuItem(
                     text = { Text("Seite löschen") },
@@ -266,6 +366,40 @@ fun EditBar(
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Go, contentColor = AppColors.OnZone),
             modifier = Modifier.weight(1f).height(56.dp),
         ) { Text("Fertig", fontWeight = FontWeight.Bold) }
+    }
+
+    if (choosingTemplate) {
+        AlertDialog(
+            onDismissRequest = { choosingTemplate = false },
+            title = { Text("Neue Seite") },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Text("Als Vorlage nehmen – danach frei anpassen:", color = AppColors.Dim)
+                    @Composable
+                    fun Choice(title: String, detail: String, add: (DashboardLayout) -> DashboardLayout) {
+                        Column(
+                            Modifier.fillMaxWidth().clickable {
+                                choosingTemplate = false
+                                scrollToLast = true
+                                vm.editDashboard(add)
+                            }.padding(vertical = 10.dp),
+                        ) {
+                            Text(title, fontWeight = FontWeight.SemiBold)
+                            Text(detail, color = AppColors.Dim, fontSize = 13.sp)
+                        }
+                        HorizontalDivider()
+                    }
+                    Choice("Leer", "Eine Kachel – alles Weitere selbst") { LayoutEditor.addPage(it, "Seite ${it.pages.size + 1}") }
+                    for (t in PageTemplates.ALL) {
+                        Choice(t.name, t.rows.flatMap { r -> r.tiles.map { it.type.label.substringBefore(" (") } }.joinToString(", ")) {
+                            LayoutEditor.addPageFrom(it, t)
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { choosingTemplate = false }) { Text("Abbrechen") } },
+        )
     }
 
     if (renaming) {

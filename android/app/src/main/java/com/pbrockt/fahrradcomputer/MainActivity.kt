@@ -55,6 +55,7 @@ import com.pbrockt.fahrradcomputer.ui.AppScreen
 import com.pbrockt.fahrradcomputer.ui.Condensed
 import com.pbrockt.fahrradcomputer.ui.TrainerScreen
 import com.pbrockt.fahrradcomputer.recording.RidePhase
+import com.pbrockt.fahrradcomputer.live.LiveState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -129,6 +130,61 @@ class MainActivity : ComponentActivity() {
                 }
                 AppRoot(vm)
                 LivePairingDialog(vm)
+            }
+        }
+    }
+}
+
+/**
+ * Live-Uebertragung im Menue: ein grosser Knopf, der je nach Zustand startet, pausiert oder
+ * weitermacht, daneben "Beenden". Gleiche Logik wie die Kachel "Live-Übertragung".
+ */
+@Composable
+private fun LiveMenuSection(vm: MainViewModel, onSetup: () -> Unit) {
+    val settings by vm.settings.collectAsStateWithLifecycle()
+    val state by vm.live.state.collectAsStateWithLifecycle()
+    val info by vm.live.info.collectAsStateWithLifecycle()
+    val phase by vm.ride.phase.collectAsStateWithLifecycle()
+    val configured = settings.liveLinkUrl.isNotBlank() && settings.liveLinkToken.isNotBlank()
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Text(
+            "LIVE-ÜBERTRAGUNG", color = AppColors.Dim, fontFamily = Condensed, fontWeight = FontWeight.SemiBold,
+            fontSize = 15.sp, letterSpacing = 1.sp,
+        )
+        val status = when {
+            !configured -> "noch nicht eingerichtet"
+            state == LiveState.LIVE && phase == RidePhase.IDLE -> "startet mit der Fahrt"
+            state == LiveState.LIVE -> "läuft"
+            state == LiveState.PAUSED -> "pausiert – Position wird nicht gesendet"
+            state == LiveState.ENDED -> "beendet"
+            state == LiveState.CONNECTING -> "verbinde …"
+            state == LiveState.READY -> "verbunden, bereit"
+            else -> "aus"
+        }
+        Text(status, color = AppColors.Text, fontSize = 15.sp, modifier = Modifier.padding(top = 2.dp))
+        info?.let { Text(it, color = AppColors.Dim, fontSize = 13.sp, maxLines = 2) }
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            @Composable
+            fun Btn(text: String, color: androidx.compose.ui.graphics.Color, weight: Float, onClick: () -> Unit) {
+                androidx.compose.material3.Button(
+                    onClick = onClick,
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = color, contentColor = androidx.compose.ui.graphics.Color.White),
+                    modifier = Modifier.weight(weight).height(52.dp),
+                ) { Text(text, fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, maxLines = 1) }
+            }
+            when {
+                !configured -> Btn("Einrichten", AppColors.Accent, 1f, onSetup)
+                state == LiveState.LIVE -> {
+                    Btn("Pausieren", androidx.compose.ui.graphics.Color(0xFFF08A00), 1.4f, vm::pauseLive)
+                    Btn("Beenden", AppColors.Stop, 1f, vm::endLive)
+                }
+                state == LiveState.PAUSED -> {
+                    Btn("Weiter", AppColors.Go, 1.4f, vm::resumeLive)
+                    Btn("Beenden", AppColors.Stop, 1f, vm::endLive)
+                }
+                state == LiveState.ENDED -> Btn("Neu starten", AppColors.Accent, 1f, vm::startLive)
+                state == LiveState.CONNECTING -> Btn("Verbinde …", AppColors.Dim, 1f) {}
+                else -> Btn("Live starten", AppColors.Accent, 1f, vm::startLive)
             }
         }
     }
@@ -307,6 +363,11 @@ private fun AppRoot(vm: MainViewModel) {
                         scope.launch { drawer.close() }
                     }
                 }
+                HorizontalDivider(color = AppColors.Line)
+                LiveMenuSection(vm, onSetup = {
+                    screen = AppScreen.SETTINGS
+                    scope.launch { drawer.close() }
+                })
             }
         },
     ) {

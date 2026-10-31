@@ -290,6 +290,7 @@ fun Tile(type: TileType, d: TileData, modifier: Modifier, mapId: String = "dash"
         )
         TileType.CLIMB -> ClimbTile(d, modifier)
         TileType.CLIMB_SECTIONS -> SectionsTile(d, modifier)
+        TileType.CUSTOM -> CustomTile(d, options, modifier)
         TileType.LIVE_CONTROL -> {
             val live = d.live
             if (live == null || !d.interactive) ValueTile("Live-Übertragung", "aus", modifier)

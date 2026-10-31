@@ -41,7 +41,7 @@ internal fun LiveControlTile(live: LiveUi, phase: RidePhase, now: Long, modifier
         live.state == LiveState.CONNECTING -> "verbinde …" to AppColors.Dim
         live.state == LiveState.READY -> "bereit" to AppColors.Go
         live.state == LiveState.LIVE && phase == RidePhase.IDLE -> "startet mit der Fahrt" to AppColors.Accent
-        live.state == LiveState.LIVE -> "live" + (live.lastSentMs?.let { " · vor ${((now - it) / 1000).coerceAtLeast(0)} s" } ?: "") to Color(0xFFE53935)
+        live.state == LiveState.LIVE -> "läuft" + (live.lastSentMs?.let { " · vor ${((now - it) / 1000).coerceAtLeast(0)} s" } ?: "") to Color(0xFFE53935)
         live.state == LiveState.PAUSED -> "pausiert – Position wird nicht gesendet" to Color(0xFFF08A00)
         else -> "beendet" to AppColors.Dim
     }

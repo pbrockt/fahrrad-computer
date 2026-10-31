@@ -11,6 +11,7 @@ enum class TileCategory(val label: String) {
     NAVIGATION("Karte & Navigation"),
     WEATHER("Wetter & Umgebung"),
     OTHER("Sonstiges"),
+    CUSTOM("Eigene"),
 }
 
 /** Was eine Kachel anzeigen kann. Die Reihenfolge hier ist egal - gespeichert wird der Name. */
@@ -66,6 +67,7 @@ enum class TileType(val label: String, val category: TileCategory) {
     TRAINING_GOAL("Trainingsziel heute", TileCategory.OTHER),
     PHONE_BATTERY("Handy-Akku", TileCategory.OTHER),
     CONTROLS("Start / Pause / Stopp", TileCategory.OTHER),
+    CUSTOM("Eigene Kachel (selbst zusammenstellen)", TileCategory.CUSTOM),
     LIVE_CONTROL("Live-Übertragung: verbinden, starten, pausieren, beenden", TileCategory.NAVIGATION),
 }
 
@@ -164,4 +166,37 @@ data class DashboardLayout(val pages: List<DashboardPage>) {
             )
         )
     }
+}
+
+/** Vorlagen fuer "Neue Seite": die Standard-Seiten und ein paar zusaetzliche. */
+object PageTemplates {
+    private fun row(height: RowHeight, vararg tiles: TileType) = TileRow(tiles.map { TileSlot(it) }, height)
+
+    val ALL: List<DashboardPage> = DashboardLayout.DEFAULT.pages + listOf(
+        DashboardPage(
+            "Live",
+            listOf(
+                row(RowHeight.MEDIUM, TileType.LIVE_CONTROL),
+                row(RowHeight.XLARGE, TileType.ROUTE),
+                row(RowHeight.SMALL, TileType.SPEED, TileType.DISTANCE, TileType.MOVING_TIME),
+            ),
+        ),
+        DashboardPage(
+            "Anstiege",
+            listOf(
+                row(RowHeight.XLARGE, TileType.CLIMB_SECTIONS),
+                row(RowHeight.MEDIUM, TileType.GRADE, TileType.VAM),
+                row(RowHeight.MEDIUM, TileType.SPEED, TileType.HEART_RATE),
+            ),
+        ),
+        DashboardPage(
+            "Training",
+            listOf(
+                row(RowHeight.MEDIUM, TileType.TRAINING_GOAL),
+                row(RowHeight.LARGE, TileType.HEART_RATE, TileType.POWER),
+                row(RowHeight.LARGE, TileType.HR_ZONE_CHART),
+                row(RowHeight.SMALL, TileType.MOVING_TIME, TileType.CALORIES, TileType.CADENCE),
+            ),
+        ),
+    )
 }

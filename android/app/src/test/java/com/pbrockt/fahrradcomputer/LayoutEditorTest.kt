@@ -95,4 +95,42 @@ class LayoutEditorTest {
         assertSame(layout, LayoutEditor.setTileType(layout, 3, 0, 0, TileType.CLOCK))
         assertSame(layout, LayoutEditor.removeRow(layout, 0, 9))
     }
+
+    @Test
+    fun moveTileWithinRow() {
+        val l = LayoutEditor.moveTile(layout, 0, 1, 0, 1)
+        assertEquals(listOf(TileType.CADENCE, TileType.HEART_RATE), row(l, 1).tiles.map { it.type })
+        assertSame(layout, LayoutEditor.moveTile(layout, 0, 1, 1, 1))
+    }
+
+    @Test
+    fun moveTileToOtherRowRemovesEmptyRow() {
+        val (l, pos) = LayoutEditor.moveTileToRow(layout, 0, 0, 0, 1)
+        assertEquals(1, l.pages[0].rows.size)
+        assertEquals(listOf(TileType.HEART_RATE, TileType.CADENCE, TileType.SPEED), row(l, 0).tiles.map { it.type })
+        assertEquals(0 to 2, pos)
+    }
+
+    @Test
+    fun moveTileOnlyIfTargetHasRoom() {
+        val full = LayoutEditor.addTile(layout, 0, 1)
+        assertFalse(LayoutEditor.canMoveToRow(full, 0, 0, 0, 1))
+        assertTrue(LayoutEditor.canMoveToRow(full, 0, 1, 0, 0))
+    }
+
+    @Test
+    fun tileToOwnRow() {
+        val l = LayoutEditor.moveTileToNewRow(layout, 0, 1, 1)
+        assertEquals(3, l.pages[0].rows.size)
+        assertEquals(listOf(TileType.CADENCE), row(l, 2).tiles.map { it.type })
+    }
+
+    @Test
+    fun pagesCanBeSortedAndCopiedFromTemplates() {
+        val two = LayoutEditor.addPageFrom(layout, DashboardLayout.DEFAULT.pages[0])
+        assertEquals(listOf("A", "Fahrt"), two.pages.map { it.name })
+        val three = LayoutEditor.addPageFrom(two, DashboardLayout.DEFAULT.pages[0])
+        assertEquals("Fahrt 2", three.pages[2].name)
+        assertEquals(listOf("Fahrt", "A", "Fahrt 2"), LayoutEditor.movePage(three, 1, -1).pages.map { it.name })
+    }
 }

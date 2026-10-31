@@ -72,6 +72,76 @@ object LayoutEditor {
         return l.mapPage(page) { it.copy(rows = rows) }
     }
 
+    /** Kachel innerhalb der Zeile um [delta] Plaetze verschieben (-1 = nach links). */
+    fun moveTile(l: DashboardLayout, page: Int, row: Int, col: Int, delta: Int): DashboardLayout {
+        val r = l.rowAt(page, row) ?: return l
+        val target = col + delta
+        if (col !in r.tiles.indices || target !in r.tiles.indices) return l
+        val tiles = r.tiles.toMutableList()
+        tiles.add(target, tiles.removeAt(col))
+        return l.mapRow(page, row) { it.copy(tiles = tiles) }
+    }
+
+    /** Passt die Kachel noch in die Zeile [target]? */
+    fun canMoveToRow(l: DashboardLayout, page: Int, row: Int, col: Int, target: Int): Boolean {
+        val tile = l.rowAt(page, row)?.tiles?.getOrNull(col) ?: return false
+        val t = l.rowAt(page, target) ?: return false
+        return target != row && t.units + tile.units <= MAX_ROW_UNITS
+    }
+
+    /**
+     * Kachel ans Ende einer anderen Zeile haengen. Wird ihre alte Zeile dadurch leer,
+     * verschwindet sie. Gibt das Layout und die neue Stelle (Zeile, Spalte) zurueck.
+     */
+    fun moveTileToRow(l: DashboardLayout, page: Int, row: Int, col: Int, target: Int): Pair<DashboardLayout, Pair<Int, Int>> {
+        if (!canMoveToRow(l, page, row, col, target)) return l to (row to col)
+        val p = l.pages[page]
+        val tile = p.rows[row].tiles[col]
+        val rows = p.rows.toMutableList()
+        rows[target] = rows[target].copy(tiles = rows[target].tiles + tile)
+        val newCol = rows[target].tiles.lastIndex
+        val rest = rows[row].tiles.filterIndexed { i, _ -> i != col }
+        var newRow = target
+        if (rest.isEmpty()) {
+            rows.removeAt(row)
+            if (target > row) newRow--
+        } else {
+            rows[row] = rows[row].copy(tiles = rest)
+        }
+        return l.mapPage(page) { it.copy(rows = rows) } to (newRow to newCol)
+    }
+
+    /** Kachel in eine eigene, neue Zeile direkt darunter. */
+    fun moveTileToNewRow(l: DashboardLayout, page: Int, row: Int, col: Int): DashboardLayout {
+        val r = l.rowAt(page, row) ?: return l
+        if (col !in r.tiles.indices || r.tiles.size < 2) return l
+        val tile = r.tiles[col]
+        return l.mapPage(page) { p ->
+            val rows = p.rows.toMutableList()
+            rows[row] = r.copy(tiles = r.tiles.filterIndexed { i, _ -> i != col })
+            rows.add(row + 1, TileRow(listOf(tile), r.height))
+            p.copy(rows = rows)
+        }
+    }
+
+    /** Seite um [delta] Plaetze verschieben (-1 = nach links). */
+    fun movePage(l: DashboardLayout, page: Int, delta: Int): DashboardLayout {
+        val target = page + delta
+        if (page !in l.pages.indices || target !in l.pages.indices) return l
+        val pages = l.pages.toMutableList()
+        pages.add(target, pages.removeAt(page))
+        return l.copy(pages = pages)
+    }
+
+    /** Neue Seite als Kopie einer Vorlage; gleicher Name bekommt eine Nummer. */
+    fun addPageFrom(l: DashboardLayout, template: DashboardPage): DashboardLayout {
+        val names = l.pages.map { it.name }.toSet()
+        var name = template.name
+        var n = 2
+        while (name in names) name = "${template.name} ${n++}"
+        return l.copy(pages = l.pages + template.copy(name = name))
+    }
+
     fun addPage(l: DashboardLayout, name: String): DashboardLayout =
         l.copy(pages = l.pages + DashboardPage(name.ifBlank { "Seite ${l.pages.size + 1}" }, listOf(
             TileRow(listOf(TileSlot(TileType.SPEED)), RowHeight.LARGE),
