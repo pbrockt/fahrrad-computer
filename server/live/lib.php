@@ -1,11 +1,11 @@
 <?php
 // Gemeinsame Teile fuer api.php und index.php. Keine Datenbank: je Fahrt eine CSV-Datei
-// mit den Punkten und eine kleine JSON-Datei mit Name, Zustand und Zahlen - im Ordner data/.
+// mit den Punkten und eine kleine JSON-Datei mit Schluesseln, Name, Zustand und Zahlen - im Ordner data/.
 // Laeuft so auf jedem Webspace mit PHP, ohne SQLite oder MySQL.
 
 declare(strict_types=1);
 
-const LIVE_VERSION = 2;
+const LIVE_VERSION = 3;
 
 function live_config(): ?array
 {
@@ -26,19 +26,14 @@ function live_config(): ?array
     ];
 }
 
-/** Sind die Schluessel gesetzt und keine Platzhalter mehr? */
+/** Admin-Passwort gesetzt und kein Platzhalter mehr? */
 function live_configured(?array $c): bool
 {
     if ($c === null) {
         return false;
     }
-    foreach (['upload_token', 'view_key'] as $k) {
-        $v = (string)($c[$k] ?? '');
-        if (strlen($v) < 16 || str_starts_with($v, 'HIER-')) {
-            return false;
-        }
-    }
-    return $c['upload_token'] !== $c['view_key'];
+    $p = (string)($c['admin_password'] ?? '');
+    return strlen($p) >= 8 && !str_starts_with($p, 'HIER-');
 }
 
 /** Datenordner, angelegt und beschreibbar - sonst eine verstaendliche Ausnahme. */
@@ -52,12 +47,6 @@ function live_dir(array $c): string
         throw new RuntimeException('Ordner ' . basename($dir) . '/ ist nicht beschreibbar (Rechte 755 oder 775 setzen).');
     }
     return $dir;
-}
-
-/** Dateiname einer Fahrt - nur harmlose Zeichen, kein "..". */
-function live_ride_file(string $dir, string $ride, string $ext): string
-{
-    return $dir . '/' . preg_replace('/[^A-Za-z0-9_-]/', '_', $ride) . '.' . $ext;
 }
 
 function live_read_meta(string $file): ?array
@@ -75,17 +64,136 @@ function live_write_meta(string $file, array $meta): void
     rename($tmp, $file);
 }
 
-/** Die zuletzt aktualisierte Fahrt: [Meta, CSV-Datei] oder null. */
-function live_latest_ride(string $dir): ?array
+// --- Fahrten ---------------------------------------------------------------
+// Jede Fahrt bekommt auf der Startseite eigene Schluessel: "<id>-<geheim>". Die id
+// (8 Hex-Zeichen) nennt die Dateien data/s-<id>.json und data/s-<id>.csv.
+
+function live_session_file(string $dir, string $id, string $ext): string
 {
-    $best = null;
-    foreach (glob($dir . '/*.json') ?: [] as $f) {
+    return $dir . '/s-' . $id . '.' . $ext;
+}
+
+function live_session_create(string $dir): array
+{
+    $id = bin2hex(random_bytes(4));
+    $now = (int)(microtime(true) * 1000);
+    $meta = [
+        'id' => $id,
+        'upload' => $id . '-' . bin2hex(random_bytes(16)),
+        'view' => $id . '-' . bin2hex(random_bytes(8)),
+        'created' => $now,
+        'updated' => 0,
+        'rideId' => null,
+        'name' => '',
+        'state' => 'new',
+        'stats' => [],
+        'route' => null,
+        'lastT' => 0,
+        'count' => 0,
+    ];
+    live_write_meta(live_session_file($dir, $id, 'json'), $meta);
+    return $meta;
+}
+
+function live_session_load(string $dir, string $id): ?array
+{
+    return preg_match('/^[0-9a-f]{8}$/', $id) ? live_read_meta(live_session_file($dir, $id, 'json')) : null;
+}
+
+/**
+ * Fahrt zu einem Schluessel. [$field] ist 'upload' (die App) oder 'view' (Zuschauer).
+ * Stehen in config.php noch feste Schluessel (upload_token/view_key), gelten die als
+ * Dauer-Fahrt "standard" - so bleibt eine schon eingerichtete App gueltig.
+ */
+function live_session_by_key(string $dir, array $c, string $key, string $field): ?array
+{
+    $legacyUp = (string)($c['upload_token'] ?? '');
+    $legacyView = (string)($c['view_key'] ?? '');
+    $legacy = $field === 'upload' ? $legacyUp : $legacyView;
+    if (strlen($legacyUp) >= 16 && strlen($legacyView) >= 16 && !str_starts_with($legacy, 'HIER-') && hash_equals($legacy, $key)) {
+        $file = $dir . '/s-standard.json';
+        $meta = live_read_meta($file);
+        if ($meta === null) {
+            $meta = ['id' => 'standard', 'created' => (int)(microtime(true) * 1000), 'updated' => 0, 'rideId' => null,
+                'name' => '', 'state' => 'new', 'stats' => [], 'route' => null, 'lastT' => 0, 'count' => 0];
+        }
+        return ['upload' => $legacyUp, 'view' => $legacyView] + $meta;
+    }
+    if (!preg_match('/^([0-9a-f]{8})-[0-9a-f]{16,64}$/', $key, $m)) {
+        return null;
+    }
+    $meta = live_session_load($dir, $m[1]);
+    return $meta !== null && hash_equals((string)($meta[$field] ?? ''), $key) ? $meta : null;
+}
+
+/** Alle Fahrten, neueste zuerst. */
+function live_sessions(string $dir): array
+{
+    $all = [];
+    foreach (glob($dir . '/s-*.json') ?: [] as $f) {
         $m = live_read_meta($f);
-        if ($m !== null && ($best === null || ($m['updated'] ?? 0) > ($best[0]['updated'] ?? 0))) {
-            $best = [$m, substr($f, 0, -5) . '.csv'];
+        if ($m !== null && ($m['id'] ?? '') !== 'standard') {
+            $all[] = $m;
         }
     }
-    return $best;
+    usort($all, fn($a, $b) => ($b['created'] ?? 0) <=> ($a['created'] ?? 0));
+    return $all;
+}
+
+function live_session_delete(string $dir, string $id): void
+{
+    if (preg_match('/^[0-9a-f]{8}$/', $id)) {
+        @unlink(live_session_file($dir, $id, 'json'));
+        @unlink(live_session_file($dir, $id, 'csv'));
+    }
+}
+
+/** Basis-Adresse dieses Ordners, z. B. https://domain.de/live */
+function live_base_url(): string
+{
+    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
+    $host = $_SERVER['HTTP_X_FORWARDED_HOST'] ?? $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $dir = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
+    return ($https ? 'https' : 'http') . '://' . $host . $dir;
+}
+
+/** Link fuer Zuschauer einer Fahrt. */
+function live_view_url(array $session): string
+{
+    return live_base_url() . '/?k=' . rawurlencode((string)$session['view']);
+}
+
+/** Link, der die App direkt einrichtet (auch Inhalt des QR-Codes). */
+function live_app_url(array $session): string
+{
+    return 'fahrradcomputer://live?url=' . rawurlencode(live_base_url()) . '&token=' . rawurlencode((string)$session['upload']);
+}
+
+// --- Anmeldung fuer die Startseite ---------------------------------------------
+
+const LIVE_COOKIE = 'live_admin';
+
+function live_admin_cookie_value(array $c): string
+{
+    return hash_hmac('sha256', 'fahrrad-live-admin', (string)$c['admin_password']);
+}
+
+function live_is_admin(array $c): bool
+{
+    return hash_equals(live_admin_cookie_value($c), (string)($_COOKIE[LIVE_COOKIE] ?? ''));
+}
+
+function live_set_admin_cookie(array $c, bool $on): void
+{
+    $path = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/') . '/';
+    setcookie(LIVE_COOKIE, $on ? live_admin_cookie_value($c) : '', [
+        'expires' => $on ? time() + 400 * 86400 : 1,
+        'path' => $path,
+        'secure' => str_starts_with(live_base_url(), 'https'),
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
 }
 
 /** Entfernung in Metern (Haversine). */
@@ -115,16 +223,6 @@ function live_json(array $data, int $status = 200): never
     header('Cache-Control: no-store');
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
-}
-
-/** Adresse der Live-Seite fuer die Zuschauer, aus der aktuellen Anfrage gebaut. */
-function live_view_url(array $c): string
-{
-    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-        || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
-    $host = $_SERVER['HTTP_X_FORWARDED_HOST'] ?? $_SERVER['HTTP_HOST'] ?? 'localhost';
-    $dir = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
-    return ($https ? 'https' : 'http') . '://' . $host . $dir . '/?k=' . rawurlencode($c['view_key']);
 }
 
 /** Fahrten loeschen, die laenger als keep_days nicht aktualisiert wurden (nach Dateidatum). */

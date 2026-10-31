@@ -69,6 +69,13 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Live-Link einrichten: Knopf/QR-Code der Live-Seite (fahrradcomputer://live?url=...&token=...). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="fahrradcomputer" android:host="live" />
+            </intent-filter>
             <!-- Health Connect (bis Android 13): "Warum braucht die App das?" fuehrt hierher. -->
             <intent-filter>
                 <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />

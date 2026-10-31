@@ -65,4 +65,21 @@ class LiveLinkTest {
         assertTrue(t.size <= 2001)
         assertEquals(4999.0, t.last().lat, 0.0)
     }
+
+    @Test
+    fun readsPairingLinkFromLivePage() {
+        val p = LiveLink.parsePairing("fahrradcomputer://live?url=https%3A%2F%2Fbeispiel.de%2Flive&token=1a2b3c4d-00ff")!!
+        assertEquals("https://beispiel.de/live", p.url)
+        assertEquals("1a2b3c4d-00ff", p.token)
+        assertEquals("beispiel.de", p.host)
+    }
+
+    @Test
+    fun rejectsForeignCodes() {
+        assertNull(LiveLink.parsePairing("https://beispiel.de/live?k=abc"))
+        assertNull(LiveLink.parsePairing("fahrradcomputer://live?url=javascript%3Aalert(1)&token=x"))
+        assertNull(LiveLink.parsePairing("fahrradcomputer://live?url=https%3A%2F%2Fa.de"))
+        assertNull(LiveLink.parsePairing("Hallo"))
+        assertNull(LiveLink.parsePairing(null))
+    }
 }

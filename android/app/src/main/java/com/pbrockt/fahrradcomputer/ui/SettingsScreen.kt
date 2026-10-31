@@ -26,6 +26,10 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.runtime.key
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.barcode.common.Barcode
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -452,8 +456,24 @@ private fun LiveLinkPage(vm: MainViewModel) {
         vm::setLiveLinkEnabled,
     )
     Group("Server")
-    TextSetting("Server-Adresse, z. B. https://mein-server.de/live", s.liveLinkUrl, KeyboardType.Uri, vm::setLiveLinkUrl)
-    TokenField(s.liveLinkToken, label = "Upload-Token (aus config.php)", onChange = vm::setLiveLinkToken)
+    val context = LocalContext.current
+    Button(
+        onClick = {
+            // Scanner von Google Play-Diensten: eigenes Kamerabild, die App braucht keine Kamera-Berechtigung.
+            val options = GmsBarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build()
+            GmsBarcodeScanning.getClient(context, options).startScan()
+                .addOnSuccessListener { vm.offerLivePairing(it.rawValue) }
+                .addOnFailureListener { vm.showMessage("QR-Scanner nicht verfügbar: ${it.message}") }
+        },
+        modifier = Modifier.fillMaxWidth(),
+    ) { Text("QR-Code der Live-Seite scannen") }
+    Hint("Auf der Live-Seite „Neue Fahrt starten“ – dann den QR-Code scannen. Am Handy reicht „In der App übernehmen“.")
+    // Nach dem Scannen die Felder neu aufbauen, damit sie die neuen Werte zeigen.
+    val version by vm.livePairingVersion.collectAsStateWithLifecycle()
+    key(version) {
+        TextSetting("Server-Adresse, z. B. https://mein-server.de/live", s.liveLinkUrl, KeyboardType.Uri, vm::setLiveLinkUrl)
+        TokenField(s.liveLinkToken, label = "Upload-Key", onChange = vm::setLiveLinkToken)
+    }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(onClick = vm::testLiveLink, modifier = Modifier.weight(1f)) { Text("Verbindung testen") }
         OutlinedButton(onClick = vm::shareLiveLink, enabled = s.liveLinkViewUrl.isNotBlank(), modifier = Modifier.weight(1f)) { Text("Link teilen") }

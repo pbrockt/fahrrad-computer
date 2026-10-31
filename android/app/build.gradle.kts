@@ -18,8 +18,8 @@ android {
         // versionCode steigt bei jedem veroeffentlichten Build, auch bei Alphas - sonst
         // verweigert Android das Update. versionName folgt SemVer: "x.y.z" ist ein
         // Release, "x.y.z-alpha.N" eine Alpha. release.yml prueft, dass der Tag passt.
-        versionCode = 28
-        versionName = "0.0.22-alpha.1"
+        versionCode = 29
+        versionName = "0.0.23-alpha.1"
 
         buildConfigField("String", "UPDATE_REPO", "\"pbrockt/fahrrad-computer\"")
     }
@@ -115,6 +115,8 @@ dependencies {
     implementation(libs.anthropic.java)
     // FIT-Dateien (Garmin, Strava, Intervals.icu, Zwift) schreiben und lesen.
     implementation(libs.garmin.fit)
+    // QR-Code scannen (Live-Link einrichten) - Scanner von Google Play-Diensten, ohne Kamera-Berechtigung.
+    implementation(libs.play.services.code.scanner)
 
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)

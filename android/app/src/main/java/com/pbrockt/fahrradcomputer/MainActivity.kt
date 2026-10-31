@@ -2,6 +2,7 @@ package com.pbrockt.fahrradcomputer
 
 import android.Manifest
 import android.os.Build
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import com.pbrockt.fahrradcomputer.ui.SetupScreen
@@ -91,9 +92,22 @@ class MainActivity : ComponentActivity() {
         return super.onKeyDown(keyCode, event)
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleLiveLinkIntent(intent)
+    }
+
+    /** Link "In der App übernehmen" von der Live-Seite - fragt vor dem Speichern nach. */
+    private fun handleLiveLinkIntent(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_VIEW && intent.data?.scheme == "fahrradcomputer") {
+            vm.offerLivePairing(intent.dataString)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) handleLiveLinkIntent(intent)
         setContent {
             val settings by vm.settings.collectAsStateWithLifecycle()
             FahrradTheme(settings.themeMode, settings.accentColor) {
@@ -114,9 +128,29 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 AppRoot(vm)
+                LivePairingDialog(vm)
             }
         }
     }
+}
+
+/** "Live-Link übernehmen?" - fremde Links sollen nicht unbemerkt den Server umstellen. */
+@Composable
+private fun LivePairingDialog(vm: MainViewModel) {
+    val pairing by vm.livePairing.collectAsStateWithLifecycle()
+    val p = pairing ?: return
+    AlertDialog(
+        onDismissRequest = vm::dismissLivePairing,
+        title = { Text("Live-Link übernehmen?") },
+        text = {
+            Text(
+                "Während der Fahrt werden Position und Zahlen an ${p.host} gesendet. " +
+                    "Adresse und Upload-Key werden gespeichert und der Live-Link eingeschaltet.",
+            )
+        },
+        confirmButton = { TextButton(onClick = vm::acceptLivePairing) { Text("Übernehmen") } },
+        dismissButton = { TextButton(onClick = vm::dismissLivePairing) { Text("Abbrechen") } },
+    )
 }
 
 

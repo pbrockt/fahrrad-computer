@@ -1,16 +1,17 @@
 <?php
 // Fahrrad-Computer Live-Link - Schnittstelle.
 //
-// POST (die App):   Kopfzeile "Authorization: Bearer <upload_token>" (oder "X-Live-Token: ...")
+// POST (die App):   Kopfzeile "Authorization: Bearer <Upload-Key>" (oder "X-Live-Token: ...")
 //   {"ping": true}                                 -> {"ok":true,"view":"<Link fuer Zuschauer>"}
 //   {"ride":"2026-10-28_08-30","name":"Phillipp","state":"riding|paused|finished",
 //    "stats":{...}, "points":[{"t":ms,"lat":..,"lon":..,"ele":..,"hr":..}], "route":[[lat,lon],...]}
 //                                                  -> {"ok":true,"stored":<Anzahl>,"view":"..."}
-// GET (die Live-Seite):  api.php?k=<view_key>&since=<letzte Punkt-Nummer>
-//                                                  -> neueste Fahrt mit neuen Punkten
+// GET (die Live-Seite):  api.php?k=<Zuschauer-Schluessel>&since=<letzte Punkt-Nummer>
+//                                                  -> die Fahrt mit neuen Punkten
 //
-// Gespeichert wird in data/<fahrt>.csv (Zeile: t,lat,lon,ele,hr) und data/<fahrt>.json.
-// Die Punkt-Nummer ist die Zeilennummer in der CSV.
+// Die Schluessel entstehen je Fahrt auf der Startseite (index.php). Gespeichert wird in
+// data/s-<id>.csv (Zeile: t,lat,lon,ele,hr) und data/s-<id>.json. Die Punkt-Nummer ist die
+// Zeilennummer in der CSV.
 
 declare(strict_types=1);
 require __DIR__ . '/lib.php';
@@ -32,8 +33,9 @@ if ($method === 'POST') {
     // Manche Server reichen "Authorization" nicht an PHP weiter - daher auch X-Live-Token.
     $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
     $token = str_starts_with($auth, 'Bearer ') ? substr($auth, 7) : ($_SERVER['HTTP_X_LIVE_TOKEN'] ?? '');
-    if (!hash_equals((string)$c['upload_token'], (string)$token)) {
-        live_json(['ok' => false, 'error' => 'Falscher Upload-Token.'], 401);
+    $session = live_session_by_key($dir, $c, trim((string)$token), 'upload');
+    if ($session === null) {
+        live_json(['ok' => false, 'error' => 'Upload-Key ungültig oder abgelaufen – auf der Live-Seite eine neue Fahrt starten.'], 401);
     }
     $raw = file_get_contents('php://input', false, null, 0, 2_000_000);
     $in = json_decode((string)$raw, true);
@@ -41,7 +43,7 @@ if ($method === 'POST') {
         live_json(['ok' => false, 'error' => 'Kein gültiges JSON.'], 400);
     }
     if (!empty($in['ping'])) {
-        live_json(['ok' => true, 'view' => live_view_url($c), 'version' => LIVE_VERSION]);
+        live_json(['ok' => true, 'view' => live_view_url($session), 'version' => LIVE_VERSION]);
     }
 
     $ride = (string)($in['ride'] ?? '');
@@ -53,8 +55,9 @@ if ($method === 'POST') {
     $name = function_exists('mb_substr') ? mb_substr($name, 0, 40) : substr($name, 0, 40);
     $stats = is_array($in['stats'] ?? null) ? $in['stats'] : [];
 
-    $metaFile = live_ride_file($dir, $ride, 'json');
-    $csvFile = live_ride_file($dir, $ride, 'csv');
+    $id = (string)$session['id'];
+    $metaFile = live_session_file($dir, $id, 'json');
+    $csvFile = live_session_file($dir, $id, 'csv');
 
     // Eine Sperre je Fahrt: zwei Uploads gleichzeitig (nach Netzproblem) schreiben nacheinander.
     $lock = fopen($csvFile, 'a+');
@@ -63,7 +66,19 @@ if ($method === 'POST') {
     }
     flock($lock, LOCK_EX);
 
-    $meta = live_read_meta($metaFile) ?? ['ride' => $ride, 'lastT' => 0, 'count' => 0, 'route' => null];
+    // Unter der Sperre frisch lesen - die Fahrt kann sich seit eben geaendert haben.
+    $meta = live_read_meta($metaFile) ?? $session;
+    unset($meta['upload'], $meta['view']);
+    if ($id !== 'standard') {
+        $meta['upload'] = $session['upload'];
+        $meta['view'] = $session['view'];
+    }
+    // Neue Fahrt in der App mit demselben Key: von vorn anfangen.
+    if (($meta['rideId'] ?? null) !== null && $meta['rideId'] !== $ride) {
+        ftruncate($lock, 0);
+        $meta = array_merge($meta, ['lastT' => 0, 'count' => 0, 'route' => null]);
+    }
+    $meta['rideId'] = $ride;
 
     // Geplante Route nur einmal schicken lassen (beim Start); hoechstens 3000 Punkte.
     if (is_array($in['route'] ?? null)) {
@@ -121,13 +136,14 @@ if ($method === 'POST') {
     if (random_int(1, 20) === 1) {
         live_cleanup($dir, $c);
     }
-    live_json(['ok' => true, 'stored' => $stored, 'view' => live_view_url($c)]);
+    live_json(['ok' => true, 'stored' => $stored, 'view' => live_view_url($session)]);
 }
 
 // --- GET: Live-Seite fragt nach ---
 
-if (!hash_equals((string)$c['view_key'], (string)($_GET['k'] ?? ''))) {
-    live_json(['ok' => false, 'error' => 'Kein Zugriff.'], 403);
+$meta = live_session_by_key($dir, $c, (string)($_GET['k'] ?? ''), 'view');
+if ($meta === null) {
+    live_json(['ok' => false, 'error' => 'Link ungültig oder abgelaufen.'], 403);
 }
 
 // Auch aufraeumen, wenn laengere Zeit keine Fahrt hochgeladen wird.
@@ -135,11 +151,10 @@ if (random_int(1, 50) === 1) {
     live_cleanup($dir, $c);
 }
 
-$latest = live_latest_ride($dir);
-if ($latest === null) {
+if (($meta['rideId'] ?? null) === null) {
     live_json(['ok' => true, 'ride' => null]);
 }
-[$meta, $csvFile] = $latest;
+$csvFile = live_session_file($dir, (string)$meta['id'], 'csv');
 
 $since = max(0, (int)($_GET['since'] ?? 0));
 $points = [];
@@ -177,7 +192,7 @@ if (!$showHr) {
 
 live_json([
     'ok' => true,
-    'ride' => (string)$meta['ride'],
+    'ride' => (string)$meta['rideId'],
     'name' => (string)($meta['name'] ?? ''),
     'state' => (string)($meta['state'] ?? 'riding'),
     'updated' => (int)($meta['updated'] ?? 0),

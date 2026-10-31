@@ -1,11 +1,16 @@
 # Live-Link – Server-Teil
 
+Auf der Startseite (`https://dein-server.de/live/`, mit Passwort) startest du eine neue
+Fahrt. Jede Fahrt bekommt einen eigenen **Link für Zuschauer** und einen eigenen
+**Upload-Key** für die App – zum Kopieren, per WhatsApp oder als **QR-Code**, den die App
+scannt. Am Handy übernimmt der Knopf „In der App übernehmen“ alles direkt.
+
 Die App schickt während der Fahrt die Position an `api.php`. Wer den Link kennt, sieht
-auf `index.php` Karte, Strecke und Zahlen. Die Seite aktualisiert sich alle 15 Sekunden.
+Karte, Strecke und Zahlen. Die Seite aktualisiert sich alle 15 Sekunden.
 
 **Ohne Datenbank:** Je Fahrt liegen zwei Dateien im Ordner `data/`:
-`<fahrt>.csv` mit den Punkten (Zeit, Breite, Länge, Höhe, Puls) und `<fahrt>.json` mit Name,
-Zustand und Zahlen. Kein MySQL, kein SQLite, keine Tabellen. Nach 5 Tagen ohne Änderung
+`s-<id>.csv` mit den Punkten (Zeit, Breite, Länge, Höhe, Puls) und `s-<id>.json` mit
+Schlüsseln, Name, Zustand und Zahlen. Kein MySQL, kein SQLite, keine Tabellen. Nach 5 Tagen ohne Änderung
 löscht der Server beide Dateien selbst (`keep_days`).
 
 ## Voraussetzungen
@@ -18,21 +23,28 @@ löscht der Server beide Dateien selbst (`keep_days`).
 ## Einrichten
 
 1. Den Ordner `live/` auf den Webserver kopieren, z. B. nach `https://dein-server.de/live/`.
-2. `https://dein-server.de/live/` im Browser öffnen. Die Seite zeigt:
-   - ob die PHP-Version passt und `data/` beschreibbar ist
-   - zwei frische Zufallswerte
-3. `config.sample.php` nach `config.php` kopieren und die beiden Werte eintragen:
-   - `upload_token`: kommt in die App, ist geheim.
-   - `view_key`: steht im Link für Zuschauer und darf weitergegeben werden.
-4. Optional in `config.php`:
+2. `config.sample.php` nach `config.php` kopieren und bei `admin_password` ein Passwort
+   eintragen (mindestens 8 Zeichen). Ohne `config.php` schlägt die Startseite eines vor und
+   prüft PHP-Version und Ordner.
+3. Optional in `config.php`:
    - `privacy_zones`: Kreis um die Haustür, in dem nie etwas gespeichert wird.
-   - `keep_days`: Nach so vielen Tagen werden Fahrten gelöscht (Standard 5).
+   - `keep_days`: Nach so vielen Tagen ohne Meldung wird eine Fahrt gelöscht (Standard 5).
    - `show_heart_rate`: Puls auf der Live-Seite zeigen.
-5. In der App unter **Einstellungen → Live-Link** eintragen:
-   - Adresse: `https://dein-server.de/live`
-   - Upload-Token
-6. In der App **„Verbindung testen“** antippen. Klappt es, merkt sich die App den Link für
-   Zuschauer. **„Link teilen“** schickt ihn per WhatsApp, SMS usw.
+
+## Für jede Fahrt
+
+1. `https://dein-server.de/live/` öffnen, mit dem Passwort anmelden (der Browser merkt es sich).
+2. **„Neue Fahrt starten“** tippen.
+3. **Link für Zuschauer** kopieren oder per WhatsApp teilen.
+4. In die App übernehmen:
+   - am PC: in der App **Einstellungen → Live-Link → „QR-Code der Live-Seite scannen“**
+   - am Handy: **„In der App übernehmen“** tippen
+   - oder den Upload-Key kopieren und in der App eintragen
+5. Die App fragt kurz nach, speichert Adresse und Key, schaltet den Live-Link ein und testet
+   die Verbindung.
+
+Feste Schlüssel aus älteren Versionen (`upload_token`/`view_key` in `config.php`) gelten
+weiter als Dauer-Fahrt.
 
 ### Ordner `data/` schützen
 
@@ -51,7 +63,7 @@ löscht der Server beide Dateien selbst (`keep_days`).
    Viele FTP-Programme zeigen Dateien mit Punkt erst nach einer Einstellung an.
 3. Dem Ordner `data/` die Rechte **755** geben. Meldet die Seite „nicht beschreibbar“, **775**
    versuchen.
-4. Weiter wie oben unter „Einrichten“, ab Schritt 2.
+4. Weiter wie oben unter „Einrichten“ und „Für jede Fahrt“.
 5. Zum Prüfen `https://deine-domain.de/live/data/` öffnen: Es muss „Forbidden“ / 403 kommen.
 
 Datenbank, SQL-Datei oder besondere Rechte braucht es nicht.
@@ -66,7 +78,7 @@ Community Apps. Erreichbar von außen wird er über den vorhandenen Reverse-Prox
 
 ```bash
 URL=https://dein-server.de/live
-TOKEN=dein-upload-token
+TOKEN=upload-key-von-der-startseite
 
 # Verbindung testen – Antwort enthält den Link für Zuschauer
 curl -s -X POST "$URL/api.php" -H "Authorization: Bearer $TOKEN" -d '{"ping":true}'
@@ -77,7 +89,7 @@ curl -s -X POST "$URL/api.php" -H "Authorization: Bearer $TOKEN" \
        "points":[{"t":'$(date +%s000)',"lat":50.3512,"lon":7.5981}]}'
 ```
 
-Danach `$URL/?k=<view_key>` im Browser öffnen.
+Danach den Link für Zuschauer von der Startseite im Browser öffnen.
 
 ## Was gespeichert wird
 
@@ -92,5 +104,5 @@ oder Aufruf der Live-Seite, ein Cron-Job ist nicht nötig.
 
 | Aufruf | Zweck |
 |---|---|
-| `POST api.php` mit `Authorization: Bearer <upload_token>` (oder `X-Live-Token`) | `{"ping":true}` oder Fahrtdaten (siehe oben). Antwort `{"ok":true,"view":"…"}` |
-| `GET api.php?k=<view_key>&since=<n>` | Neueste Fahrt mit allen Punkten nach Zeile `n` der CSV; die Route nur bei `since=0` |
+| `POST api.php` mit `Authorization: Bearer <Upload-Key>` (oder `X-Live-Token`) | `{"ping":true}` oder Fahrtdaten (siehe oben). Antwort `{"ok":true,"view":"…"}` |
+| `GET api.php?k=<Zuschauer-Schlüssel>&since=<n>` | Neueste Fahrt mit allen Punkten nach Zeile `n` der CSV; die Route nur bei `since=0` |

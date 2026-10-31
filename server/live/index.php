@@ -1,5 +1,7 @@
 <?php
-// Fahrrad-Computer Live-Link - Seite fuer die Zuschauer: https://dein-server/live/?k=<view_key>
+// Fahrrad-Computer Live-Link
+//   https://dein-server/live/            Startseite (mit Passwort): neue Fahrt starten, Links und QR-Code
+//   https://dein-server/live/?k=<...>    Live-Karte fuer Zuschauer
 
 declare(strict_types=1);
 require __DIR__ . '/lib.php';
@@ -10,47 +12,230 @@ header('Cache-Control: no-store');
 header('Referrer-Policy: strict-origin');
 header('X-Robots-Tag: noindex, nofollow');
 
+/** Einfache Seite im Stil der Live-Karte. */
+function live_page_start(string $title): void
+{
+    ?><!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title><?= htmlspecialchars($title) ?></title>
+<style>
+  :root { --bg:#e9edf1; --card:#fff; --text:#0d1014; --dim:#5a626c; --line:#cdd3da; --acc:#00796b; --wa:#25d366; --red:#c62828; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0a0c0f; --card:#16191e; --text:#f4f6f8; --dim:#969ca5; --line:#2e333a; --acc:#14a394; --red:#ef5350; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:17px/1.45 system-ui,sans-serif; }
+  main { max-width:620px; margin:0 auto; padding:16px; }
+  h1 { font-size:26px; margin:6px 0 14px; }
+  h2 { font-size:19px; margin:0 0 8px; }
+  .card { background:var(--card); border-radius:14px; padding:16px; margin-bottom:12px; }
+  .btn { display:inline-block; border:0; border-radius:12px; padding:12px 16px; font:600 17px system-ui,sans-serif; cursor:pointer;
+         background:var(--acc); color:#fff; text-decoration:none; margin:4px 6px 4px 0; }
+  .btn.big { display:block; width:100%; text-align:center; padding:18px; font-size:20px; }
+  .btn.wa { background:var(--wa); color:#063; }
+  .btn.ghost { background:transparent; color:var(--acc); border:2px solid var(--acc); }
+  .btn.red { background:transparent; color:var(--red); border:2px solid var(--red); }
+  .val { font:15px ui-monospace,monospace; background:var(--bg); border-radius:8px; padding:10px; word-break:break-all; margin:6px 0; }
+  .dim { color:var(--dim); font-size:15px; }
+  #qr { background:#fff; border-radius:12px; padding:8px; max-width:300px; margin:8px auto; }
+  #qr svg { width:100%; height:auto; display:block; }
+  input[type=password] { width:100%; font-size:18px; padding:12px; border-radius:10px; border:1px solid var(--line); background:var(--bg); color:var(--text); margin:8px 0; }
+  ul.rides { list-style:none; padding:0; margin:0; }
+  ul.rides li { border-top:1px solid var(--line); padding:10px 0; display:flex; justify-content:space-between; gap:8px; align-items:center; }
+  ul.rides a { color:var(--acc); font-weight:600; text-decoration:none; }
+</style></head><body><main><?php
+}
+
+function live_page_end(): never
+{
+    echo '</main></body></html>';
+    exit;
+}
+
 if (!live_configured($c)) {
-    // Erste Einrichtung: Hinweis und zwei frische Zufallswerte zum Kopieren.
-    $a = bin2hex(random_bytes(16));
-    $b = bin2hex(random_bytes(16));
-    ?><!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Live-Link einrichten</title>
-<style>body{font:16px/1.5 system-ui,sans-serif;max-width:640px;margin:24px auto;padding:0 16px}code{background:#eee;padding:2px 4px;word-break:break-all}</style>
-<h1>Live-Link einrichten</h1>
-<p>Es fehlt noch <code>config.php</code> (oder sie enthält Platzhalter).</p>
+    // Erste Einrichtung: Hinweis und ein frisches Passwort-Beispiel.
+    live_page_start('Live-Link einrichten');
+    ?><h1>Live-Link einrichten</h1>
+<div class="card"><p>Es fehlt noch <code>config.php</code> (oder darin steht kein Passwort).</p>
 <ol>
 <li><code>config.sample.php</code> nach <code>config.php</code> kopieren.</li>
-<li>Diese zwei frischen Zufallswerte eintragen:<br>
-upload_token: <code><?= $a ?></code><br>view_key: <code><?= $b ?></code></li>
+<li>Bei <code>admin_password</code> ein Passwort eintragen (mindestens 8 Zeichen), z. B.:<br>
+<span class="val"><?= bin2hex(random_bytes(6)) ?></span></li>
 <li>Seite neu laden.</li>
-</ol>
-<?php live_checks_html(); ?>
-</html><?php
+</ol></div>
+<div class="card"><?php live_checks_html(); ?></div>
+<?php
+    live_page_end();
+}
+
+// --- Zuschauer: ?k=... ---------------------------------------------------------
+
+if (isset($_GET['k'])) {
+    try {
+        $dir = live_dir($c);
+    } catch (Throwable $e) {
+        http_response_code(500);
+        live_page_start('Live-Link');
+        echo '<h1>Daten lassen sich nicht speichern</h1><div class="card"><p>' . htmlspecialchars($e->getMessage()) . '</p></div>';
+        live_page_end();
+    }
+    if (live_session_by_key($dir, $c, (string)$_GET['k'], 'view') === null) {
+        http_response_code(404);
+        live_page_start('Live-Fahrt');
+        echo '<h1>Diese Fahrt gibt es nicht (mehr)</h1><div class="card"><p>Der Link ist falsch oder die Fahrt ist älter als '
+            . (int)$c['keep_days'] . ' Tage und wurde gelöscht.</p></div>';
+        live_page_end();
+    }
+    live_viewer($c);
     exit;
 }
 
-if (!hash_equals((string)$c['view_key'], (string)($_GET['k'] ?? ''))) {
-    http_response_code(403);
-    echo '<!doctype html><meta charset="utf-8"><title>Kein Zugriff</title><p style="font-family:sans-serif">Kein Zugriff – bitte den vollständigen Link verwenden.</p>';
-    exit;
-}
+// --- Startseite mit Passwort ---------------------------------------------------
 
-// Datenordner gleich hier pruefen - sonst sieht man auf der Seite nur "keine Verbindung".
 try {
-    live_dir($c);
+    $dir = live_dir($c);
 } catch (Throwable $e) {
     http_response_code(500);
-    ?><!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Live-Link: Speicher</title>
-<style>body{font:16px/1.5 system-ui,sans-serif;max-width:640px;margin:24px auto;padding:0 16px}code{background:#eee;padding:2px 4px;word-break:break-all}</style>
-<h1>Daten lassen sich nicht speichern</h1>
-<p><code><?= htmlspecialchars($e->getMessage()) ?></code></p>
-<?php live_checks_html($c); ?>
-</html><?php
+    live_page_start('Live-Link');
+    echo '<h1>Daten lassen sich nicht speichern</h1><div class="card"><p>' . htmlspecialchars($e->getMessage()) . '</p>';
+    live_checks_html($c);
+    echo '</div>';
+    live_page_end();
+}
+
+$self = strtok($_SERVER['REQUEST_URI'] ?? './', '?') ?: './';
+$action = (string)($_POST['action'] ?? '');
+
+if ($action === 'login') {
+    if (hash_equals((string)$c['admin_password'], (string)($_POST['password'] ?? ''))) {
+        live_set_admin_cookie($c, true);
+        header('Location: ' . $self, true, 303);
+        exit;
+    }
+    sleep(2); // Raten bremsen
+    $loginError = true;
+}
+
+if (!live_is_admin($c)) {
+    live_page_start('Live-Fahrten');
+    ?><h1>Live-Fahrten</h1>
+<div class="card"><form method="post">
+<h2>Anmelden</h2>
+<p class="dim">Mit dem Passwort aus <code>config.php</code> (<code>admin_password</code>). Der Browser merkt es sich.</p>
+<?php if (!empty($loginError)) echo '<p style="color:var(--red)">Passwort falsch.</p>'; ?>
+<input type="password" name="password" autocomplete="current-password" autofocus required>
+<input type="hidden" name="action" value="login">
+<button class="btn big">Anmelden</button>
+</form></div><?php
+    live_page_end();
+}
+
+if ($action === 'new') {
+    $s = live_session_create($dir);
+    header('Location: ' . $self . '?s=' . $s['id'], true, 303);
     exit;
 }
-$title = htmlspecialchars((string)$c['title']);
+if ($action === 'delete') {
+    live_session_delete($dir, (string)($_POST['id'] ?? ''));
+    header('Location: ' . $self, true, 303);
+    exit;
+}
+if ($action === 'logout') {
+    live_set_admin_cookie($c, false);
+    header('Location: ' . $self, true, 303);
+    exit;
+}
+
+if (random_int(1, 10) === 1) {
+    live_cleanup($dir, $c);
+}
+
+$fmtTime = fn(int $ms) => $ms > 0 ? date('d.m. H:i', intdiv($ms, 1000)) : '–';
+$stateText = fn(array $m) => match ($m['state'] ?? 'new') {
+    'riding' => 'unterwegs', 'paused' => 'Pause', 'finished' => 'angekommen', default => 'noch nicht gestartet',
+};
+
+live_page_start('Live-Fahrten');
+echo '<h1>Live-Fahrten</h1>';
+
+$current = isset($_GET['s']) ? live_session_load($dir, (string)$_GET['s']) : null;
+if ($current !== null) {
+    $view = live_view_url($current);
+    $app = live_app_url($current);
+    $upload = (string)$current['upload'];
+    $waView = 'https://wa.me/?text=' . rawurlencode("Verfolge meine Fahrt live: $view");
+    $waKey = 'https://wa.me/?text=' . rawurlencode("Upload-Key für die Fahrrad-Computer-App:\n$upload\n\nOder direkt übernehmen: $app");
+    ?>
+<div class="card">
+  <h2>1 · Link für Zuschauer</h2>
+  <div class="val" id="view"><?= htmlspecialchars($view) ?></div>
+  <button class="btn" onclick="copy('view', this)">Kopieren</button>
+  <a class="btn wa" href="<?= htmlspecialchars($waView) ?>" target="_blank" rel="noopener">Per WhatsApp teilen</a>
+  <a class="btn ghost" href="<?= htmlspecialchars($view) ?>" target="_blank" rel="noopener">Öffnen</a>
+</div>
+<div class="card">
+  <h2>2 · In die App übernehmen</h2>
+  <p class="dim">Am PC: in der App <b>Einstellungen → Live-Link → QR-Code scannen</b>.<br>
+  Am Handy: auf „In der App übernehmen“ tippen.</p>
+  <div id="qr"></div>
+  <a class="btn big" href="<?= htmlspecialchars($app) ?>">In der App übernehmen</a>
+  <p class="dim" style="margin-top:12px">Oder den Upload-Key von Hand eintragen:</p>
+  <div class="val" id="key"><?= htmlspecialchars($upload) ?></div>
+  <button class="btn" onclick="copy('key', this)">Kopieren</button>
+  <a class="btn wa" href="<?= htmlspecialchars($waKey) ?>" target="_blank" rel="noopener">An mich per WhatsApp</a>
+  <p class="dim">Server-Adresse in der App: <b><?= htmlspecialchars(live_base_url()) ?></b></p>
+</div>
+<div class="card">
+  <p class="dim">Erstellt <?= $fmtTime((int)$current['created']) ?> · <?= $stateText($current) ?>
+  · wird <?= (int)$c['keep_days'] ?> Tage nach der letzten Meldung gelöscht.</p>
+  <form method="post" onsubmit="return confirm('Diese Fahrt mit allen Punkten löschen? Der Link geht dann nicht mehr.')">
+    <input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="<?= htmlspecialchars((string)$current['id']) ?>">
+    <button class="btn red">Fahrt löschen</button>
+  </form>
+</div>
+<!-- Der QR-Code entsteht im Browser - der Key geht an keinen fremden Dienst. -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script>
+const q = qrcode(0, 'M'); q.addData(<?= json_encode($app, JSON_UNESCAPED_SLASHES) ?>); q.make();
+document.getElementById('qr').innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+function copy(id, btn) {
+  const text = document.getElementById(id).textContent;
+  const done = () => { const t = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = t, 1500); };
+  if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, () => fallback(id, done)); else fallback(id, done);
+}
+function fallback(id, done) {
+  const r = document.createRange(); r.selectNodeContents(document.getElementById(id));
+  const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+  try { document.execCommand('copy'); done(); } catch (e) {}
+}
+</script>
+<?php
+}
+
+?>
+<form method="post" class="card">
+  <input type="hidden" name="action" value="new">
+  <button class="btn big">Neue Fahrt starten</button>
+  <p class="dim" style="margin:8px 0 0">Jede Fahrt bekommt einen eigenen Link und Upload-Key.</p>
+</form>
+<?php
+$all = live_sessions($dir);
+if ($all) {
+    echo '<div class="card"><h2>Fahrten der letzten ' . (int)$c['keep_days'] . ' Tage</h2><ul class="rides">';
+    foreach ($all as $m) {
+        $label = ($m['name'] ?? '') !== '' ? htmlspecialchars((string)$m['name']) . ' · ' : '';
+        echo '<li><span>' . $label . $fmtTime((int)$m['created']) . ' <span class="dim">· ' . $stateText($m) . '</span></span>'
+            . '<a href="?s=' . htmlspecialchars((string)$m['id']) . '">Öffnen</a></li>';
+    }
+    echo '</ul></div>';
+}
+?>
+<form method="post" style="text-align:center"><input type="hidden" name="action" value="logout">
+<button class="btn ghost">Abmelden</button></form>
+<?php
+live_page_end();
+
+/** Die Live-Karte fuer Zuschauer. */
+function live_viewer(array $c): void
+{
+    $title = htmlspecialchars((string)$c['title']);
 ?><!doctype html>
 <html lang="de">
 <head>
@@ -150,8 +335,8 @@ async function poll() {
 function render(d) {
   const badge = document.getElementById('badge');
   if (!d.ride) {
-    badge.className = 'badge none'; badge.textContent = 'Keine Fahrt';
-    document.getElementById('foot').textContent = 'Gerade ist keine Fahrt unterwegs.';
+    badge.className = 'badge none'; badge.textContent = 'Gleich geht’s los';
+    document.getElementById('foot').textContent = 'Die Fahrt hat noch nicht begonnen – die Seite aktualisiert sich von selbst.';
     return;
   }
   // Neue Fahrt begonnen: alles zuruecksetzen.
@@ -206,3 +391,5 @@ setInterval(poll, POLL_MS);
 </script>
 </body>
 </html>
+<?php
+}

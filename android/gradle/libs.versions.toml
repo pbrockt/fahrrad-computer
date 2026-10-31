@@ -14,6 +14,7 @@ healthConnect = "1.1.0-beta01"
 mapsforge = "0.25.0"
 kxml2 = "2.3.0"
 anthropic = "2.71.0"
+codeScanner = "16.1.0"
 junit = "4.13.2"
 
 [libraries]
@@ -41,6 +42,7 @@ mapsforge-map-android = { group = "org.mapsforge", name = "mapsforge-map-android
 mapsforge-themes = { group = "org.mapsforge", name = "mapsforge-themes", version.ref = "mapsforge" }
 kxml2 = { group = "net.sf.kxml", name = "kxml2", version.ref = "kxml2" }
 anthropic-java = { group = "com.anthropic", name = "anthropic-java", version.ref = "anthropic" }
+play-services-code-scanner = { group = "com.google.android.gms", name = "play-services-code-scanner", version.ref = "codeScanner" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 [plugins]

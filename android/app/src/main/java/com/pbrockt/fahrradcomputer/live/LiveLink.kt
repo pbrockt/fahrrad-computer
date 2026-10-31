@@ -30,6 +30,29 @@ object LiveLink {
     const val HIDE_START_M = 500.0
     private const val MAX_ROUTE_POINTS = 2000
 
+    /** Server-Adresse und Upload-Key, z. B. aus dem QR-Code der Live-Seite. */
+    data class Pairing(val url: String, val token: String) {
+        val host: String get() = runCatching { java.net.URI(url).host }.getOrNull() ?: url
+    }
+
+    /**
+     * Liest den Link der Live-Seite: `fahrradcomputer://live?url=<adresse>&token=<key>`.
+     * null, wenn es kein solcher Link ist oder die Adresse kein http(s) ist.
+     */
+    fun parsePairing(text: String?): Pairing? {
+        val uri = runCatching { java.net.URI(text?.trim() ?: return null) }.getOrNull() ?: return null
+        if (uri.scheme != "fahrradcomputer" || uri.host != "live") return null
+        val params = (uri.rawQuery ?: return null).split('&').mapNotNull { part ->
+            val i = part.indexOf('=')
+            if (i <= 0) null
+            else part.substring(0, i) to java.net.URLDecoder.decode(part.substring(i + 1), "UTF-8")
+        }.toMap()
+        val url = params["url"]?.trim().orEmpty()
+        val token = params["token"]?.trim().orEmpty()
+        if (token.isEmpty() || !(url.startsWith("https://") || url.startsWith("http://"))) return null
+        return Pairing(url, token)
+    }
+
     /** "https://server/live" oder ".../live/api.php" -> Adresse von api.php. */
     fun apiUrl(base: String): String {
         val b = base.trim()

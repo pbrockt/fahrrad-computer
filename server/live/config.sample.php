@@ -1,17 +1,16 @@
 <?php
 // Fahrrad-Computer Live-Link - Einstellungen.
-// Diese Datei nach config.php kopieren und die beiden Schluessel ersetzen.
-// Neue Schluessel erzeugen z. B. mit:  php -r 'echo bin2hex(random_bytes(16)), "\n";'
-// (oder einfach index.php ohne config.php aufrufen - die Seite schlaegt welche vor).
+// Diese Datei nach config.php kopieren und ein Passwort eintragen. Mehr ist nicht noetig:
+// Link und Upload-Key entstehen je Fahrt auf der Startseite (https://dein-server/live/).
 
 return [
-    // Damit sendet die App (in der App unter Einstellungen > Live-Link eintragen).
-    // Geheim halten - wer ihn kennt, kann Positionen hochladen.
-    'upload_token' => 'HIER-EINEN-LANGEN-ZUFALLSWERT-EINTRAGEN',
+    // Passwort fuer die Startseite (mindestens 8 Zeichen). Wer es kennt, kann Fahrten anlegen.
+    'admin_password' => 'HIER-EIN-PASSWORT-EINTRAGEN',
 
-    // Damit schauen die Zuschauer zu: https://dein-server/live/?k=<view_key>
-    // Anderer Wert als upload_token - der Link darf weitergegeben werden.
-    'view_key' => 'HIER-EINEN-ANDEREN-ZUFALLSWERT-EINTRAGEN',
+    // Optional, aus aelteren Versionen: feste Schluessel fuer eine Dauer-Fahrt.
+    // Leer lassen, wenn du die Schluessel je Fahrt auf der Startseite erzeugst.
+    // 'upload_token' => '',
+    // 'view_key' => '',
 
     // Ueberschrift der Live-Seite.
     'title' => 'Live-Fahrt',

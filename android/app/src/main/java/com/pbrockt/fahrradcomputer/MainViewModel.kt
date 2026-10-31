@@ -537,6 +537,40 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setLiveLinkHideStart(value: Boolean) = viewModelScope.launch { store.setLiveLinkHideStart(value) }
     fun setLiveLinkHeartRate(value: Boolean) = viewModelScope.launch { store.setLiveLinkHeartRate(value) }
 
+    /** Live-Link aus QR-Code oder Link der Live-Seite - wartet auf "Übernehmen". */
+    private val _livePairing = MutableStateFlow<LiveLink.Pairing?>(null)
+    val livePairing: StateFlow<LiveLink.Pairing?> = _livePairing.asStateFlow()
+
+    /** Zaehlt hoch, wenn Adresse/Key von aussen gesetzt wurden - die Textfelder lesen dann neu. */
+    private val _livePairingVersion = MutableStateFlow(0)
+    val livePairingVersion: StateFlow<Int> = _livePairingVersion.asStateFlow()
+
+    /** Text aus QR-Code oder Link pruefen und zum Uebernehmen anbieten. */
+    fun offerLivePairing(text: String?) {
+        val p = LiveLink.parsePairing(text)
+        if (p == null) _message.value = "Das ist kein Live-Link-Code der Fahrrad-Computer-Seite."
+        else _livePairing.value = p
+    }
+
+    fun dismissLivePairing() { _livePairing.value = null }
+
+    fun showMessage(text: String) { _message.value = text }
+
+    /** Adresse und Key speichern, Live-Link einschalten und gleich testen. */
+    fun acceptLivePairing() {
+        val p = _livePairing.value ?: return
+        _livePairing.value = null
+        viewModelScope.launch {
+            store.setLiveLinkUrl(p.url)
+            store.setLiveLinkToken(p.token)
+            store.setLiveLinkViewUrl("")
+            store.setLiveLinkEnabled(true)
+            settings.first { it.liveLinkUrl == p.url && it.liveLinkToken == p.token }
+            _livePairingVersion.value++
+            testLiveLink(p.url, p.token)
+        }
+    }
+
     /** Fragt den Server, ob Adresse und Token stimmen, und merkt sich den Link fuer Zuschauer. */
     fun testLiveLink() {
         val s = settings.value
@@ -544,17 +578,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _message.value = "Bitte zuerst Server-Adresse und Upload-Token eintragen."
             return
         }
-        viewModelScope.launch {
-            val r = withContext(Dispatchers.IO) { LiveLink.post(s.liveLinkUrl, s.liveLinkToken, LiveLink.ping()) }
-            _message.value = r.fold(
-                onSuccess = { json ->
-                    val view = (json["view"] as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
-                    store.setLiveLinkViewUrl(view)
-                    "Verbindung klappt. Link für Zuschauer gespeichert."
-                },
-                onFailure = { "Live-Link: ${it.message ?: it.javaClass.simpleName}" },
-            )
-        }
+        viewModelScope.launch { testLiveLink(s.liveLinkUrl, s.liveLinkToken) }
+    }
+
+    private suspend fun testLiveLink(url: String, token: String) {
+        val r = withContext(Dispatchers.IO) { LiveLink.post(url, token, LiveLink.ping()) }
+        _message.value = r.fold(
+            onSuccess = { json ->
+                val view = (json["view"] as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
+                store.setLiveLinkViewUrl(view)
+                "Verbindung klappt. Link für Zuschauer gespeichert."
+            },
+            onFailure = { "Live-Link: ${it.message ?: it.javaClass.simpleName}" },
+        )
     }
 
     /** Den Link fuer Zuschauer teilen (WhatsApp, SMS ...). */
