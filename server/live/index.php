@@ -6,7 +6,8 @@ require __DIR__ . '/lib.php';
 
 $c = live_config();
 header('Cache-Control: no-store');
-header('Referrer-Policy: no-referrer');
+// Nur die Domain mitschicken (nie Pfad oder ?k=...) - OpenStreetMap sperrt Kacheln ganz ohne Referer.
+header('Referrer-Policy: strict-origin');
 header('X-Robots-Tag: noindex, nofollow');
 
 if (!live_configured($c)) {
