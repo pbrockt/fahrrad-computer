@@ -1,10 +1,11 @@
 <?php
-// Gemeinsame Teile fuer api.php und index.php. Kein MySQL, kein phpMyAdmin:
-// alles liegt in einer SQLite-Datei (PHP-Erweiterung pdo_sqlite, fast ueberall dabei).
+// Gemeinsame Teile fuer api.php und index.php. Keine Datenbank: je Fahrt eine CSV-Datei
+// mit den Punkten und eine kleine JSON-Datei mit Name, Zustand und Zahlen - im Ordner data/.
+// Laeuft so auf jedem Webspace mit PHP, ohne SQLite oder MySQL.
 
 declare(strict_types=1);
 
-const LIVE_VERSION = 1;
+const LIVE_VERSION = 2;
 
 function live_config(): ?array
 {
@@ -18,10 +19,10 @@ function live_config(): ?array
     }
     return $c + [
         'title' => 'Live-Fahrt',
-        'keep_days' => 2,
+        'keep_days' => 5,
         'show_heart_rate' => false,
         'privacy_zones' => [],
-        'database' => __DIR__ . '/data/live.sqlite',
+        'data_dir' => __DIR__ . '/data',
     ];
 }
 
@@ -40,41 +41,51 @@ function live_configured(?array $c): bool
     return $c['upload_token'] !== $c['view_key'];
 }
 
-function live_db(array $c): PDO
+/** Datenordner, angelegt und beschreibbar - sonst eine verstaendliche Ausnahme. */
+function live_dir(array $c): string
 {
-    if (!in_array('sqlite', PDO::getAvailableDrivers(), true)) {
-        throw new RuntimeException('PHP-Erweiterung pdo_sqlite fehlt.');
+    $dir = rtrim((string)$c['data_dir'], '/');
+    if (!is_dir($dir) && !@mkdir($dir, 0755, true)) {
+        throw new RuntimeException('Ordner ' . basename($dir) . '/ lässt sich nicht anlegen.');
     }
-    $dir = dirname($c['database']);
-    if (!is_dir($dir)) {
-        mkdir($dir, 0770, true);
+    if (!is_writable($dir)) {
+        throw new RuntimeException('Ordner ' . basename($dir) . '/ ist nicht beschreibbar (Rechte 755 oder 775 setzen).');
     }
-    $db = new PDO('sqlite:' . $c['database'], null, null, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    ]);
-    $db->exec('PRAGMA journal_mode = WAL');
-    $db->exec('PRAGMA busy_timeout = 5000');
-    $db->exec('CREATE TABLE IF NOT EXISTS rides (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL DEFAULT \'\',
-        state TEXT NOT NULL DEFAULT \'riding\',
-        updated INTEGER NOT NULL,
-        stats TEXT NOT NULL DEFAULT \'{}\',
-        route TEXT
-    )');
-    $db->exec('CREATE TABLE IF NOT EXISTS points (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ride TEXT NOT NULL,
-        t INTEGER NOT NULL,
-        lat REAL NOT NULL,
-        lon REAL NOT NULL,
-        ele REAL,
-        hr INTEGER
-    )');
-    // Gleicher Zeitpunkt zweimal (App sendet nach Netzproblem erneut) -> nur einmal speichern.
-    $db->exec('CREATE UNIQUE INDEX IF NOT EXISTS points_ride_t ON points (ride, t)');
-    return $db;
+    return $dir;
+}
+
+/** Dateiname einer Fahrt - nur harmlose Zeichen, kein "..". */
+function live_ride_file(string $dir, string $ride, string $ext): string
+{
+    return $dir . '/' . preg_replace('/[^A-Za-z0-9_-]/', '_', $ride) . '.' . $ext;
+}
+
+function live_read_meta(string $file): ?array
+{
+    $raw = @file_get_contents($file);
+    $m = $raw === false ? null : json_decode($raw, true);
+    return is_array($m) ? $m : null;
+}
+
+/** Schreibt erst in eine Hilfsdatei und benennt sie dann um - Zuschauer lesen nie eine halbe Datei. */
+function live_write_meta(string $file, array $meta): void
+{
+    $tmp = $file . '.tmp';
+    file_put_contents($tmp, json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
+    rename($tmp, $file);
+}
+
+/** Die zuletzt aktualisierte Fahrt: [Meta, CSV-Datei] oder null. */
+function live_latest_ride(string $dir): ?array
+{
+    $best = null;
+    foreach (glob($dir . '/*.json') ?: [] as $f) {
+        $m = live_read_meta($f);
+        if ($m !== null && ($best === null || ($m['updated'] ?? 0) > ($best[0]['updated'] ?? 0))) {
+            $best = [$m, substr($f, 0, -5) . '.csv'];
+        }
+    }
+    return $best;
 }
 
 /** Entfernung in Metern (Haversine). */
@@ -116,19 +127,34 @@ function live_view_url(array $c): string
     return ($https ? 'https' : 'http') . '://' . $host . $dir . '/?k=' . rawurlencode($c['view_key']);
 }
 
-/** Fahrten loeschen, die laenger als keep_days nicht aktualisiert wurden. */
-function live_cleanup(PDO $db, array $c): void
+/** Fahrten loeschen, die laenger als keep_days nicht aktualisiert wurden (nach Dateidatum). */
+function live_cleanup(string $dir, array $c): void
 {
     $days = (int)$c['keep_days'];
     if ($days <= 0) {
         return;
     }
-    $limit = (int)(microtime(true) * 1000) - $days * 86400 * 1000;
-    $old = $db->prepare('SELECT id FROM rides WHERE updated < ?');
-    $old->execute([$limit]);
-    $ids = $old->fetchAll(PDO::FETCH_COLUMN);
-    foreach ($ids as $id) {
-        $db->prepare('DELETE FROM points WHERE ride = ?')->execute([$id]);
-        $db->prepare('DELETE FROM rides WHERE id = ?')->execute([$id]);
+    $limit = time() - $days * 86400;
+    // Kein GLOB_BRACE - das fehlt auf manchen Systemen.
+    foreach (array_merge(glob($dir . '/*.json') ?: [], glob($dir . '/*.csv') ?: [], glob($dir . '/*.tmp') ?: []) as $f) {
+        if (@filemtime($f) < $limit) {
+            @unlink($f);
+        }
     }
+}
+
+/** Was der Server kann - fuer die Einrichtungs- und Fehlerseite. */
+function live_checks_html(?array $c = null): void
+{
+    $ok = fn(bool $b, string $yes, string $no) => $b ? "$yes ✓" : "<b>$no</b>";
+    $dir = rtrim((string)($c['data_dir'] ?? __DIR__ . '/data'), '/');
+    $rows = [
+        'PHP' => $ok(version_compare(PHP_VERSION, '8.1.0', '>='), PHP_VERSION, PHP_VERSION . ' – mindestens 8.1 nötig'),
+        'Ordner data/ beschreibbar' => $ok(is_dir($dir) && is_writable($dir), 'ja', 'nein – Rechte 755 oder 775 setzen'),
+    ];
+    echo '<h2>Server-Prüfung</h2><table>';
+    foreach ($rows as $k => $v) {
+        echo '<tr><td>' . htmlspecialchars($k) . ':&nbsp;</td><td>' . $v . '</td></tr>';
+    }
+    echo '</table>';
 }

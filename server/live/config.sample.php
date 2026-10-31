@@ -17,7 +17,7 @@ return [
     'title' => 'Live-Fahrt',
 
     // Alte Fahrten nach so vielen Tagen loeschen (Datenschutz). 0 = nie.
-    'keep_days' => 2,
+    'keep_days' => 5,
 
     // Puls auf der Live-Seite zeigen (nur, wenn die App ihn mitsendet).
     'show_heart_rate' => false,
@@ -26,7 +26,8 @@ return [
     // Jeweils [Breite, Laenge, Radius in Metern]. Beispiel: [[50.3512, 7.5981, 400]]
     'privacy_zones' => [],
 
-    // Wo die Datenbank liegt. Am besten ausserhalb des Web-Ordners;
-    // sonst schuetzt data/.htaccess (Apache) - bei nginx siehe README.
-    'database' => __DIR__ . '/data/live.sqlite',
+    // Ordner fuer die Fahrten (je Fahrt eine CSV- und eine JSON-Datei). Muss fuer PHP
+    // beschreibbar sein. Am besten ausserhalb des Web-Ordners; sonst schuetzt
+    // data/.htaccess (Apache) - bei nginx siehe README.
+    'data_dir' => __DIR__ . '/data',
 ];

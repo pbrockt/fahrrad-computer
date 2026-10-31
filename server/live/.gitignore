@@ -1,2 +1,5 @@
 config.php
+data/*.csv
+data/*.json
+data/*.tmp
 data/*.sqlite*

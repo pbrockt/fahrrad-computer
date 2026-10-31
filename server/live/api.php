@@ -6,8 +6,11 @@
 //   {"ride":"2026-10-28_08-30","name":"Phillipp","state":"riding|paused|finished",
 //    "stats":{...}, "points":[{"t":ms,"lat":..,"lon":..,"ele":..,"hr":..}], "route":[[lat,lon],...]}
 //                                                  -> {"ok":true,"stored":<Anzahl>,"view":"..."}
-// GET (die Live-Seite):  api.php?k=<view_key>&since=<letzte Punkt-Id>
+// GET (die Live-Seite):  api.php?k=<view_key>&since=<letzte Punkt-Nummer>
 //                                                  -> neueste Fahrt mit neuen Punkten
+//
+// Gespeichert wird in data/<fahrt>.csv (Zeile: t,lat,lon,ele,hr) und data/<fahrt>.json.
+// Die Punkt-Nummer ist die Zeilennummer in der CSV.
 
 declare(strict_types=1);
 require __DIR__ . '/lib.php';
@@ -18,9 +21,9 @@ if (!live_configured($c)) {
 }
 
 try {
-    $db = live_db($c);
+    $dir = live_dir($c);
 } catch (Throwable $e) {
-    live_json(['ok' => false, 'error' => 'Datenbank: ' . $e->getMessage()], 500);
+    live_json(['ok' => false, 'error' => $e->getMessage()], 500);
 }
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
@@ -49,13 +52,18 @@ if ($method === 'POST') {
     $name = trim((string)($in['name'] ?? ''));
     $name = function_exists('mb_substr') ? mb_substr($name, 0, 40) : substr($name, 0, 40);
     $stats = is_array($in['stats'] ?? null) ? $in['stats'] : [];
-    $now = (int)(microtime(true) * 1000);
 
-    $db->beginTransaction();
-    $db->prepare('INSERT INTO rides (id, name, state, updated, stats) VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET name = excluded.name, state = excluded.state,
-        updated = excluded.updated, stats = excluded.stats')
-        ->execute([$ride, $name, $state, $now, json_encode($stats, JSON_UNESCAPED_UNICODE)]);
+    $metaFile = live_ride_file($dir, $ride, 'json');
+    $csvFile = live_ride_file($dir, $ride, 'csv');
+
+    // Eine Sperre je Fahrt: zwei Uploads gleichzeitig (nach Netzproblem) schreiben nacheinander.
+    $lock = fopen($csvFile, 'a+');
+    if ($lock === false) {
+        live_json(['ok' => false, 'error' => 'Datei lässt sich nicht schreiben.'], 500);
+    }
+    flock($lock, LOCK_EX);
+
+    $meta = live_read_meta($metaFile) ?? ['ride' => $ride, 'lastT' => 0, 'count' => 0, 'route' => null];
 
     // Geplante Route nur einmal schicken lassen (beim Start); hoechstens 3000 Punkte.
     if (is_array($in['route'] ?? null)) {
@@ -65,32 +73,53 @@ if ($method === 'POST') {
                 $route[] = [round((float)$p[0], 5), round((float)$p[1], 5)];
             }
         }
-        $db->prepare('UPDATE rides SET route = ? WHERE id = ?')->execute([json_encode($route), $ride]);
+        $meta['route'] = $route;
     }
 
+    // Nur Punkte nach dem letzten gespeicherten - schickt die App nach einem Netzproblem
+    // dieselben noch einmal, landen sie nicht doppelt in der Datei.
+    $lines = '';
     $stored = 0;
-    $insert = $db->prepare('INSERT OR IGNORE INTO points (ride, t, lat, lon, ele, hr) VALUES (?, ?, ?, ?, ?, ?)');
-    foreach (array_slice(is_array($in['points'] ?? null) ? $in['points'] : [], 0, 2000) as $p) {
-        if (!is_array($p) || !is_numeric($p['lat'] ?? null) || !is_numeric($p['lon'] ?? null) || !is_numeric($p['t'] ?? null)) {
+    $lastT = (int)$meta['lastT'];
+    $pts = is_array($in['points'] ?? null) ? array_filter(array_slice($in['points'], 0, 2000), 'is_array') : [];
+    usort($pts, fn($a, $b) => (int)($a['t'] ?? 0) <=> (int)($b['t'] ?? 0));
+    foreach ($pts as $p) {
+        if (!is_numeric($p['lat'] ?? null) || !is_numeric($p['lon'] ?? null) || !is_numeric($p['t'] ?? null)) {
             continue;
         }
+        $t = (int)$p['t'];
         $lat = (float)$p['lat'];
         $lon = (float)$p['lon'];
-        if (abs($lat) > 90 || abs($lon) > 180 || live_in_privacy_zone($c, $lat, $lon)) {
+        if ($t <= $lastT || abs($lat) > 90 || abs($lon) > 180 || live_in_privacy_zone($c, $lat, $lon)) {
             continue;
         }
-        $insert->execute([
-            $ride, (int)$p['t'], $lat, $lon,
-            is_numeric($p['ele'] ?? null) ? (float)$p['ele'] : null,
-            is_numeric($p['hr'] ?? null) ? (int)$p['hr'] : null,
-        ]);
-        $stored += $insert->rowCount();
+        $ele = is_numeric($p['ele'] ?? null) ? round((float)$p['ele'], 1) : '';
+        $hr = is_numeric($p['hr'] ?? null) ? (int)$p['hr'] : '';
+        $lines .= sprintf("%d,%.6F,%.6F,%s,%s\n", $t, $lat, $lon, $ele, $hr);
+        $lastT = $t;
+        $stored++;
     }
-    $db->commit();
+    if ($lines !== '') {
+        fseek($lock, 0, SEEK_END);
+        fwrite($lock, $lines);
+        fflush($lock);
+    }
+
+    $meta = array_merge($meta, [
+        'name' => $name,
+        'state' => $state,
+        'updated' => (int)(microtime(true) * 1000),
+        'stats' => $stats,
+        'lastT' => $lastT,
+        'count' => (int)$meta['count'] + $stored,
+    ]);
+    live_write_meta($metaFile, $meta);
+    flock($lock, LOCK_UN);
+    fclose($lock);
 
     // Ab und zu aufraeumen statt per Cron.
     if (random_int(1, 20) === 1) {
-        live_cleanup($db, $c);
+        live_cleanup($dir, $c);
     }
     live_json(['ok' => true, 'stored' => $stored, 'view' => live_view_url($c)]);
 }
@@ -101,38 +130,60 @@ if (!hash_equals((string)$c['view_key'], (string)($_GET['k'] ?? ''))) {
     live_json(['ok' => false, 'error' => 'Kein Zugriff.'], 403);
 }
 
-$ride = $db->query('SELECT * FROM rides ORDER BY updated DESC LIMIT 1')->fetch();
-if (!$ride) {
+// Auch aufraeumen, wenn laengere Zeit keine Fahrt hochgeladen wird.
+if (random_int(1, 50) === 1) {
+    live_cleanup($dir, $c);
+}
+
+$latest = live_latest_ride($dir);
+if ($latest === null) {
     live_json(['ok' => true, 'ride' => null]);
 }
+[$meta, $csvFile] = $latest;
 
 $since = max(0, (int)($_GET['since'] ?? 0));
-$q = $db->prepare('SELECT id, t, lat, lon, ele, hr FROM points WHERE ride = ? AND id > ? ORDER BY t LIMIT 20000');
-$q->execute([$ride['id'], $since]);
 $points = [];
 $showHr = (bool)$c['show_heart_rate'];
-foreach ($q as $p) {
-    $points[] = [
-        (int)$p['id'], (int)$p['t'], (float)$p['lat'], (float)$p['lon'],
-        $p['ele'] === null ? null : (float)$p['ele'],
-        $showHr && $p['hr'] !== null ? (int)$p['hr'] : null,
-    ];
+$f = @fopen($csvFile, 'r');
+if ($f !== false) {
+    flock($f, LOCK_SH);
+    $n = 0;
+    while (($line = fgets($f)) !== false) {
+        $n++;
+        if ($n <= $since || !str_ends_with($line, "\n")) {
+            continue;
+        }
+        $v = explode(',', rtrim($line, "\n"));
+        if (count($v) < 5) {
+            continue;
+        }
+        $points[] = [
+            $n, (int)$v[0], (float)$v[1], (float)$v[2],
+            $v[3] === '' ? null : (float)$v[3],
+            $showHr && $v[4] !== '' ? (int)$v[4] : null,
+        ];
+        if (count($points) >= 20000) {
+            break;
+        }
+    }
+    flock($f, LOCK_UN);
+    fclose($f);
 }
 
-$stats = json_decode($ride['stats'], true) ?: [];
+$stats = is_array($meta['stats'] ?? null) ? $meta['stats'] : [];
 if (!$showHr) {
     unset($stats['hr'], $stats['avgHr']);
 }
 
 live_json([
     'ok' => true,
-    'ride' => $ride['id'],
-    'name' => $ride['name'],
-    'state' => $ride['state'],
-    'updated' => (int)$ride['updated'],
+    'ride' => (string)$meta['ride'],
+    'name' => (string)($meta['name'] ?? ''),
+    'state' => (string)($meta['state'] ?? 'riding'),
+    'updated' => (int)($meta['updated'] ?? 0),
     'now' => (int)(microtime(true) * 1000),
     'stats' => $stats,
     'points' => $points,
     // Die Route nur beim ersten Abruf - sie aendert sich waehrend der Fahrt nicht.
-    'route' => $since === 0 && $ride['route'] ? json_decode($ride['route'], true) : null,
+    'route' => $since === 0 ? ($meta['route'] ?? null) : null,
 ]);

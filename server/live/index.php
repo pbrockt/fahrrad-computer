@@ -13,8 +13,6 @@ if (!live_configured($c)) {
     // Erste Einrichtung: Hinweis und zwei frische Zufallswerte zum Kopieren.
     $a = bin2hex(random_bytes(16));
     $b = bin2hex(random_bytes(16));
-    $sqlite = in_array('sqlite', PDO::getAvailableDrivers(), true) ? 'vorhanden ✓' : 'FEHLT – bitte pdo_sqlite aktivieren';
-    $php = PHP_VERSION . (version_compare(PHP_VERSION, '8.1.0', '>=') ? ' ✓' : ' – mindestens 8.1 nötig');
     ?><!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Live-Link einrichten</title>
 <style>body{font:16px/1.5 system-ui,sans-serif;max-width:640px;margin:24px auto;padding:0 16px}code{background:#eee;padding:2px 4px;word-break:break-all}</style>
@@ -26,7 +24,7 @@ if (!live_configured($c)) {
 upload_token: <code><?= $a ?></code><br>view_key: <code><?= $b ?></code></li>
 <li>Seite neu laden.</li>
 </ol>
-<p>PHP: <?= htmlspecialchars($php) ?><br>SQLite (pdo_sqlite): <?= $sqlite ?></p>
+<?php live_checks_html(); ?>
 </html><?php
     exit;
 }
@@ -34,6 +32,21 @@ upload_token: <code><?= $a ?></code><br>view_key: <code><?= $b ?></code></li>
 if (!hash_equals((string)$c['view_key'], (string)($_GET['k'] ?? ''))) {
     http_response_code(403);
     echo '<!doctype html><meta charset="utf-8"><title>Kein Zugriff</title><p style="font-family:sans-serif">Kein Zugriff – bitte den vollständigen Link verwenden.</p>';
+    exit;
+}
+
+// Datenordner gleich hier pruefen - sonst sieht man auf der Seite nur "keine Verbindung".
+try {
+    live_dir($c);
+} catch (Throwable $e) {
+    http_response_code(500);
+    ?><!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Live-Link: Speicher</title>
+<style>body{font:16px/1.5 system-ui,sans-serif;max-width:640px;margin:24px auto;padding:0 16px}code{background:#eee;padding:2px 4px;word-break:break-all}</style>
+<h1>Daten lassen sich nicht speichern</h1>
+<p><code><?= htmlspecialchars($e->getMessage()) ?></code></p>
+<?php live_checks_html($c); ?>
+</html><?php
     exit;
 }
 $title = htmlspecialchars((string)$c['title']);
@@ -126,7 +139,7 @@ async function poll() {
   try {
     const r = await fetch(`api.php?k=${encodeURIComponent(KEY)}&since=${lastId}`, { cache: 'no-store' });
     const d = await r.json();
-    if (!d.ok) throw new Error(d.error || 'Fehler');
+    if (!d.ok) { document.getElementById('foot').textContent = 'Server: ' + (d.error || 'Fehler'); return; }
     render(d);
   } catch (e) {
     document.getElementById('foot').textContent = 'Keine Verbindung zum Server – neuer Versuch gleich.';
