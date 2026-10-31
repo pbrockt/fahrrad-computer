@@ -57,6 +57,8 @@ class FahrradApp : Application() {
     lateinit var trainer: TrainerSession
         private set
     val weather = com.pbrockt.fahrradcomputer.weather.WeatherRepository()
+    /** Live-Uebertragung starten/pausieren/beenden - Kachel und RideService teilen sie. */
+    val live = com.pbrockt.fahrradcomputer.live.LiveControl()
     lateinit var broadcaster: PowerBroadcaster
         private set
 

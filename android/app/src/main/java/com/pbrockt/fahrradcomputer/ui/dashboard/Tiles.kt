@@ -87,6 +87,20 @@ class RideControls(
     val onStop: () -> Unit,
 )
 
+/** Zustand und Knoepfe der Kachel "Live-Übertragung". */
+class LiveUi(
+    val state: com.pbrockt.fahrradcomputer.live.LiveState,
+    /** Adresse und Upload-Key eingetragen? */
+    val configured: Boolean,
+    val info: String?,
+    val lastSentMs: Long?,
+    val onConnect: () -> Unit,
+    val onStart: () -> Unit,
+    val onPause: () -> Unit,
+    val onResume: () -> Unit,
+    val onEnd: () -> Unit,
+)
+
 /** Alles, was eine Kachel zum Zeichnen braucht. */
 class TileData(
     val stats: RideStats,
@@ -120,6 +134,7 @@ class TileData(
     val weightKg: Double = 0.0,
     val ftp: Double = 200.0,
     val phoneBattery: Int? = null,
+    val live: LiveUi? = null,
 ) {
     // Messwerte nur, solange sie frisch sind - sonst zeigt die Kachel "--" statt eines alten Werts.
     val bpm: Int? get() = hr.fresh(now)
@@ -275,6 +290,11 @@ fun Tile(type: TileType, d: TileData, modifier: Modifier, mapId: String = "dash"
         )
         TileType.CLIMB -> ClimbTile(d, modifier)
         TileType.CLIMB_SECTIONS -> SectionsTile(d, modifier)
+        TileType.LIVE_CONTROL -> {
+            val live = d.live
+            if (live == null || !d.interactive) ValueTile("Live-Übertragung", "aus", modifier)
+            else LiveControlTile(live, d.phase, d.now, modifier)
+        }
         TileType.ETA -> {
             val p = d.progress
             val kmh = s.avgSpeedKmh.takeIf { it > 5 } ?: 18.0

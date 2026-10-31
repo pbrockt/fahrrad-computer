@@ -122,6 +122,8 @@ data class AppSettings(
     /** Die ersten 500 m nicht senden - sonst sieht jeder, wo man wohnt. */
     val liveLinkHideStart: Boolean = true,
     val liveLinkHeartRate: Boolean = false,
+    /** Live-Uebertragung mit der Fahrt starten; aus = erst ueber die Kachel. */
+    val liveLinkAutoStart: Boolean = true,
     /** Link fuer Zuschauer, vom Server beim Verbindungstest gemeldet. */
     val liveLinkViewUrl: String = "",
 ) {
@@ -204,6 +206,7 @@ class SettingsStore(private val context: Context) {
         val LIVE_LINK_INTERVAL = intPreferencesKey("live_link_interval")
         val LIVE_LINK_HIDE_START = booleanPreferencesKey("live_link_hide_start")
         val LIVE_LINK_HR = booleanPreferencesKey("live_link_hr")
+        val LIVE_LINK_AUTO = booleanPreferencesKey("live_link_auto")
         val LIVE_LINK_VIEW = stringPreferencesKey("live_link_view")
     }
 
@@ -270,6 +273,7 @@ class SettingsStore(private val context: Context) {
             liveLinkIntervalS = p[Keys.LIVE_LINK_INTERVAL] ?: 30,
             liveLinkHideStart = p[Keys.LIVE_LINK_HIDE_START] ?: true,
             liveLinkHeartRate = p[Keys.LIVE_LINK_HR] ?: false,
+            liveLinkAutoStart = p[Keys.LIVE_LINK_AUTO] ?: true,
             liveLinkViewUrl = p[Keys.LIVE_LINK_VIEW] ?: "",
         )
     }
@@ -341,6 +345,7 @@ class SettingsStore(private val context: Context) {
     suspend fun setLiveLinkInterval(value: Int) = set(Keys.LIVE_LINK_INTERVAL, value.coerceIn(10, 300))
     suspend fun setLiveLinkHideStart(value: Boolean) = set(Keys.LIVE_LINK_HIDE_START, value)
     suspend fun setLiveLinkHeartRate(value: Boolean) = set(Keys.LIVE_LINK_HR, value)
+    suspend fun setLiveLinkAutoStart(value: Boolean) = set(Keys.LIVE_LINK_AUTO, value)
     suspend fun setLiveLinkViewUrl(value: String) = set(Keys.LIVE_LINK_VIEW, value)
     suspend fun setWeatherEnabled(value: Boolean) = set(Keys.WEATHER, value)
     suspend fun setNavOffRouteBeep(value: Boolean) = set(Keys.NAV_OFF_ROUTE_BEEP, value)

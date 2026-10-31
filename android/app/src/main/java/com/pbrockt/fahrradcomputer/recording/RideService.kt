@@ -29,6 +29,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import com.pbrockt.fahrradcomputer.live.LiveLink
+import com.pbrockt.fahrradcomputer.data.AppSettings
+import com.pbrockt.fahrradcomputer.live.LiveState
+import com.pbrockt.fahrradcomputer.live.LiveControl
 import com.pbrockt.fahrradcomputer.live.LiveSms
 import com.pbrockt.fahrradcomputer.routes.TurnAnnouncer
 import com.pbrockt.fahrradcomputer.live.SmsSender
@@ -155,40 +158,78 @@ class RideService : Service() {
 
     // --- Live-Link zum eigenen Server ---
 
-    /** Id der Fahrt auf dem Server; eine neue je Start des Dienstes. */
-    private val liveRide = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"))
+    /** Durchgang, fuer den die Zaehler unten gelten - ein neuer Start setzt sie zurueck. */
+    private var liveRunId: String? = null
     private var liveSentUpTo = 0
     private var liveStartIdx: Int? = null
     private var liveRouteSent = false
     private var liveEverSent = false
+    private var liveFinishedSent = false
 
     /**
-     * Schickt alle [LiveLink]-Sekunden die neuen Punkte. Klappt es nicht (Funkloch), bleiben
-     * sie liegen und gehen beim naechsten Mal mit - der Server ignoriert doppelte.
+     * Sendet alle [LiveLink]-Sekunden, solange die Uebertragung laeuft ([LiveControl]).
+     * Klappt es nicht (Funkloch), bleiben die Punkte liegen und gehen beim naechsten Mal mit -
+     * der Server ignoriert doppelte. In der Live-Pause gehen nur Zustand und Zahlen raus,
+     * Punkte aus der Pause nie.
      */
     private suspend fun liveLinkLoop() {
+        val live = app.live
+        val s0 = app.currentSettings.value
+        // Wie bisher: mit der Fahrt starten - ausser, man startet lieber selbst per Kachel.
+        if (s0.liveLinkEnabled && s0.liveLinkAutoStart && s0.liveLinkUrl.isNotBlank() && s0.liveLinkToken.isNotBlank() &&
+            !live.active
+        ) {
+            live.start(fromStart = true)
+        }
         while (true) {
             val s = app.currentSettings.value
-            if (s.liveLinkEnabled && s.liveLinkUrl.isNotBlank() && s.liveLinkToken.isNotBlank()) {
-                val body = liveBody(finished = false)
-                if (body != null) {
-                    val (json, count) = body
-                    val ok = kotlinx.coroutines.withContext(Dispatchers.IO) {
-                        LiveLink.post(s.liveLinkUrl, s.liveLinkToken, json).isSuccess
+            val run = live.run.value
+            if (s.liveLinkUrl.isNotBlank() && s.liveLinkToken.isNotBlank() && run != null) {
+                if (run.id != liveRunId) startLiveRun(run)
+                when (live.state.value) {
+                    LiveState.LIVE -> liveSend(s, finished = false, withPoints = true)
+                    LiveState.PAUSED -> {
+                        // Was waehrend der Pause aufgezeichnet wird, bleibt auf dem Handy.
+                        liveSentUpTo = maxOf(liveSentUpTo, session.route.value.size)
+                        liveSend(s, finished = false, withPoints = false, paused = true)
                     }
-                    if (ok) {
-                        liveSentUpTo += count
-                        liveRouteSent = true
-                        liveEverSent = true
+                    LiveState.ENDED -> if (!liveFinishedSent && liveEverSent) {
+                        if (liveSend(s, finished = true, withPoints = false)) liveFinishedSent = true
                     }
+                    else -> Unit
                 }
             }
             delay(app.currentSettings.value.liveLinkIntervalS * 1000L)
         }
     }
 
+    private fun startLiveRun(run: LiveControl.Run) {
+        liveRunId = run.id
+        liveRouteSent = false
+        liveEverSent = false
+        liveFinishedSent = false
+        val size = session.route.value.size
+        // Mitten in der Fahrt gestartet: erst ab jetzt senden, die Anfahrt bleibt privat.
+        liveStartIdx = if (run.fromStart && size == 0) null else size
+        liveSentUpTo = liveStartIdx ?: 0
+    }
+
+    private suspend fun liveSend(s: AppSettings, finished: Boolean, withPoints: Boolean, paused: Boolean = false): Boolean {
+        val (json, count) = liveBody(finished, withPoints, paused) ?: return false
+        val r = kotlinx.coroutines.withContext(Dispatchers.IO) { LiveLink.post(s.liveLinkUrl, s.liveLinkToken, json) }
+        if (r.isSuccess) {
+            liveSentUpTo += count
+            liveRouteSent = true
+            liveEverSent = true
+            app.live.sent(System.currentTimeMillis())
+        } else {
+            app.live.sendFailed("Senden klappt gerade nicht – ${r.exceptionOrNull()?.message ?: "kein Netz?"}")
+        }
+        return r.isSuccess
+    }
+
     /** JSON fuer den naechsten Versand und wie viele neue Punkte drin sind; null = noch nichts zu senden. */
-    private fun liveBody(finished: Boolean): Pair<String, Int>? {
+    private fun liveBody(finished: Boolean, withPoints: Boolean = true, paused: Boolean = false): Pair<String, Int>? {
         val s = app.currentSettings.value
         val track = session.route.value
         if (liveStartIdx == null) {
@@ -196,17 +237,17 @@ class RideService : Service() {
         }
         // Noch in der Naehe des Starts: gar nichts senden, auch keine Kennzahlen.
         val from = liveStartIdx ?: return null
-        val begin = maxOf(liveSentUpTo, from)
-        val batch = if (begin < track.size) track.subList(begin, minOf(track.size, begin + 1000)) else emptyList()
         if (liveSentUpTo < from) liveSentUpTo = from
+        val begin = liveSentUpTo
+        val batch = if (withPoints && begin < track.size) track.subList(begin, minOf(track.size, begin + 1000)) else emptyList()
         val stats = session.stats.value
         val state = when {
             finished -> "finished"
-            session.phase.value == RidePhase.PAUSED -> "paused"
+            paused || session.phase.value == RidePhase.PAUSED -> "paused"
             else -> "riding"
         }
         val json = LiveLink.payload(
-            ride = liveRide,
+            ride = liveRunId ?: return null,
             name = s.riderName,
             state = state,
             stats = LiveLink.Stats(
@@ -220,7 +261,7 @@ class RideService : Service() {
                 heartRate = app.sensors.heartRate.value.fresh(System.currentTimeMillis()),
             ),
             points = batch,
-            route = if (liveRouteSent) null else session.activeRoute.value?.points,
+            route = if (liveRouteSent || !withPoints) null else session.activeRoute.value?.points,
             includeHeartRate = s.liveLinkHeartRate,
         )
         return json to batch.size
@@ -229,8 +270,10 @@ class RideService : Service() {
     /** Zum Schluss "angekommen" melden - der Dienst endet gleich, daher in einem eigenen Thread. */
     private fun sendLiveFinished() {
         val s = app.currentSettings.value
-        if (!liveEverSent || !s.liveLinkEnabled || s.liveLinkUrl.isBlank()) return
-        val body = liveBody(finished = true)?.first ?: return
+        val wasActive = app.live.active
+        app.live.reset()
+        if (!liveEverSent || liveFinishedSent || !wasActive || s.liveLinkUrl.isBlank()) return
+        val body = liveBody(finished = true, withPoints = true)?.first ?: return
         Thread { LiveLink.post(s.liveLinkUrl, s.liveLinkToken, body) }.start()
     }
 

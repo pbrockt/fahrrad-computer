@@ -491,6 +491,11 @@ private fun LiveLinkPage(vm: MainViewModel) {
             )
         }
     }
+    SwitchRow(
+        "Mit der Fahrt automatisch starten", s.liveLinkAutoStart,
+        "Aus: erst über die Kachel „Live-Übertragung“ starten – z. B. erst am Treffpunkt. Dort auch pausieren und beenden.",
+        vm::setLiveLinkAutoStart,
+    )
     SwitchRow("Die ersten 500 m nicht senden", s.liveLinkHideStart, "Damit niemand sieht, wo du wohnst.", vm::setLiveLinkHideStart)
     SwitchRow("Puls mitsenden", s.liveLinkHeartRate, null, vm::setLiveLinkHeartRate)
 }

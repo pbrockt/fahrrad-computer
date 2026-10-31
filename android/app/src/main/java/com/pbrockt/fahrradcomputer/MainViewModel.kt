@@ -19,6 +19,7 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import com.pbrockt.fahrradcomputer.health.HealthAvailability
 import com.pbrockt.fahrradcomputer.live.LiveLink
+import com.pbrockt.fahrradcomputer.recording.RidePhase
 import com.pbrockt.fahrradcomputer.live.LiveSms
 import com.pbrockt.fahrradcomputer.live.SmsSender
 import com.pbrockt.fahrradcomputer.maps.MapRegion
@@ -530,7 +531,44 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // --- Live-Link (eigener Server) ---
 
-    fun setLiveLinkEnabled(value: Boolean) = viewModelScope.launch { store.setLiveLinkEnabled(value) }
+    fun setLiveLinkEnabled(value: Boolean) = viewModelScope.launch {
+        store.setLiveLinkEnabled(value)
+        if (!value) live.end()
+    }
+    fun setLiveLinkAutoStart(value: Boolean) = viewModelScope.launch { store.setLiveLinkAutoStart(value) }
+
+    // --- Live-Uebertragung von Hand (Kachel) ---
+
+    val live = fahrradApp.live
+
+    /** Vorab pruefen, ob Server und Key passen - z. B. noch zu Hause im WLAN. */
+    fun connectLive() {
+        val s = settings.value
+        if (s.liveLinkUrl.isBlank() || s.liveLinkToken.isBlank()) return
+        live.connecting()
+        viewModelScope.launch {
+            val r = withContext(Dispatchers.IO) { LiveLink.post(s.liveLinkUrl, s.liveLinkToken, LiveLink.ping()) }
+            r.fold(
+                onSuccess = { json ->
+                    (json["view"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.let { store.setLiveLinkViewUrl(it) }
+                    live.connected(LiveLink.Pairing(s.liveLinkUrl, s.liveLinkToken).host)
+                },
+                onFailure = { live.connectFailed(it.message ?: "Server nicht erreichbar") },
+            )
+        }
+    }
+
+    /** Live starten: vor der Fahrt "scharf" (ab Fahrtbeginn), unterwegs ab jetzt. */
+    fun startLive() {
+        val s = settings.value
+        if (s.liveLinkUrl.isBlank() || s.liveLinkToken.isBlank()) return
+        if (!s.liveLinkEnabled) viewModelScope.launch { store.setLiveLinkEnabled(true) }
+        live.start(fromStart = ride.phase.value == RidePhase.IDLE)
+    }
+
+    fun pauseLive() = live.pause()
+    fun resumeLive() = live.resume()
+    fun endLive() = live.end()
     fun setLiveLinkUrl(value: String) = viewModelScope.launch { store.setLiveLinkUrl(value) }
     fun setLiveLinkToken(value: String) = viewModelScope.launch { store.setLiveLinkToken(value) }
     fun setLiveLinkInterval(value: Int) = viewModelScope.launch { store.setLiveLinkInterval(value) }

@@ -153,6 +153,9 @@ fun DashboardScreen(
         onResume = vm::resumeRide,
         onStop = { confirmStop = true },
     )
+    val liveState by vm.live.state.collectAsStateWithLifecycle()
+    val liveInfo by vm.live.info.collectAsStateWithLifecycle()
+    val liveLastSent by vm.live.lastSentMs.collectAsStateWithLifecycle()
     val data = TileData(
         stats, hr, cadence, power, settings.zones, now, route, phase,
         lastPoint = lastPoint,
@@ -174,6 +177,17 @@ fun DashboardScreen(
         weightKg = settings.weightKg,
         ftp = settings.ftp,
         phoneBattery = remember(now / 60_000) { vm.phoneBattery() },
+        live = LiveUi(
+            state = liveState,
+            configured = settings.liveLinkUrl.isNotBlank() && settings.liveLinkToken.isNotBlank(),
+            info = liveInfo,
+            lastSentMs = liveLastSent,
+            onConnect = vm::connectLive,
+            onStart = vm::startLive,
+            onPause = vm::pauseLive,
+            onResume = vm::resumeLive,
+            onEnd = vm::endLive,
+        ),
     )
 
     val names = listOf("Start") + layout.pages.map { it.name }

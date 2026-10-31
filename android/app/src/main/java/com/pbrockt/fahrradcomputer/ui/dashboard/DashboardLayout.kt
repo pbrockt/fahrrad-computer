@@ -66,6 +66,7 @@ enum class TileType(val label: String, val category: TileCategory) {
     TRAINING_GOAL("Trainingsziel heute", TileCategory.OTHER),
     PHONE_BATTERY("Handy-Akku", TileCategory.OTHER),
     CONTROLS("Start / Pause / Stopp", TileCategory.OTHER),
+    LIVE_CONTROL("Live-Übertragung: verbinden, starten, pausieren, beenden", TileCategory.NAVIGATION),
 }
 
 /** Zeilenhoehe als Anteil am Bildschirm. */
