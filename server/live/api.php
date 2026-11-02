@@ -6,6 +6,9 @@
 //   {"ride":"2026-10-28_08-30","name":"Phillipp","state":"riding|paused|finished",
 //    "stats":{...}, "points":[{"t":ms,"lat":..,"lon":..,"ele":..,"hr":..}]}
 //                                                  -> {"ok":true,"stored":<Anzahl>,"view":"..."}
+//   {"create": true, "password": "<Passwort der Live-Seite>"}   (ohne Upload-Key)
+//                                                  -> neue Fahrt: {"ok":true,"upload":"<Upload-Key>","view":"<Link>"}
+//      So legt die App unterwegs eine Fahrt an, ohne dass man die Webseite braucht.
 // GET (die Live-Seite):  api.php?k=<Zuschauer-Schluessel>&since=<letzte Punkt-Nummer>
 //                                                  -> die Fahrt mit neuen Punkten
 //
@@ -30,17 +33,28 @@ try {
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 if ($method === 'POST') {
+    $raw = file_get_contents('php://input', false, null, 0, 2_000_000);
+    $in = json_decode((string)$raw, true);
+    if (!is_array($in)) {
+        live_json(['ok' => false, 'error' => 'Kein gültiges JSON.'], 400);
+    }
+
+    // Neue Fahrt aus der App - mit dem Passwort der Live-Seite statt eines Upload-Keys.
+    if (!empty($in['create'])) {
+        if (!hash_equals((string)$c['admin_password'], (string)($in['password'] ?? ''))) {
+            sleep(2); // Raten bremsen
+            live_json(['ok' => false, 'error' => 'Passwort der Live-Seite stimmt nicht.'], 401);
+        }
+        $session = live_session_create($dir);
+        live_json(['ok' => true, 'upload' => $session['upload'], 'view' => live_view_url($session), 'version' => LIVE_VERSION]);
+    }
+
     // Manche Server reichen "Authorization" nicht an PHP weiter - daher auch X-Live-Token.
     $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
     $token = str_starts_with($auth, 'Bearer ') ? substr($auth, 7) : ($_SERVER['HTTP_X_LIVE_TOKEN'] ?? '');
     $session = live_session_by_key($dir, $c, trim((string)$token), 'upload');
     if ($session === null) {
         live_json(['ok' => false, 'error' => 'Upload-Key ungültig oder abgelaufen – auf der Live-Seite eine neue Fahrt starten.'], 401);
-    }
-    $raw = file_get_contents('php://input', false, null, 0, 2_000_000);
-    $in = json_decode((string)$raw, true);
-    if (!is_array($in)) {
-        live_json(['ok' => false, 'error' => 'Kein gültiges JSON.'], 400);
     }
     if (!empty($in['ping'])) {
         live_json(['ok' => true, 'view' => live_view_url($session), 'version' => LIVE_VERSION]);

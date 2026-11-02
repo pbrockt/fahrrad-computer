@@ -474,6 +474,20 @@ private fun LiveLinkPage(vm: MainViewModel) {
         TextSetting("Server-Adresse, z. B. https://mein-server.de/live", s.liveLinkUrl, KeyboardType.Uri, vm::setLiveLinkUrl)
         TokenField(s.liveLinkToken, label = "Upload-Key", onChange = vm::setLiveLinkToken)
     }
+    Group("Fahrt vom Handy anlegen")
+    TokenField(s.liveLinkPassword, label = "Passwort der Live-Seite", onChange = vm::setLiveLinkPassword)
+    val creating by vm.liveCreating.collectAsStateWithLifecycle()
+    val focusCreate = androidx.compose.ui.platform.LocalFocusManager.current
+    Button(
+        onClick = { focusCreate.clearFocus(); vm.createLiveRide(share = true) },
+        enabled = !creating && s.liveLinkUrl.isNotBlank() && s.liveLinkPassword.isNotBlank(),
+        modifier = Modifier.fillMaxWidth(),
+    ) { Text(if (creating) "Lege an …" else "Neue Fahrt anlegen & Link teilen") }
+    Hint(
+        "Ohne Webseite: Der Server erzeugt einen neuen Upload-Key und einen neuen Link für Zuschauer. " +
+            "Die App übernimmt den Key, danach öffnet sich „Teilen“ (z. B. WhatsApp). Auch im Menü links unter Live-Übertragung.",
+    )
+    Group("Verbindung")
     val test by vm.liveTest.collectAsStateWithLifecycle()
     val focus = androidx.compose.ui.platform.LocalFocusManager.current
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

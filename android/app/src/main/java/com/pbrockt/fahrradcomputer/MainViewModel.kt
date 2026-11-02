@@ -577,6 +577,51 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun endLive() = live.end()
     fun setLiveLinkUrl(value: String) = viewModelScope.launch { store.setLiveLinkUrl(value) }
     fun setLiveLinkToken(value: String) = viewModelScope.launch { store.setLiveLinkToken(value) }
+    fun setLiveLinkPassword(value: String) = viewModelScope.launch { store.setLiveLinkPassword(value) }
+
+    private val _liveCreating = MutableStateFlow(false)
+    val liveCreating: StateFlow<Boolean> = _liveCreating.asStateFlow()
+
+    /**
+     * Neue Fahrt direkt vom Handy: Server legt Upload-Key und Zuschauer-Link an, die App
+     * uebernimmt beides und oeffnet auf Wunsch gleich "Teilen" (WhatsApp ...).
+     */
+    fun createLiveRide(share: Boolean) {
+        val s = settings.value
+        if (s.liveLinkUrl.isBlank() || s.liveLinkPassword.isBlank()) {
+            _message.value = "Bitte zuerst Server-Adresse und Passwort der Live-Seite eintragen."
+            return
+        }
+        if (live.active) {
+            _message.value = "Erst die laufende Übertragung beenden."
+            return
+        }
+        if (_liveCreating.value) return
+        _liveCreating.value = true
+        viewModelScope.launch {
+            val r = withContext(Dispatchers.IO) {
+                runCatching { LiveLink.createRide(s.liveLinkUrl, s.liveLinkPassword).getOrThrow() }
+            }
+            r.onSuccess { ride ->
+                store.setLiveLinkToken(ride.upload)
+                store.setLiveLinkViewUrl(ride.viewUrl)
+                if (!s.liveLinkEnabled) store.setLiveLinkEnabled(true)
+                // Warten, bis die neuen Werte gelesen sind - die Textfelder zeigen sie dann.
+                settings.first { it.liveLinkToken == ride.upload && it.liveLinkViewUrl == ride.viewUrl }
+                _livePairingVersion.value++
+                live.reset()
+                live.connecting()
+                live.connected(LiveLink.Pairing(s.liveLinkUrl, ride.upload).host)
+                _liveTest.value = LiveTest.Ok("Neue Fahrt angelegt. Link für Zuschauer: ${ride.viewUrl}")
+                if (share) shareLiveLink() else _message.value = "Neue Live-Fahrt angelegt."
+            }.onFailure {
+                val text = "Neue Fahrt klappt nicht: ${it.message ?: it.javaClass.simpleName}"
+                _liveTest.value = LiveTest.Failed(text)
+                _message.value = text
+            }
+            _liveCreating.value = false
+        }
+    }
     fun setLiveLinkInterval(value: Int) = viewModelScope.launch { store.setLiveLinkInterval(value) }
     fun setLiveLinkHideStart(value: Boolean) = viewModelScope.launch { store.setLiveLinkHideStart(value) }
     fun setLiveLinkHeartRate(value: Boolean) = viewModelScope.launch { store.setLiveLinkHeartRate(value) }

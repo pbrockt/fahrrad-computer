@@ -139,6 +139,27 @@ object LiveLink {
 
     fun ping(): String = """{"ping":true}"""
 
+    /** Neue Fahrt auf dem Server: Upload-Key fuer die App und Link fuer Zuschauer. */
+    data class NewRide(val upload: String, val viewUrl: String)
+
+    /**
+     * Legt vom Handy aus eine Fahrt an - wie "Neue Fahrt starten" auf der Live-Seite, nur ohne
+     * Webseite. Braucht das Passwort der Live-Seite. Blockiert - nur im IO-Thread aufrufen.
+     */
+    fun createRide(baseUrl: String, password: String): Result<NewRide> {
+        val body = buildJsonObject { put("create", true); put("password", password) }.toString()
+        return post(baseUrl, "", body).mapCatching { json ->
+            val upload = json["upload"]?.jsonPrimitive?.content.orEmpty()
+            val view = json["view"]?.jsonPrimitive?.content.orEmpty()
+            check(upload.isNotEmpty() && view.isNotEmpty()) { "Server kennt das Anlegen noch nicht – bitte die neue api.php hochladen." }
+            NewRide(upload, view)
+        }.recoverCatching { e ->
+            // Alte api.php: hält "create" fuer einen Upload ohne Key.
+            if (e.message?.contains("Upload-Key") == true) error("Server kennt das Anlegen noch nicht – bitte die neue api.php hochladen.")
+            throw e
+        }
+    }
+
     /**
      * Schickt [body] an den Server. Blockiert - nur im IO-Thread aufrufen. Gibt die Antwort
      * zurueck oder einen Fehler mit verstaendlicher Meldung.

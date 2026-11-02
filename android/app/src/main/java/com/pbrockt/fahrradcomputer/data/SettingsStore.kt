@@ -120,6 +120,8 @@ data class AppSettings(
     val liveLinkEnabled: Boolean = false,
     val liveLinkUrl: String = "",
     val liveLinkToken: String = "",
+    /** Passwort der Live-Seite - damit legt die App selbst neue Fahrten an. */
+    val liveLinkPassword: String = "",
     val liveLinkIntervalS: Int = 30,
     /** Die ersten 500 m nicht senden - sonst sieht jeder, wo man wohnt. */
     val liveLinkHideStart: Boolean = true,
@@ -207,6 +209,7 @@ class SettingsStore(private val context: Context) {
         val LIVE_LINK = booleanPreferencesKey("live_link")
         val LIVE_LINK_URL = stringPreferencesKey("live_link_url")
         val LIVE_LINK_TOKEN = stringPreferencesKey("live_link_token")
+        val LIVE_LINK_PASSWORD = stringPreferencesKey("live_link_password")
         val LIVE_LINK_INTERVAL = intPreferencesKey("live_link_interval")
         val LIVE_LINK_HIDE_START = booleanPreferencesKey("live_link_hide_start")
         val LIVE_LINK_HR = booleanPreferencesKey("live_link_hr")
@@ -275,6 +278,7 @@ class SettingsStore(private val context: Context) {
             liveLinkEnabled = p[Keys.LIVE_LINK] ?: false,
             liveLinkUrl = p[Keys.LIVE_LINK_URL] ?: "",
             liveLinkToken = p[Keys.LIVE_LINK_TOKEN] ?: "",
+            liveLinkPassword = p[Keys.LIVE_LINK_PASSWORD] ?: "",
             liveLinkIntervalS = p[Keys.LIVE_LINK_INTERVAL] ?: 30,
             liveLinkHideStart = p[Keys.LIVE_LINK_HIDE_START] ?: true,
             liveLinkHeartRate = p[Keys.LIVE_LINK_HR] ?: false,
@@ -348,6 +352,7 @@ class SettingsStore(private val context: Context) {
     suspend fun setLiveLinkEnabled(value: Boolean) = set(Keys.LIVE_LINK, value)
     suspend fun setLiveLinkUrl(value: String) = set(Keys.LIVE_LINK_URL, value.trim())
     suspend fun setLiveLinkToken(value: String) = set(Keys.LIVE_LINK_TOKEN, value.trim())
+    suspend fun setLiveLinkPassword(value: String) = set(Keys.LIVE_LINK_PASSWORD, value)
     suspend fun setLiveLinkInterval(value: Int) = set(Keys.LIVE_LINK_INTERVAL, value.coerceIn(10, 300))
     suspend fun setLiveLinkHideStart(value: Boolean) = set(Keys.LIVE_LINK_HIDE_START, value)
     suspend fun setLiveLinkHeartRate(value: Boolean) = set(Keys.LIVE_LINK_HR, value)

@@ -146,12 +146,17 @@ private fun LiveMenuSection(vm: MainViewModel, onSetup: () -> Unit) {
     val info by vm.live.info.collectAsStateWithLifecycle()
     val phase by vm.ride.phase.collectAsStateWithLifecycle()
     val configured = settings.liveLinkUrl.isNotBlank() && settings.liveLinkToken.isNotBlank()
+    // Mit dem Passwort der Live-Seite kann die App selbst eine Fahrt anlegen.
+    val canCreate = settings.liveLinkUrl.isNotBlank() && settings.liveLinkPassword.isNotBlank()
+    val creating by vm.liveCreating.collectAsStateWithLifecycle()
     Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
         Text(
             "LIVE-ÜBERTRAGUNG", color = AppColors.Dim, fontFamily = Condensed, fontWeight = FontWeight.SemiBold,
             fontSize = 15.sp, letterSpacing = 1.sp,
         )
         val status = when {
+            creating -> "lege neue Fahrt an …"
+            !configured && canCreate -> "noch keine Fahrt angelegt"
             !configured -> "noch nicht eingerichtet"
             state == LiveState.LIVE && phase == RidePhase.IDLE -> "startet mit der Fahrt"
             state == LiveState.LIVE -> "läuft"
@@ -173,6 +178,8 @@ private fun LiveMenuSection(vm: MainViewModel, onSetup: () -> Unit) {
                 ) { Text(text, fontFamily = Condensed, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, maxLines = 1) }
             }
             when {
+                creating -> Btn("Lege an …", AppColors.Dim, 1f) {}
+                !configured && canCreate -> Btn("Neue Fahrt & teilen", AppColors.Accent, 1f) { vm.createLiveRide(share = true) }
                 !configured -> Btn("Einrichten", AppColors.Accent, 1f, onSetup)
                 state == LiveState.LIVE -> {
                     Btn("Pausieren", androidx.compose.ui.graphics.Color(0xFFF08A00), 1.4f, vm::pauseLive)
@@ -185,6 +192,18 @@ private fun LiveMenuSection(vm: MainViewModel, onSetup: () -> Unit) {
                 state == LiveState.ENDED -> Btn("Neu starten", AppColors.Accent, 1f, vm::startLive)
                 state == LiveState.CONNECTING -> Btn("Verbinde …", AppColors.Dim, 1f) {}
                 else -> Btn("Live starten", AppColors.Accent, 1f, vm::startLive)
+            }
+        }
+        // Spontan unterwegs: neuen Link anlegen und gleich verschicken - ohne Webseite.
+        if (configured && canCreate && !creating && state != LiveState.LIVE && state != LiveState.PAUSED) {
+            androidx.compose.material3.OutlinedButton(
+                onClick = { vm.createLiveRide(share = true) },
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+            ) { Text("Neuen Link erzeugen & teilen") }
+        }
+        if (configured && settings.liveLinkViewUrl.isNotBlank() && !creating) {
+            androidx.compose.material3.TextButton(onClick = vm::shareLiveLink, modifier = Modifier.fillMaxWidth()) {
+                Text("Aktuellen Link teilen")
             }
         }
     }

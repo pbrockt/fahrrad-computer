@@ -5,7 +5,7 @@
 
 declare(strict_types=1);
 
-const LIVE_VERSION = 4;
+const LIVE_VERSION = 5;
 
 function live_config(): ?array
 {

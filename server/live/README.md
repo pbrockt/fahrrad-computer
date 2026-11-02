@@ -105,4 +105,5 @@ oder Aufruf der Live-Seite, ein Cron-Job ist nicht nötig.
 | Aufruf | Zweck |
 |---|---|
 | `POST api.php` mit `Authorization: Bearer <Upload-Key>` (oder `X-Live-Token`) | `{"ping":true}` oder Fahrtdaten (siehe oben). Antwort `{"ok":true,"view":"…"}` |
+| `POST api.php` mit `{"create":true,"password":"<admin_password>"}` (ohne Key) | Neue Fahrt vom Handy, ohne Webseite. Antwort `{"ok":true,"upload":"<Upload-Key>","view":"<Link>"}` |
 | `GET api.php?k=<Zuschauer-Schlüssel>&since=<n>` | Neueste Fahrt mit allen Punkten nach Zeile `n` der CSV |
