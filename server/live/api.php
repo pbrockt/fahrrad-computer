@@ -4,7 +4,7 @@
 // POST (die App):   Kopfzeile "Authorization: Bearer <Upload-Key>" (oder "X-Live-Token: ...")
 //   {"ping": true}                                 -> {"ok":true,"view":"<Link fuer Zuschauer>"}
 //   {"ride":"2026-10-28_08-30","name":"Phillipp","state":"riding|paused|finished",
-//    "stats":{...}, "points":[{"t":ms,"lat":..,"lon":..,"ele":..,"hr":..}], "route":[[lat,lon],...]}
+//    "stats":{...}, "points":[{"t":ms,"lat":..,"lon":..,"ele":..,"hr":..}]}
 //                                                  -> {"ok":true,"stored":<Anzahl>,"view":"..."}
 // GET (die Live-Seite):  api.php?k=<Zuschauer-Schluessel>&since=<letzte Punkt-Nummer>
 //                                                  -> die Fahrt mit neuen Punkten
@@ -80,16 +80,8 @@ if ($method === 'POST') {
     }
     $meta['rideId'] = $ride;
 
-    // Geplante Route nur einmal schicken lassen (beim Start); hoechstens 3000 Punkte.
-    if (is_array($in['route'] ?? null)) {
-        $route = [];
-        foreach (array_slice($in['route'], 0, 3000) as $p) {
-            if (is_array($p) && isset($p[0], $p[1]) && is_numeric($p[0]) && is_numeric($p[1])) {
-                $route[] = [round((float)$p[0], 5), round((float)$p[1], 5)];
-            }
-        }
-        $meta['route'] = $route;
-    }
+    // Eine geplante Route (aeltere Apps schicken sie noch) wird nicht gespeichert - auf der
+    // Live-Seite zaehlt nur, wo man gerade ist.
 
     // Nur Punkte nach dem letzten gespeicherten - schickt die App nach einem Netzproblem
     // dieselben noch einmal, landen sie nicht doppelt in der Datei.
@@ -199,6 +191,4 @@ live_json([
     'now' => (int)(microtime(true) * 1000),
     'stats' => $stats,
     'points' => $points,
-    // Die Route nur beim ersten Abruf - sie aendert sich waehrend der Fahrt nicht.
-    'route' => $since === 0 ? ($meta['route'] ?? null) : null,
 ]);

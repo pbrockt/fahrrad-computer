@@ -259,12 +259,13 @@ class RideService : Service() {
                 speedKmh = stats.speedKmh,
                 avgKmh = stats.avgSpeedKmh,
                 ascentM = session.climb.value.ascentM,
-                remainingM = session.progress.value?.remainingM,
+                // Die Live-Seite zeigt nur, wo man ist - unabhaengig von einer geplanten Route.
+                remainingM = null,
                 battery = sms.batteryPercent(),
                 heartRate = app.sensors.heartRate.value.fresh(System.currentTimeMillis()),
             ),
             points = batch,
-            route = if (liveRouteSent || !withPoints) null else session.activeRoute.value?.points,
+            route = null,
             includeHeartRate = s.liveLinkHeartRate,
         )
         return json to batch.size

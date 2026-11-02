@@ -474,9 +474,22 @@ private fun LiveLinkPage(vm: MainViewModel) {
         TextSetting("Server-Adresse, z. B. https://mein-server.de/live", s.liveLinkUrl, KeyboardType.Uri, vm::setLiveLinkUrl)
         TokenField(s.liveLinkToken, label = "Upload-Key", onChange = vm::setLiveLinkToken)
     }
+    val test by vm.liveTest.collectAsStateWithLifecycle()
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(onClick = vm::testLiveLink, modifier = Modifier.weight(1f)) { Text("Verbindung testen") }
+        OutlinedButton(
+            // Tastatur zu - sonst verdeckt sie die Antwort.
+            onClick = { focus.clearFocus(); vm.testLiveLink() },
+            enabled = test != MainViewModel.LiveTest.Running,
+            modifier = Modifier.weight(1f),
+        ) { Text(if (test == MainViewModel.LiveTest.Running) "Teste …" else "Verbindung testen") }
         OutlinedButton(onClick = vm::shareLiveLink, enabled = s.liveLinkViewUrl.isNotBlank(), modifier = Modifier.weight(1f)) { Text("Link teilen") }
+    }
+    when (val t = test) {
+        MainViewModel.LiveTest.Running -> Text("Frage den Server …", color = AppColors.Dim)
+        is MainViewModel.LiveTest.Ok -> Text("✓ " + t.text, color = AppColors.Go, fontWeight = FontWeight.SemiBold)
+        is MainViewModel.LiveTest.Failed -> Text("✗ " + t.text, color = AppColors.Stop, fontWeight = FontWeight.SemiBold)
+        null -> Unit
     }
     Hint(
         if (s.liveLinkViewUrl.isBlank()) "Nach dem Test steht hier der Link für Zuschauer."

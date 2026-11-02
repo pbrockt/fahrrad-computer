@@ -105,4 +105,4 @@ oder Aufruf der Live-Seite, ein Cron-Job ist nicht nötig.
 | Aufruf | Zweck |
 |---|---|
 | `POST api.php` mit `Authorization: Bearer <Upload-Key>` (oder `X-Live-Token`) | `{"ping":true}` oder Fahrtdaten (siehe oben). Antwort `{"ok":true,"view":"…"}` |
-| `GET api.php?k=<Zuschauer-Schlüssel>&since=<n>` | Neueste Fahrt mit allen Punkten nach Zeile `n` der CSV; die Route nur bei `since=0` |
+| `GET api.php?k=<Zuschauer-Schlüssel>&since=<n>` | Neueste Fahrt mit allen Punkten nach Zeile `n` der CSV |

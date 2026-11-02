@@ -615,26 +615,42 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Ergebnis von "Verbindung testen" - steht dauerhaft unter dem Knopf, nicht nur als Snackbar. */
+    sealed interface LiveTest {
+        data object Running : LiveTest
+        data class Ok(val text: String) : LiveTest
+        data class Failed(val text: String) : LiveTest
+    }
+
+    private val _liveTest = MutableStateFlow<LiveTest?>(null)
+    val liveTest: StateFlow<LiveTest?> = _liveTest.asStateFlow()
+
     /** Fragt den Server, ob Adresse und Token stimmen, und merkt sich den Link fuer Zuschauer. */
     fun testLiveLink() {
         val s = settings.value
         if (s.liveLinkUrl.isBlank() || s.liveLinkToken.isBlank()) {
-            _message.value = "Bitte zuerst Server-Adresse und Upload-Token eintragen."
+            _liveTest.value = LiveTest.Failed("Bitte zuerst Server-Adresse und Upload-Key eintragen – oder den QR-Code scannen.")
             return
         }
+        if (_liveTest.value == LiveTest.Running) return
         viewModelScope.launch { testLiveLink(s.liveLinkUrl, s.liveLinkToken) }
     }
 
     private suspend fun testLiveLink(url: String, token: String) {
-        val r = withContext(Dispatchers.IO) { LiveLink.post(url, token, LiveLink.ping()) }
-        _message.value = r.fold(
+        _liveTest.value = LiveTest.Running
+        val r = withContext(Dispatchers.IO) {
+            runCatching { LiveLink.post(url, token, LiveLink.ping()).getOrThrow() }
+        }
+        val result = r.fold(
             onSuccess = { json ->
                 val view = (json["view"] as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
                 store.setLiveLinkViewUrl(view)
-                "Verbindung klappt. Link für Zuschauer gespeichert."
+                LiveTest.Ok("Verbindung klappt mit ${LiveLink.Pairing(url, token).host}. Link für Zuschauer gespeichert.")
             },
-            onFailure = { "Live-Link: ${it.message ?: it.javaClass.simpleName}" },
+            onFailure = { LiveTest.Failed("Klappt nicht: ${it.message ?: it.javaClass.simpleName}") },
         )
+        _liveTest.value = result
+        _message.value = (result as? LiveTest.Ok)?.text ?: (result as LiveTest.Failed).text
     }
 
     /** Den Link fuer Zuschauer teilen (WhatsApp, SMS ...). */

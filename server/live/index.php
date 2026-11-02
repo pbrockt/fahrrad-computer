@@ -270,19 +270,21 @@ function live_viewer(array $c): void
   .tile .l small { opacity:.6; font-size:12px; }
   .tile .v { font-size:clamp(30px,9vw,52px); font-weight:600; line-height:1.05; }
   footer { color:var(--dim); font-size:14px; text-align:center; padding:6px 10px 10px; font-family:system-ui,sans-serif; }
+  #mapWrap { flex:1; min-height:240px; position:relative; display:flex; }
+  #follow { position:absolute; right:10px; bottom:24px; z-index:1000; display:none; border:0; border-radius:999px;
+    padding:10px 16px; font:600 17px "Barlow Condensed",system-ui,sans-serif; color:#fff; background:var(--red); box-shadow:0 2px 8px #0005; }
   .me { width:22px; height:22px; border-radius:50%; background:var(--red); border:3px solid #fff; box-shadow:0 0 0 2px var(--red); }
 </style>
 </head>
 <body>
 <header><h1 id="title"><?= $title ?></h1><span id="badge" class="badge none">–</span></header>
-<div id="map"></div>
+<div id="mapWrap"><div id="map"></div><button id="follow" type="button">Zu mir</button></div>
 <div class="grid">
   <div class="tile" style="color:var(--dist)"><div class="l">Distanz <small>km</small></div><div class="v" id="dist">–</div></div>
   <div class="tile"><div class="l">Fahrzeit</div><div class="v" id="time">–</div></div>
   <div class="tile" style="color:var(--speed)"><div class="l">Tempo <small>km/h</small></div><div class="v" id="speed">–</div></div>
   <div class="tile" style="color:var(--speed)"><div class="l">Ø Tempo <small>km/h</small></div><div class="v" id="avg">–</div></div>
   <div class="tile" style="color:var(--alt)"><div class="l">Höhenmeter <small>m</small></div><div class="v" id="asc">–</div></div>
-  <div class="tile" style="color:var(--dist)" id="restTile"><div class="l">Rest <small>km</small></div><div class="v" id="rest">–</div></div>
   <div class="tile" style="color:var(--hr);display:none" id="hrTile"><div class="l">Puls <small>bpm</small></div><div class="v" id="hr">–</div></div>
 </div>
 <footer id="foot">Lädt …</footer>
@@ -302,13 +304,18 @@ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
 map.setView([51.1, 10.4], 6);
 
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-const routeLine = L.polyline([], { color: '#888', weight: 5, opacity: 0.6, dashArray: '8 8' }).addTo(map);
 const trackLine = L.polyline([], { color: css('--red'), weight: 5 }).addTo(map);
 const marker = L.marker([0, 0], { icon: L.divIcon({ className: '', html: '<div class="me"></div>', iconSize: [22, 22], iconAnchor: [11, 11] }) });
 
 let rideId = null, lastId = 0, points = [], fitted = false, userMoved = false;
-// Wer die Karte selbst verschiebt, dem folgt sie nicht mehr.
-map.on('dragstart', () => { userMoved = true; });
+// Die Karte folgt immer der aktuellen Position. Wer sie selbst verschiebt, bekommt
+// den Knopf "Zu mir" - der holt die Position zurueck in die Mitte.
+const followBtn = document.getElementById('follow');
+map.on('dragstart', () => { userMoved = true; followBtn.style.display = 'block'; });
+followBtn.onclick = () => {
+  userMoved = false; followBtn.style.display = 'none';
+  if (points.length) { const p = points[points.length - 1]; map.setView([p[2], p[3]], Math.max(map.getZoom(), 15)); }
+};
 
 const de = (v, d = 1) => (v == null || isNaN(v)) ? '–' : Number(v).toLocaleString('de-DE', { minimumFractionDigits: d, maximumFractionDigits: d });
 function duration(ms) {
@@ -342,12 +349,11 @@ function render(d) {
   // Neue Fahrt begonnen: alles zuruecksetzen.
   if (d.ride !== rideId) {
     const fresh = rideId === null;
-    rideId = d.ride; points = []; fitted = false; routeLine.setLatLngs([]);
-    // War schon eine andere Fahrt geladen, fehlen jetzt Route und Anfang - komplett neu holen.
+    rideId = d.ride; points = []; fitted = false;
+    // War schon eine andere Fahrt geladen, fehlt jetzt der Anfang - komplett neu holen.
     if (!fresh && lastId > 0) { lastId = 0; poll(); return; }
     lastId = 0;
   }
-  if (d.route) routeLine.setLatLngs(d.route);
   for (const p of d.points) { points.push(p); lastId = Math.max(lastId, p[0]); }
   points.sort((a, b) => a[1] - b[1]);
   const latlngs = points.map(p => [p[2], p[3]]);
@@ -355,10 +361,9 @@ function render(d) {
   if (latlngs.length) {
     const last = latlngs[latlngs.length - 1];
     marker.setLatLng(last).addTo(map);
+    // Wo man gerade ist, steht in der Mitte - die geplante Route spielt hier keine Rolle.
     if (!fitted) {
-      const b = L.latLngBounds(latlngs);
-      if (d.route && d.route.length) b.extend(L.latLngBounds(d.route));
-      map.fitBounds(b, { padding: [30, 30], maxZoom: 15 });
+      map.setView(last, 15);
       fitted = true;
     } else if (!userMoved) {
       map.panTo(last);
@@ -377,9 +382,6 @@ function render(d) {
   document.getElementById('speed').textContent = d.state === 'riding' && !stale ? de(s.speedKmh) : '–';
   document.getElementById('avg').textContent = de(s.avgKmh);
   document.getElementById('asc').textContent = de(s.ascentM, 0);
-  const rest = document.getElementById('restTile');
-  if (s.remainingM != null) { rest.style.display = ''; document.getElementById('rest').textContent = de(s.remainingM / 1000, 1); }
-  else rest.style.display = 'none';
   if (s.hr != null) { document.getElementById('hrTile').style.display = ''; document.getElementById('hr').textContent = s.hr; }
 
   const battery = s.battery != null ? ` · Handy-Akku ${s.battery} %` : '';
