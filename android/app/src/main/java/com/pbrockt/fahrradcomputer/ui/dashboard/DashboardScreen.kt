@@ -19,6 +19,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -114,6 +115,20 @@ fun DashboardScreen(
     DisposableEffect(view, keepOn) {
         view.keepScreenOn = keepOn
         onDispose { view.keepScreenOn = false }
+    }
+    // Feste Helligkeit per Knopf oben - nur hier im Tacho, sonst gilt wieder die des Systems.
+    val window = (view.context.findActivity())?.window
+    DisposableEffect(window, settings.screenBrightness) {
+        window?.let { w ->
+            w.attributes = w.attributes.apply { screenBrightness = brightnessOf(settings.screenBrightness) }
+        }
+        onDispose {
+            window?.let { w ->
+                w.attributes = w.attributes.apply {
+                    screenBrightness = android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                }
+            }
+        }
     }
 
     // Nach dem Beenden: Zusammenfassung mit Karte, Zahlen und Zonen statt eines Textfensters.
@@ -221,6 +236,8 @@ fun DashboardScreen(
             sensors = listOf(hr, cadence, power),
             onMenu = onMenu,
             controls = controls.takeIf { !editing },
+            brightness = settings.screenBrightness,
+            onBrightness = vm::nextScreenBrightness,
         )
         // Seitenname als kleines Schild, kurz nach dem Blaettern.
         var banner by remember { mutableStateOf<Int?>(null) }
@@ -422,6 +439,9 @@ internal fun TopBar(
     sensors: List<SensorReading>,
     onMenu: () -> Unit,
     controls: RideControls? = null,
+    /** 0 = System, 1-5 = Stufe; null = kein Helligkeitsknopf. */
+    brightness: Int? = null,
+    onBrightness: () -> Unit = {},
 ) {
     Row(
         Modifier.fillMaxWidth().height(58.dp).padding(end = 8.dp),
@@ -454,6 +474,7 @@ internal fun TopBar(
                 }
             }
         }
+        if (brightness != null) BrightnessButton(brightness, onBrightness)
         // GPS als Punkt mit Schrift: grau = aus, gelb = sucht, gruen = gut.
         val gpsColor = when {
             phase == RidePhase.IDLE -> AppColors.Line
@@ -481,6 +502,36 @@ internal fun TopBar(
             }
         }
     }
+}
+
+/** Sonne mit Stufe: tippen = naechste Helligkeit (A = wie im System). */
+@Composable
+private fun BrightnessButton(level: Int, onClick: () -> Unit) {
+    Box(
+        Modifier.size(44.dp).clip(CircleShape).background(AppColors.Panel).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            Icons.Filled.LightMode,
+            contentDescription = "Helligkeit: " + if (level == 0) "wie im System" else "Stufe $level von 5",
+            tint = if (level == 0) AppColors.Dim else AppColors.Accent,
+            modifier = Modifier.size(30.dp),
+        )
+        Text(
+            if (level == 0) "A" else level.toString(), color = AppColors.Text, fontFamily = Condensed,
+            fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 4.dp, bottom = 1.dp),
+        )
+    }
+}
+
+/** Stufe 1-5 -> Fensterhelligkeit 0,2 ... 1,0; 0 -> wie im System. */
+internal fun brightnessOf(level: Int): Float =
+    if (level in 1..5) level / 5f else android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+
+private tailrec fun android.content.Context.findActivity(): android.app.Activity? = when (this) {
+    is android.app.Activity -> this
+    is android.content.ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 /** Runder Knopf mit Symbol in der Leiste oben. */

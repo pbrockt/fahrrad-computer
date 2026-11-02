@@ -111,6 +111,7 @@ class ScreenshotTest {
                         phase, GpsStatus.OK, layout.pages[page].name,
                         listOf(data(now).hr, data(now).cadence, data(now).power), onMenu = {},
                         controls = RideControls({}, {}, {}, {}),
+                        brightness = 3,
                     )
                     PageView(layout.pages[page], data(now), "test", Modifier.weight(1f).fillMaxWidth())
                     PageDashes(layout.pages.size + 1, page + 1)

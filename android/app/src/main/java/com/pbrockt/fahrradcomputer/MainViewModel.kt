@@ -563,7 +563,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val s = settings.value
         if (s.liveLinkUrl.isBlank() || s.liveLinkToken.isBlank()) return
         if (!s.liveLinkEnabled) viewModelScope.launch { store.setLiveLinkEnabled(true) }
-        live.start(fromStart = ride.phase.value == RidePhase.IDLE)
+        // Von Hand gestartet = man ist am Treffpunkt: sofort senden, nichts ausblenden.
+        live.start(hideStart = false)
+        // Ohne laufende Aufzeichnung gibt es kein GPS - also die Fahrt gleich mitstarten.
+        if (ride.phase.value == RidePhase.IDLE) {
+            ride.start()
+            _message.value = "Live gestartet – die Aufzeichnung läuft mit."
+        }
     }
 
     fun pauseLive() = live.pause()
@@ -675,6 +681,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setClimbAlert(value: Boolean) = viewModelScope.launch { store.setClimbAlert(value) }
     fun setBatteryAlert(value: Boolean) = viewModelScope.launch { store.setBatteryAlert(value) }
     fun setScreenMode(value: com.pbrockt.fahrradcomputer.data.ScreenMode) = viewModelScope.launch { store.setScreenMode(value) }
+
+    /** Knopf oben im Tacho: naechste Helligkeitsstufe (System -> 1 ... 5 -> System). */
+    fun nextScreenBrightness() = viewModelScope.launch {
+        store.setScreenBrightness((settings.value.screenBrightness + 1) % 6)
+    }
 
     /** Lautstaerketasten: -1 = Seite zurueck, +1 = Seite vor. Der Tacho blaettert dann. */
     val pageKeys = kotlinx.coroutines.flow.MutableSharedFlow<Int>(extraBufferCapacity = 4)

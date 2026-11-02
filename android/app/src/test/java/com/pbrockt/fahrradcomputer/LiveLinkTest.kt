@@ -25,6 +25,11 @@ class LiveLinkTest {
         assertEquals("https://x.de/live/api.php", LiveLink.apiUrl("https://x.de/live/"))
         assertEquals("https://x.de/live/api.php", LiveLink.apiUrl(" https://x.de/live "))
         assertEquals("https://x.de/l/api.php", LiveLink.apiUrl("https://x.de/l/api.php"))
+        // Android laesst kein http zu - also immer https.
+        assertEquals("https://x.de/live/api.php", LiveLink.apiUrl("http://x.de/live"))
+        assertEquals("https://x.de/live/api.php", LiveLink.apiUrl("x.de/live"))
+        // Versehentlich den Zuschauer-Link eingetragen
+        assertEquals("https://x.de/live/api.php", LiveLink.apiUrl("https://x.de/live/?k=abcd-1234"))
     }
 
     @Test

@@ -19,8 +19,11 @@ class LiveControl {
     /** Ein Durchgang auf dem Server. Neuer Start = neue [id], die Live-Seite faengt neu an. */
     data class Run(
         val id: String,
-        /** true: ab Fahrtbeginn senden (mit "erste 500 m ausblenden"); false: erst ab jetzt. */
-        val fromStart: Boolean,
+        /**
+         * true: Position erst ab 500 m vom Start (automatisch mit der Fahrt gestartet, Haustuer
+         * bleibt privat). false: von Hand gestartet - sofort ab der aktuellen Position.
+         */
+        val hideStart: Boolean,
     )
 
     private val _state = MutableStateFlow(LiveState.OFF)
@@ -49,8 +52,8 @@ class LiveControl {
         _info.value = message
     }
 
-    fun start(fromStart: Boolean) {
-        _run.value = Run(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss")), fromStart)
+    fun start(hideStart: Boolean) {
+        _run.value = Run(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss")), hideStart)
         _state.value = LiveState.LIVE
         _info.value = null
         _lastSentMs.value = null

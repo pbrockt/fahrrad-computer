@@ -40,7 +40,9 @@ import com.pbrockt.fahrradcomputer.sensors.SensorReading
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -179,7 +181,7 @@ class RideService : Service() {
         if (s0.liveLinkEnabled && s0.liveLinkAutoStart && s0.liveLinkUrl.isNotBlank() && s0.liveLinkToken.isNotBlank() &&
             !live.active
         ) {
-            live.start(fromStart = true)
+            live.start(hideStart = s0.liveLinkHideStart)
         }
         while (true) {
             val s = app.currentSettings.value
@@ -199,7 +201,9 @@ class RideService : Service() {
                     else -> Unit
                 }
             }
-            delay(app.currentSettings.value.liveLinkIntervalS * 1000L)
+            // Bis zur naechsten Runde warten - Start, Pause, Weiter und Beenden gehen aber sofort raus.
+            val wait = app.currentSettings.value.liveLinkIntervalS * 1000L
+            withTimeoutOrNull(wait) { merge(live.state.drop(1), live.run.drop(1)).first() }
         }
     }
 
@@ -209,8 +213,9 @@ class RideService : Service() {
         liveEverSent = false
         liveFinishedSent = false
         val size = session.route.value.size
-        // Mitten in der Fahrt gestartet: erst ab jetzt senden, die Anfahrt bleibt privat.
-        liveStartIdx = if (run.fromStart && size == 0) null else size
+        // Ab dem letzten Punkt senden - die Zuschauer sehen sofort, wo man ist; der Weg
+        // davor bleibt privat. Mit "Start ausblenden" erst ab 500 m vom Startpunkt.
+        liveStartIdx = if (run.hideStart && size == 0) null else (size - 1).coerceAtLeast(0)
         liveSentUpTo = liveStartIdx ?: 0
     }
 
@@ -232,14 +237,12 @@ class RideService : Service() {
     private fun liveBody(finished: Boolean, withPoints: Boolean = true, paused: Boolean = false): Pair<String, Int>? {
         val s = app.currentSettings.value
         val track = session.route.value
-        if (liveStartIdx == null) {
-            liveStartIdx = if (s.liveLinkHideStart) LiveLink.firstVisible(track) else 0
-        }
-        // Noch in der Naehe des Starts: gar nichts senden, auch keine Kennzahlen.
-        val from = liveStartIdx ?: return null
-        if (liveSentUpTo < from) liveSentUpTo = from
+        if (liveStartIdx == null) liveStartIdx = LiveLink.firstVisible(track)
+        // Noch in der Naehe des Starts: Zustand und Zahlen schon senden, die Position noch nicht.
+        val from = liveStartIdx
+        if (from != null && liveSentUpTo < from) liveSentUpTo = from
         val begin = liveSentUpTo
-        val batch = if (withPoints && begin < track.size) track.subList(begin, minOf(track.size, begin + 1000)) else emptyList()
+        val batch = if (from != null && withPoints && begin < track.size) track.subList(begin, minOf(track.size, begin + 1000)) else emptyList()
         val stats = session.stats.value
         val state = when {
             finished -> "finished"

@@ -12,6 +12,10 @@ return [
     // 'upload_token' => '',
     // 'view_key' => '',
 
+    // Optional: feste Adresse dieses Ordners, z. B. 'https://deine-domain.de/live'.
+    // Nur noetig, wenn Links oder QR-Code eine falsche Adresse zeigen.
+    // 'base_url' => '',
+
     // Ueberschrift der Live-Seite.
     'title' => 'Live-Fahrt',
 

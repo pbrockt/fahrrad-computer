@@ -53,9 +53,19 @@ object LiveLink {
         return Pairing(url, token)
     }
 
-    /** "https://server/live" oder ".../live/api.php" -> Adresse von api.php. */
+    /**
+     * "https://server/live" oder ".../live/api.php" -> Adresse von api.php. Ohne https://
+     * davor oder mit http:// wird https:// genommen - unverschluesselt laesst Android nicht zu.
+     */
     fun apiUrl(base: String): String {
-        val b = base.trim()
+        var b = base.trim()
+        // Den Zuschauer-Link eingefuegt? Dann gilt der Ordner davor.
+        b = b.substringBefore('?').substringBefore('#')
+        b = when {
+            b.startsWith("https://", ignoreCase = true) -> b
+            b.startsWith("http://", ignoreCase = true) -> "https://" + b.substring(7)
+            else -> "https://$b"
+        }
         return if (b.endsWith(".php")) b else b.trimEnd('/') + "/api.php"
     }
 
@@ -133,13 +143,31 @@ object LiveLink {
      * Schickt [body] an den Server. Blockiert - nur im IO-Thread aufrufen. Gibt die Antwort
      * zurueck oder einen Fehler mit verstaendlicher Meldung.
      */
-    fun post(baseUrl: String, token: String, body: String): Result<JsonObject> = runCatching {
-        val conn = (URL(apiUrl(baseUrl)).openConnection() as HttpURLConnection).apply {
+    fun post(baseUrl: String, token: String, body: String): Result<JsonObject> {
+        var url = apiUrl(baseUrl)
+        return runCatching {
+            // Weiterleitungen (z. B. auf www. oder https) selbst folgen - sonst wird aus dem
+            // POST ein GET und der Server meldet "Link ungueltig".
+            repeat(MAX_REDIRECTS + 1) {
+                val r = postOnce(url, token, body)
+                if (r.redirect == null) return@runCatching r.json
+                url = r.redirect.replaceFirst(Regex("^http://", RegexOption.IGNORE_CASE), "https://")
+            }
+            error("Zu viele Weiterleitungen – stimmt die Adresse?")
+        }.recoverCatching { throw IllegalStateException(explain(it, url), it) }
+    }
+
+    private class Reply(val json: JsonObject, val redirect: String?)
+
+    private fun postOnce(url: String, token: String, body: String): Reply {
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             doOutput = true
+            instanceFollowRedirects = false
             connectTimeout = 10_000
             readTimeout = 15_000
             setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            setRequestProperty("Accept", "application/json")
             setRequestProperty("Authorization", "Bearer $token")
             // Manche Server geben "Authorization" nicht an PHP weiter - der zweite Weg.
             setRequestProperty("X-Live-Token", token)
@@ -148,18 +176,41 @@ object LiveLink {
         try {
             conn.outputStream.use { it.write(body.toByteArray()) }
             val code = conn.responseCode
+            if (code in 300..399) {
+                val loc = conn.getHeaderField("Location") ?: error("Server leitet weiter, aber ohne Ziel ($code).")
+                return Reply(JsonObject(emptyMap()), URL(URL(url), loc).toString())
+            }
             val text = (if (code in 200..299) conn.inputStream else conn.errorStream)
                 ?.bufferedReader()?.use { it.readText() }.orEmpty()
             val json = runCatching { Json.parseToJsonElement(text).jsonObject }.getOrNull()
             val error = json?.get("error")?.jsonPrimitive?.content
             check(code in 200..299 && json?.get("ok") == JsonPrimitive(true)) {
-                error ?: "Server antwortet mit $code" + if (json == null) " (kein JSON – stimmt die Adresse?)" else ""
+                error ?: when {
+                    code == 404 -> "api.php nicht gefunden – Adresse prüfen (z. B. https://deine-domain.de/live)."
+                    json == null -> "Server antwortet mit $code, aber nicht wie erwartet – stimmt die Adresse?"
+                    else -> "Server antwortet mit $code."
+                }
             }
-            json!!
+            return Reply(json!!, null)
         } finally {
             conn.disconnect()
         }
     }
+
+    /** Fehler in Worte fassen, die man ohne Netzwerk-Wissen versteht. */
+    private fun explain(e: Throwable, url: String): String {
+        val host = runCatching { URL(url).host }.getOrNull() ?: url
+        return when (e) {
+            is java.net.UnknownHostException -> "Server „$host“ nicht gefunden – Adresse prüfen oder kein Internet."
+            is java.net.SocketTimeoutException -> "„$host“ antwortet nicht (Zeitüberschreitung)."
+            is java.net.ConnectException -> "Keine Verbindung zu „$host“."
+            is javax.net.ssl.SSLException -> "Sichere Verbindung (https) zu „$host“ klappt nicht – ist SSL für die Domain eingeschaltet?"
+            is java.net.MalformedURLException -> "Die Server-Adresse ist ungültig."
+            else -> e.message ?: e.javaClass.simpleName
+        }
+    }
+
+    private const val MAX_REDIRECTS = 3
 
     private fun round1(v: Double) = (v * 10).roundToInt() / 10.0
     private fun round6(v: Double) = Math.round(v * 1e6) / 1e6

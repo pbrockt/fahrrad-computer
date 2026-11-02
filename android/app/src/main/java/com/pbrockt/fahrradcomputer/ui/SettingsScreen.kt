@@ -387,7 +387,7 @@ private fun DashboardPage(vm: MainViewModel) {
             FilterChip(selected = s.screenMode == m, onClick = { vm.setScreenMode(m) }, label = { Text(m.label) })
         }
     }
-    Hint(s.screenMode.hint + " Die Aufzeichnung läuft immer weiter; ist das Display an, steht der Tacho auch über dem Sperrbildschirm.")
+    Hint(s.screenMode.hint + " Die Aufzeichnung läuft immer weiter; ist das Display an, steht der Tacho auch über dem Sperrbildschirm. Helligkeit: Sonnen-Knopf oben im Tacho – A = wie im System, 1 bis 5 = feste Stufe.")
     SwitchRow("Warnen, wenn der Akku knapp wird", s.batteryAlert, "Handy bei 20 % und 10 %, Sensoren unter 15 % – einmal mit Ton und Vibration.", vm::setBatteryAlert)
     SwitchRow("Auto-Pause", s.autoPause, "Nach 5 s Stillstand pausieren, beim Losrollen weiter. Eine Pause per Knopf bleibt, bis du weiterdrückst.", vm::setAutoPause)
     SwitchRow("Seiten mit Lautstärketasten blättern", s.volumeKeyPaging, "Nur während der Fahrt: leiser = nächste Seite, lauter = vorige.", vm::setVolumeKeyPaging)

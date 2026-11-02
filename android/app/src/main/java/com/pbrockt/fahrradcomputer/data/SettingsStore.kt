@@ -93,7 +93,9 @@ data class AppSettings(
     /** Warnen, wenn Handy- oder Sensor-Akku waehrend der Fahrt knapp wird. */
     val batteryAlert: Boolean = true,
     /** Display waehrend der Fahrt: immer an, oder aus und bei Hinweisen kurz an. */
-    val screenMode: ScreenMode = ScreenMode.WAKE_ON_ALERT,
+    val screenMode: ScreenMode = ScreenMode.ALWAYS_ON,
+    /** Helligkeit auf dem Tacho: 0 = wie im System, 1-5 = feste Stufe (20 % ... 100 %). */
+    val screenBrightness: Int = 0,
     /** Doppeltippen auf den Tacho laesst die Klingel ertoenen. */
     val bellOnDoubleTap: Boolean = true,
     val dashboard: DashboardLayout = DashboardLayout.DEFAULT,
@@ -188,7 +190,9 @@ class SettingsStore(private val context: Context) {
         val VOLUME_KEY_PAGING = booleanPreferencesKey("volume_key_paging")
         val CLIMB_ALERT = booleanPreferencesKey("climb_alert")
         val BATTERY_ALERT = booleanPreferencesKey("battery_alert")
-        val SCREEN_MODE = stringPreferencesKey("screen_mode")
+        // Neuer Schluessel seit 0.1.2: alle starten einmal mit "Immer an".
+        val SCREEN_MODE = stringPreferencesKey("screen_mode_2")
+        val SCREEN_BRIGHTNESS = intPreferencesKey("screen_brightness")
         val BELL = booleanPreferencesKey("bell_double_tap")
         val DASHBOARD = stringPreferencesKey("dashboard_layout")
         val REST_HR = intPreferencesKey("rest_hr")
@@ -251,7 +255,8 @@ class SettingsStore(private val context: Context) {
             volumeKeyPaging = p[Keys.VOLUME_KEY_PAGING] ?: true,
             climbAlert = p[Keys.CLIMB_ALERT] ?: true,
             batteryAlert = p[Keys.BATTERY_ALERT] ?: true,
-            screenMode = p[Keys.SCREEN_MODE]?.let { runCatching { ScreenMode.valueOf(it) }.getOrNull() } ?: ScreenMode.WAKE_ON_ALERT,
+            screenMode = p[Keys.SCREEN_MODE]?.let { runCatching { ScreenMode.valueOf(it) }.getOrNull() } ?: ScreenMode.ALWAYS_ON,
+            screenBrightness = (p[Keys.SCREEN_BRIGHTNESS] ?: 0).coerceIn(0, 5),
             bellOnDoubleTap = p[Keys.BELL] ?: true,
             themeMode = p[Keys.THEME]
                 ?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
@@ -328,6 +333,7 @@ class SettingsStore(private val context: Context) {
     suspend fun setClimbAlert(value: Boolean) = set(Keys.CLIMB_ALERT, value)
     suspend fun setBatteryAlert(value: Boolean) = set(Keys.BATTERY_ALERT, value)
     suspend fun setScreenMode(value: ScreenMode) = set(Keys.SCREEN_MODE, value.name)
+    suspend fun setScreenBrightness(value: Int) = set(Keys.SCREEN_BRIGHTNESS, value.coerceIn(0, 5))
     suspend fun setBellOnDoubleTap(value: Boolean) = set(Keys.BELL, value)
     suspend fun setCoachGoal(value: String) = set(Keys.COACH_GOAL, value.take(300))
     suspend fun setCoachNotes(value: String) = set(Keys.COACH_NOTES, value.take(500))

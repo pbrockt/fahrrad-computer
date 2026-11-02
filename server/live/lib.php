@@ -5,7 +5,7 @@
 
 declare(strict_types=1);
 
-const LIVE_VERSION = 3;
+const LIVE_VERSION = 4;
 
 function live_config(): ?array
 {
@@ -148,14 +148,30 @@ function live_session_delete(string $dir, string $id): void
     }
 }
 
-/** Basis-Adresse dieses Ordners, z. B. https://domain.de/live */
+/**
+ * Basis-Adresse dieses Ordners, z. B. https://domain.de/live. Steht 'base_url' in
+ * config.php, gilt die. Sonst https, sobald der Webspace es irgendwie meldet - hinter
+ * dem Proxy mancher Anbieter fehlt $_SERVER['HTTPS'], und ein http-Link im QR-Code
+ * wuerde von Android abgelehnt.
+ */
 function live_base_url(): string
 {
-    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-        || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
+    $c = live_config();
+    $fixed = trim((string)($c['base_url'] ?? ''));
+    if ($fixed !== '' && !str_starts_with($fixed, 'HIER-')) {
+        return rtrim($fixed, '/');
+    }
+    $https = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
+        || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https'
+        || strtolower((string)($_SERVER['HTTP_X_FORWARDED_SSL'] ?? '')) === 'on'
+        || strtolower((string)($_SERVER['REQUEST_SCHEME'] ?? '')) === 'https'
+        || (string)($_SERVER['SERVER_PORT'] ?? '') === '443'
+        || !empty($_SERVER['HTTP_X_HTTPS']);
     $host = $_SERVER['HTTP_X_FORWARDED_HOST'] ?? $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $host = preg_replace('/[^A-Za-z0-9.:\[\]-]/', '', explode(',', (string)$host)[0]);
     $dir = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
-    return ($https ? 'https' : 'http') . '://' . $host . $dir;
+    // Ohne erkennbares https trotzdem https: die App kann nur verschluesselt senden.
+    return ($https || ($c['force_https'] ?? true) ? 'https' : 'http') . '://' . $host . $dir;
 }
 
 /** Link fuer Zuschauer einer Fahrt. */
